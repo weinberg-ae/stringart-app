@@ -1,0 +1,1545 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>String Art 40 ס״מ — V10</title>
+<style>
+  :root{
+    --bg:#111827; --panel:#0b1220; --card:#0f172a; --text:#e5e7eb; --muted:#9ca3af;
+    --accent:#22c55e; --accent2:#60a5fa; --danger:#fb7185; --line:#1f2937;
+  }
+  html,body{height:100%; margin:0; font-family: system-ui,-apple-system,"Segoe UI",Arial; background:var(--bg); color:var(--text);}
+  .wrap{max-width:1080px; margin:0 auto; padding:14px 14px 24px;}
+  .title{font-weight:900; font-size:18px; margin:6px 0 12px;}
+  .grid{display:grid; grid-template-columns: 1fr; gap:12px;}
+  @media(min-width: 860px){ .grid{grid-template-columns: 440px 1fr;} }
+  .card{background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:16px; padding:12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  button, .btn{
+    appearance:none; border:1px solid var(--line); background:rgba(255,255,255,0.04);
+    color:var(--text); padding:10px 12px; border-radius:12px; font-weight:800; cursor:pointer;
+  }
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .btnPrimary{background:rgba(96,165,250,0.18); border-color:rgba(96,165,250,0.35);}
+  .btnGood{background:rgba(34,197,94,0.18); border-color:rgba(34,197,94,0.35);}
+  .btnWarn{background:rgba(251,113,133,0.14); border-color:rgba(251,113,133,0.35);}
+  .mini{padding:8px 10px; border-radius:12px; font-weight:800;}
+  .label{font-size:13px; color:var(--muted); margin-top:10px; margin-bottom:6px;}
+  input[type="range"]{width:100%;}
+  select, input[type="file"]{
+    width:100%; box-sizing:border-box; padding:10px 12px; border-radius:12px;
+    border:1px solid var(--line); background:rgba(255,255,255,0.03); color:var(--text);
+  }
+  .status{margin-top:10px; color:var(--muted); font-size:13px; min-height:18px;}
+  .bar{height:8px; border-radius:999px; background:rgba(255,255,255,0.08); overflow:hidden; margin-top:8px;}
+  .bar>div{height:100%; width:0%; background:linear-gradient(90deg, rgba(34,197,94,0.8), rgba(96,165,250,0.8));}
+  .canvasWrap{display:flex; flex-direction:column; gap:10px; align-items:center;}
+  canvas{width:min(92vw, 680px); max-width:680px; aspect-ratio:1/1; border-radius:16px; border:1px solid var(--line); background:#fff;}
+  .tabs{display:flex; gap:8px; justify-content:center; flex-wrap:wrap;}
+  .pill{padding:8px 10px; border-radius:999px;}
+  .pill.on{border-color:rgba(96,165,250,0.55); background:rgba(96,165,250,0.22);}
+  .help{font-size:12px; color:var(--muted); line-height:1.4;}
+  .stepBox{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+  .stepTitle{font-weight:900;}
+  .kbd{border:1px solid var(--line); padding:4px 8px; border-radius:10px; color:var(--muted); font-size:12px;}
+  .camModal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); padding:16px; z-index:50;}
+  .camModal.on{display:flex;}
+  .camCard{width:min(92vw, 520px); background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px;}
+  video{width:100%; border-radius:12px; background:#000;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">String Art — מדריך לקנבס 40 ס״מ (V10.2.1a+meters2)</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">1) מקור תמונה</div>
+      <div class="row">
+        <button id="btnCam" class="mini btnPrimary">📷 מצלמה</button>
+        <label class="btn mini" for="fileIn">📁 העלאת תמונה</label>
+        <input id="fileIn" type="file" accept="image/*" style="display:none"/>
+        <button id="btnDemo" class="mini">🧪 טען דוגמה</button>
+        <button id="btnReset" class="mini">↺ איפוס</button>
+      </div>
+
+      <div class="label">2) לוח פיזי</div>
+      <div class="row">
+        <button id="shapeCircle" class="mini btnPrimary">עיגול — קוטר 40 ס״מ</button>
+        <button id="shapeSquare" class="mini">ריבוע — 40×40 ס״מ</button>
+      </div>
+
+      <div class="label">צבע קנבס</div>
+      <div class="row">
+        <button id="bgWhite" class="mini btnPrimary">לבן</button>
+        <button id="bgWood" class="mini">עץ בהיר</button>
+      </div>
+
+      <div class="label">מספר מסמרים <span id="vNails" style="font-weight:900">(240)</span></div>
+      <input id="sNails" type="range" min="100" max="460" step="5" value="240"/>
+
+      <div class="label">מספור מסמרים על הסכמה</div>
+      <select id="nailNumbering">
+        <option value="10" selected>כל 10 מסמרים</option>
+        <option value="1">מספור מלא</option>
+        <option value="0">ללא מספור</option>
+      </select>
+
+      <div class="label">מספר חוטים (קווים) <span id="vLines" style="font-weight:900">(2600)</span></div>
+      <input id="sLines" type="range" min="500" max="6000" step="100" value="2600"/>
+
+      <div class="label">3) איכות דימוי (אוטומטי כברירת מחדל)</div>
+      <div class="label">אוטו-קונטרסט (Black/White)</div>
+      <input id="sAuto" type="range" min="0" max="100" step="1" value="88"/>
+      <div class="label">גאמה (Midtones)</div>
+      <input id="sGamma" type="range" min="40" max="200" step="1" value="120"/>
+      <div class="label">טשטוש עדין</div>
+      <input id="sBlur" type="range" min="0" max="6" step="1" value="2"/>
+      <div class="help">טיפ: לרוב מספיק להזיז “גאמה”. אם יש כתמים — העלי טשטוש.</div>
+
+      <div class="label">מצב צבעי חוט</div>
+      <select id="colorMode">
+        <option value="black" selected>חוט שחור בלבד</option>
+        <option value="black_yellow">שחור + צהוב</option>
+        <option value="black_white_yellow">שחור + לבן + צהוב</option>
+      </select>
+
+      <div class="label">סוג חוט</div>
+      <select id="threadType">
+        <option value="thin" selected>חוט רגיל (דק)</option>
+        <option value="thick">חוט גומי עבה ~2.5 מ״מ</option>
+      </select>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="btnFocus" class="mini btnGood">🎯 הסרת רקע / מיקוד אובייקט (ON)</button>
+      </div>
+
+      <div class="label">אוטומציה</div>
+      <select id="presetSel">
+        <option value="portrait" selected>פורטרט (מומלץ)</option>
+        <option value="object">אובייקט / מוצר</option>
+        <option value="logo">לוגו / אייקון</option>
+      </select>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="btnAuto" class="mini btnGood">✨ שפר אוטומטית</button>
+        <button id="btnProcess" class="mini">עבד תמונה</button>
+        <button id="btnRevert" class="mini">↩ חזרה למקור</button>
+        <button id="btnGuide" class="mini btnPrimary">צור מדריך</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="btnApplyRec" class="mini" disabled>החל כמות קווים מומלצת</button>
+      </div>
+
+      <div class="status" id="status">מוכן. טעני תמונה כדי להתחיל. הקנבס מופיע כברירת מחדל.</div>
+      <div id="threadMetersCard" style="margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.10);">
+        <div style="font-weight:900; margin-bottom:4px;">אורך חוט משוער</div>
+        <div id="threadMeters" style="font-size:18px; font-weight:900;">— מטר</div>
+        <div class="help" style="margin:6px 0 0 0;">מבוסס על הסכמה שנוצרה ועל גודל פיזי 40 ס״מ (או מה שהוגדר).</div>
+      </div>
+
+      <div class="bar"><div id="barFill"></div></div>
+
+      <div class="label">4) תפעול מדריך</div>
+      <div class="stepBox">
+        <div class="stepTitle">שלב <span id="stepNum">0</span>: <span id="stepText">—</span></div>
+        <div class="row">
+          <button id="btnPrev" class="mini" disabled>קודם</button>
+          <button id="btnNext" class="mini" disabled>הבא</button>
+        </div>
+      </div>
+      <div class="help" style="margin-top:6px;">
+        ניווט: החלקה ימינה/שמאלה, או <span class="kbd">←</span>/<span class="kbd">→</span>.
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnHighlightNext" class="mini btnGood" disabled>הדגש רק את הקו הבא</button>
+        <button id="btnSim" class="mini btnPrimary" disabled>▶ הדמיה</button>
+        <button id="btnSimReset" class="mini" disabled>↺ התחלה</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="btnPlus50" class="mini" disabled>+50</button>
+        <button id="btnPlus100" class="mini" disabled>+100</button>
+        <button id="btnPlus500" class="mini" disabled>+500</button>
+        <button id="btnMinus100" class="mini" disabled>-100</button>
+        <button id="btnMinus500" class="mini" disabled>-500</button>
+      </div>
+
+      <div class="label">5) ייצוא</div>
+      <div class="row">
+        <button id="btnZIP" class="mini btnGood" disabled>⬇ הורד הכל ZIP</button>
+        <button id="btnCSV" class="mini" disabled>CSV הוראות + צבע</button>
+        <button id="btnSVG" class="mini" disabled>SVG וקטורי (עם צבעים)</button>
+        <button id="btnPNG" class="mini" disabled>PNG תוצאה</button>
+        <button id="btnSaveProject" class="mini">💾 שמור Project JSON</button>
+        <button id="btnLoadProject" class="mini">📂 טען Project JSON</button>
+        <input id="projectFile" type="file" accept=".json,application/json" style="display:none;" />
+      </div>
+    </div>
+
+    <div class="card canvasWrap">
+      <div class="tabs">
+        <button id="tabSource" class="pill on">תצוגת מקור</button>
+        <button id="tabProcessed" class="pill">תצוגת "מה המחשב רואה"</button>
+        <button id="tabResult" class="pill">תצוגת תוצאה סופית</button>
+      </div>
+      <canvas id="cnv" width="600" height="600"></canvas>
+      <div class="help" style="text-align:center">
+        בתצוגת תוצאה סופית רואים סימולציה של איך החוטים ייראו על הקנבס (לבן/עץ בהיר).
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Camera modal -->
+<div class="camModal" id="camModal">
+  <div class="camCard">
+    <div class="row" style="justify-content:space-between">
+      <div style="font-weight:900">מצלמה</div>
+      <button id="btnCamClose" class="mini">סגור</button>
+    </div>
+    <video id="camVideo" autoplay playsinline muted></video>
+    <div class="row" style="margin-top:10px;">
+      <button id="btnSnap" class="mini btnGood">צלם</button>
+      <button id="btnFlip" class="mini">החלף מצלמה</button>
+    </div>
+    <div class="status" id="camStatus"></div>
+  </div>
+</div>
+
+<script>
+/* ========= Helpers ========= */
+const el = (id)=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function setStatus(t){ el("status").textContent=t; }
+function setCamStatus(t){ el("camStatus").textContent=t; }
+function downloadText(name, text){
+  const blob=new Blob([text],{type:"text/plain;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+function downloadBlob(name, blob){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+/* ========= State ========= */
+const CANVAS=600;
+
+const EXPORT_CM_DEFAULT = 40;
+const EXPORT_DPI_DEFAULT = 300;
+const ctx = el("cnv").getContext("2d");
+ctx.imageSmoothingEnabled=true;
+
+let viewMode="source";    // source | processed | result
+let frameShape="circle";  // circle | square
+let canvasBg="white";     // white | wood
+let focusOn=true;         // background suppression
+let colorMode="black";    // black | black_yellow | black_white_yellow
+let threadType="thin";    // thin | thick
+let nailNumberStep=10;    // 10 | 1 | 0
+let simPlaying=false;
+let simTimer=null;
+
+let srcImg=null;
+let srcCanvas=document.createElement("canvas"); srcCanvas.width=CANVAS; srcCanvas.height=CANVAS;
+let procCanvas=document.createElement("canvas"); procCanvas.width=CANVAS; procCanvas.height=CANVAS;
+let resCanvas=document.createElement("canvas");  resCanvas.width=CANVAS; resCanvas.height=CANVAS;
+
+let imgPixels=null;   // processed grayscale for preview
+let basePixels=null;  // immutable grayscale used for color classification
+let workPixels=null;  // mutable grayscale used for greedy selection + erase
+
+let nails=[];       // {x,y}
+let lineCache=[];   // [i][j] -> Uint32Array of pixel indexes
+let steps=[];       // [{from,to,color}]
+let path=[0];
+let isRunning=false;
+let isFinished=false;
+let stepIndex=0;
+let highlightOnlyNext=false;
+
+const COLORS = {
+  black:(a)=>`rgba(0,0,0,${a})`,
+  yellow:(a)=>`rgba(234,179,8,${a})`,
+  white:(a)=>`rgba(255,255,255,${a})`,
+  blue:(a)=>`rgba(96,165,250,${a})`
+};
+
+/* ========= Default render (always show canvas) ========= */
+function drawPlaceholder(){
+  ctx.clearRect(0,0,CANVAS,CANVAS);
+  ctx.fillStyle = (canvasBg==="wood") ? "#e9d9c3" : "#ffffff";
+  ctx.fillRect(0,0,CANVAS,CANVAS);
+
+  // frame
+  ctx.strokeStyle="rgba(0,0,0,0.85)";
+  ctx.lineWidth=3;
+  if(frameShape==="circle"){
+    ctx.beginPath();
+    ctx.arc(CANVAS/2, CANVAS/2, CANVAS/2-12, 0, Math.PI*2);
+    ctx.stroke();
+  }else{
+    ctx.strokeRect(12,12,CANVAS-24,CANVAS-24);
+  }
+
+  // nails
+  ctx.fillStyle="rgba(0,0,0,0.9)";
+  for(const n of nails){
+    ctx.beginPath(); ctx.arc(n.x,n.y,2,0,Math.PI*2); ctx.fill();
+  }
+
+  // hint
+  ctx.fillStyle="rgba(0,0,0,0.65)";
+  ctx.font="700 18px system-ui";
+  ctx.textAlign="center";
+  ctx.fillText("טעני תמונה או צלמי כדי להתחיל", CANVAS/2, 42);
+}
+
+/* ========= Nails ========= */
+function buildNails(count){
+  nails=[];
+  const m=12;
+  if(frameShape==="circle"){
+    const r = CANVAS/2 - m;
+    for(let i=0;i<count;i++){
+      const t = (Math.PI*2)*i/count - Math.PI/2;
+      nails.push({x: CANVAS/2 + r*Math.cos(t), y: CANVAS/2 + r*Math.sin(t)});
+    }
+  }else{
+    const pad=m;
+    const side = CANVAS - 2*pad;
+    for(let i=0;i<count;i++){
+      const u = i/count;
+      const p = u*4;
+      const seg = Math.floor(p);
+      const f = p - seg;
+      let x=pad, y=pad;
+      if(seg===0){ x=pad + f*side; y=pad; }
+      else if(seg===1){ x=pad+side; y=pad + f*side; }
+      else if(seg===2){ x=pad + (1-f)*side; y=pad+side; }
+      else { x=pad; y=pad + (1-f)*side; }
+      nails.push({x,y});
+    }
+  }
+}
+
+/* ========= Image loading & processing ========= */
+function drawImageToSquare(img){
+  const c = srcCanvas, cctx=c.getContext("2d");
+  cctx.clearRect(0,0,CANVAS,CANVAS);
+  const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+  const s=Math.min(iw,ih);
+  const sx=(iw-s)/2, sy=(ih-s)/2;
+  cctx.drawImage(img, sx, sy, s, s, 0, 0, CANVAS, CANVAS);
+}
+function applyMaskToCtx(cctx){
+  if(frameShape==="circle"){
+    cctx.save();
+    cctx.globalCompositeOperation="destination-in";
+    cctx.beginPath();
+    cctx.arc(CANVAS/2, CANVAS/2, CANVAS/2-12, 0, Math.PI*2);
+    cctx.fill();
+    cctx.restore();
+  }
+}
+
+function computeRecommendedLines(){
+  if(!imgPixels) return null;
+  let sum=0;
+  const N = CANVAS*CANVAS;
+  for(let i=0;i<N;i+=4){ sum += (255 - imgPixels[i]); } // sample
+  const avg = sum / (N/4);
+  const nailsCount = parseInt(el("sNails").value,10);
+  let rec = Math.round(clamp(1.5*(900 + (avg/255)*2600 + (nailsCount-200)*3), 800, 6000)/100)*100;
+  if (canvasBg==="wood") rec = Math.round(rec*1.08/100)*100;
+  if (threadType==="thick") rec = Math.round(rec*0.55/100)*100;
+  return clamp(rec, 500, 6000);
+}
+
+function processImage(applyAutoPreset=true){
+  if(!srcImg){ drawPlaceholder(); return; }
+
+  if(applyAutoPreset){
+    const preset=el("presetSel").value;
+    if(preset==="portrait"){ el("sAuto").value=0; el("sGamma").value=145; el("sBlur").value=0; }
+    else if(preset==="object"){ el("sAuto").value=0; el("sGamma").value=135; el("sBlur").value=0; }
+    else { el("sAuto").value=0; el("sGamma").value=125; el("sBlur").value=0; }
+  }
+
+  drawImageToSquare(srcImg);
+
+  const pctx = procCanvas.getContext("2d");
+  pctx.clearRect(0,0,CANVAS,CANVAS);
+  pctx.drawImage(srcCanvas,0,0);
+
+  let imgData = pctx.getImageData(0,0,CANVAS,CANVAS);
+  const d = imgData.data;
+
+  // grayscale
+  for(let i=0;i<d.length;i+=4){
+    const r=d[i], g=d[i+1], b=d[i+2];
+    const y=(0.2126*r + 0.7152*g + 0.0722*b);
+    d[i]=d[i+1]=d[i+2]=y;
+  }
+
+  // blur (optional): simple separable box blur on grayscale in-place
+  const blur = parseInt(el("sBlur").value,10);
+  if(blur>0){
+    const w=CANVAS, h=CANVAS;
+    const tmp = new Uint8ClampedArray(d.length);
+    const rad = blur;
+    // horizontal
+    for(let y=0;y<h;y++){
+      let sum=0, count=0;
+      for(let x=-rad;x<=rad;x++){
+        const xx=clamp(x,0,w-1);
+        sum += d[(y*w+xx)*4]; count++;
+      }
+      for(let x=0;x<w;x++){
+        const idx=(y*w+x)*4;
+        const val = sum/count;
+        tmp[idx]=tmp[idx+1]=tmp[idx+2]=val; tmp[idx+3]=255;
+        const x1=x-rad, x2=x+rad+1;
+        const xx1=clamp(x1,0,w-1), xx2=clamp(x2,0,w-1);
+        sum += d[(y*w+xx2)*4] - d[(y*w+xx1)*4];
+      }
+    }
+    // vertical
+    for(let x=0;x<w;x++){
+      let sum=0, count=0;
+      for(let y=-rad;y<=rad;y++){
+        const yy=clamp(y,0,h-1);
+        sum += tmp[(yy*w+x)*4]; count++;
+      }
+      for(let y=0;y<h;y++){
+        const idx=(y*w+x)*4;
+        const val = sum/count;
+        d[idx]=d[idx+1]=d[idx+2]=val; d[idx+3]=255;
+        const y1=y-rad, y2=y+rad+1;
+        const yy1=clamp(y1,0,h-1), yy2=clamp(y2,0,h-1);
+        sum += tmp[(yy2*w+x)*4] - tmp[(yy1*w+x)*4];
+      }
+    }
+  }
+
+  // auto contrast + tone curve (stronger than gamma alone)
+  const auto = parseInt(el("sAuto").value,10)/100;
+  const gamma = parseInt(el("sGamma").value,10)/100;
+
+  const hist = new Uint32Array(256);
+  for(let i=0;i<d.length;i+=4) hist[d[i]]++;
+  const total = CANVAS*CANVAS;
+
+  // clip more when auto is low, clip less when auto is high
+  const clip = Math.floor(total * (0.002 + (1-auto)*0.02));
+  let cum=0, lo=0, hi=255;
+  for(let v=0;v<256;v++){ cum+=hist[v]; if(cum>clip){ lo=v; break; } }
+  cum=0;
+  for(let v=255;v>=0;v--){ cum+=hist[v]; if(cum>clip){ hi=v; break; } }
+  if(hi<=lo){ lo=0; hi=255; }
+
+  const invRange = 1/(hi-lo);
+
+  // sigmoid contrast (reduces muddy midtones)
+  const k = 6 + auto*10; // 6..16
+  for(let i=0;i<d.length;i+=4){
+    let v=(d[i]-lo)*invRange;
+    v=clamp(v,0,1);
+
+    // gamma for midtones
+    v=Math.pow(v, 1/gamma);
+
+    // S-curve for contrast
+    v = 1/(1+Math.exp(-k*(v-0.5)));
+
+    const out=Math.round(v*255);
+    d[i]=d[i+1]=d[i+2]=out;
+  }
+
+  pctx.putImageData(imgData,0,0);
+  applyMaskToCtx(pctx);
+
+  const outData = pctx.getImageData(0,0,CANVAS,CANVAS).data;
+  imgPixels = new Uint8ClampedArray(CANVAS*CANVAS);
+  for(let i=0,j=0;i<outData.length;i+=4,j++) imgPixels[j]=outData[i];
+
+  // Focus / background suppression (stronger, removes background more reliably)
+  if (focusOn){
+    // 1) Build a small mask (downsample) and flood-fill from borders to detect background
+    const step = 2; // 600 -> 300
+    const w2 = Math.floor(CANVAS/step), h2 = Math.floor(CANVAS/step);
+    const g = new Uint8ClampedArray(w2*h2);
+    for(let y=0;y<h2;y++){
+      for(let x=0;x<w2;x++){
+        g[y*w2+x] = imgPixels[(y*step)*CANVAS + (x*step)];
+      }
+    }
+
+    // edge magnitude (simple)
+    const edge = new Uint8ClampedArray(w2*h2);
+    for(let y=1;y<h2-1;y++){
+      for(let x=1;x<w2-1;x++){
+        const c = g[y*w2+x];
+        const dx = Math.abs(g[y*w2+x+1]-g[y*w2+x-1]);
+        const dy = Math.abs(g[(y+1)*w2+x]-g[(y-1)*w2+x]);
+        edge[y*w2+x] = Math.min(255, dx+dy);
+      }
+    }
+
+    // dynamic thresholds: bright background + low edge
+    // percentile-ish: estimate bg brightness from border samples
+    let sumB=0, cntB=0;
+    for(let x=0;x<w2;x++){
+      sumB += g[x] + g[(h2-1)*w2+x]; cntB += 2;
+    }
+    for(let y=0;y<h2;y++){
+      sumB += g[y*w2] + g[y*w2+(w2-1)]; cntB += 2;
+    }
+    const borderAvg = sumB / Math.max(1,cntB);
+    const thrBright = clamp(Math.round(borderAvg - 8), 185, 245);
+    const thrEdge = 20;
+
+    const bg = new Uint8Array(w2*h2);
+    const qx = new Int16Array(w2*h2);
+    const qy = new Int16Array(w2*h2);
+    let qs=0, qe=0;
+
+    function tryPush(x,y){
+      const id=y*w2+x;
+      if(bg[id]) return;
+      // for circle/square frame: treat outside as background (implicitly)
+      if(g[id] >= thrBright && edge[id] <= thrEdge){
+        bg[id]=1;
+        qx[qe]=x; qy[qe]=y; qe++;
+      }
+    }
+
+    // seed from borders
+    for(let x=0;x<w2;x++){ tryPush(x,0); tryPush(x,h2-1); }
+    for(let y=0;y<h2;y++){ tryPush(0,y); tryPush(w2-1,y); }
+
+    // flood fill 4-neighbors
+    while(qs<qe){
+      const x=qx[qs], y=qy[qs]; qs++;
+      if(x>0) tryPush(x-1,y);
+      if(x<w2-1) tryPush(x+1,y);
+      if(y>0) tryPush(x,y-1);
+      if(y<h2-1) tryPush(x,y+1);
+    }
+
+    // 2) Feather mask a bit (one pass)
+    const bg2 = new Uint8Array(bg);
+    for(let y=1;y<h2-1;y++){
+      for(let x=1;x<w2-1;x++){
+        const id=y*w2+x;
+        if(bg[id]) continue;
+        const n = bg[id-1]+bg[id+1]+bg[id-w2]+bg[id+w2];
+        if(n>=3) bg2[id]=1;
+      }
+    }
+
+    // 3) Apply to full res: whiten detected background + radial soft focus
+    const cx=CANVAS/2, cy=CANVAS/2;
+    const r=(CANVAS/2-12);
+    for(let y=0;y<CANVAS;y++){
+      const yy = Math.floor(y/step);
+      for(let x=0;x<CANVAS;x++){
+        const xx = Math.floor(x/step);
+        const id2 = yy*w2+xx;
+        const id = y*CANVAS+x;
+
+        // radial weighting keeps center more intact
+        const dx=x-cx, dy=y-cy;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        const t=clamp(dist/(r*0.92), 0, 1);
+        const w=1-Math.pow(t, 1.35);
+
+        if(bg2[id2]){
+          // strong background removal
+          imgPixels[id] = 255;
+        }else{
+          // gentle edge whitening so background doesn't compete
+          imgPixels[id] = Math.round(imgPixels[id] + (255-imgPixels[id])*(1-w)*0.25);
+        }
+      }
+    }
+  }
+
+  basePixels = new Uint8ClampedArray(imgPixels);
+  workPixels = new Uint8ClampedArray(imgPixels);
+
+  const rec = computeRecommendedLines();
+  if(rec){
+    el("btnApplyRec").disabled=false;
+    el("btnApplyRec").textContent = `החל כמות קווים מומלצת (${rec})`;
+    el("btnApplyRec").dataset.rec = String(rec);
+  }
+  render();
+}
+
+function render(){
+  if(viewMode==="source"){
+    ctx.clearRect(0,0,CANVAS,CANVAS);
+    ctx.fillStyle=(canvasBg==="wood")?"#e9d9c3":"#fff";
+    ctx.fillRect(0,0,CANVAS,CANVAS);
+    if(srcImg){
+      ctx.drawImage(srcCanvas,0,0);
+      drawFrameAndNails(ctx,true);
+    }else{
+      drawPlaceholder();
+    }
+  } else if(viewMode==="processed"){
+    ctx.clearRect(0,0,CANVAS,CANVAS);
+    ctx.fillStyle=(canvasBg==="wood")?"#e9d9c3":"#fff";
+    ctx.fillRect(0,0,CANVAS,CANVAS);
+    if(srcImg){
+      ctx.drawImage(procCanvas,0,0);
+      drawFrameAndNails(ctx,true);
+    }else{
+      drawPlaceholder();
+    }
+  } else {
+    drawResult();
+  }
+}
+
+function drawFrameAndNails(c, drawNails=true){
+  c.save();
+  c.strokeStyle="rgba(0,0,0,0.95)";
+  c.lineWidth=3;
+  const pad=12;
+  const r=CANVAS/2-pad;
+
+  if(frameShape==="circle"){
+    c.beginPath(); c.arc(CANVAS/2,CANVAS/2,r,0,Math.PI*2); c.stroke();
+  }else{
+    c.strokeRect(pad,pad,CANVAS-2*pad,CANVAS-2*pad);
+  }
+
+  if(drawNails){
+    // nails
+    c.fillStyle="rgba(0,0,0,0.92)";
+    for(const n of nails){ c.beginPath(); c.arc(n.x,n.y,2,0,Math.PI*2); c.fill(); }
+
+    // numbering (every N nails), always include nail 1
+    const step = nailNumberStep|0;
+    if(step>0){
+      c.font = "700 12px system-ui";
+      c.fillStyle="rgba(17,24,39,0.85)";
+      c.strokeStyle="rgba(255,255,255,0.85)";
+      c.lineWidth=3;
+      c.textAlign="center";
+      c.textBaseline="middle";
+
+      for(let i=0;i<nails.length;i++){
+        const idx=i+1;
+        if(idx!==1 && (idx-1)%step!==0) continue;
+
+        const p=nails[i];
+
+        // outward direction for label
+        let ox=0, oy=0;
+        if(frameShape==="circle"){
+          const dx=p.x-CANVAS/2, dy=p.y-CANVAS/2;
+          const len=Math.hypot(dx,dy)||1;
+          ox=dx/len; oy=dy/len;
+        }else{
+          // square: push away from nearest side
+          const dL = p.x-pad, dR = (CANVAS-pad)-p.x, dT = p.y-pad, dB = (CANVAS-pad)-p.y;
+          const m = Math.min(dL,dR,dT,dB);
+          if(m===dL) { ox=-1; oy=0; }
+          else if(m===dR) { ox=1; oy=0; }
+          else if(m===dT) { ox=0; oy=-1; }
+          else { ox=0; oy=1; }
+        }
+
+        const lx = p.x + ox*18;
+        const ly = p.y + oy*18;
+
+        // leader line
+        c.save();
+        c.strokeStyle="rgba(0,0,0,0.25)";
+        c.lineWidth=1;
+        c.beginPath();
+        c.moveTo(p.x+ox*6, p.y+oy*6);
+        c.lineTo(p.x+ox*14, p.y+oy*14);
+        c.stroke();
+        c.restore();
+
+        // anchor marker for nail 1
+        if(idx===1){
+          c.save();
+          c.strokeStyle="rgba(96,165,250,0.95)";
+          c.lineWidth=3;
+          c.beginPath();
+          c.arc(p.x,p.y,5,0,Math.PI*2);
+          c.stroke();
+          c.restore();
+        }
+
+        // outline then fill for readability
+        c.strokeText(String(idx), lx, ly);
+        c.fillText(String(idx), lx, ly);
+      }
+
+      // small legend
+      c.save();
+      c.font="800 12px system-ui";
+      c.fillStyle="rgba(17,24,39,0.75)";
+      c.textAlign="right";
+      c.fillText("מסמר 1 למעלה • ספירה עם כיוון השעון", CANVAS-14, 18);
+      c.restore();
+    }
+  }
+  c.restore();
+}
+
+/* ========= Algorithm ========= */
+function resetAlgorithmStateOnly(){
+  isRunning=false; isFinished=false;
+  steps=[]; path=[0];
+  stepIndex=0; highlightOnlyNext=false;
+  el("stepNum").textContent="0";
+  el("stepText").textContent="—";
+  el("btnPrev").disabled=true;
+  el("btnNext").disabled=true;
+  el("btnHighlightNext").disabled=true;
+  el("btnPlus50").disabled=true;
+  el("btnPlus100").disabled=true;
+  el("btnPlus500").disabled=true;
+  el("btnMinus100").disabled=true;
+  el("btnMinus500").disabled=true;
+  el("btnCSV").disabled=true;
+  el("btnSVG").disabled=true;
+  el("btnPNG").disabled=true;
+  el("btnZIP").disabled=true;
+  el("btnSim").disabled=true;
+  el("btnSimReset").disabled=true;
+  stopSimulation();
+  el("barFill").style.width="0%";
+}
+
+function precomputeLines(){
+  const count=nails.length;
+  lineCache = Array.from({length:count}, ()=>Array(count));
+  const w=CANVAS, h=CANVAS;
+  for(let i=0;i<count;i++){
+    for(let j=0;j<count;j++){
+      if(i===j) continue;
+      const p1=nails[i], p2=nails[j];
+      let x0=Math.round(p1.x), y0=Math.round(p1.y);
+      let x1=Math.round(p2.x), y1=Math.round(p2.y);
+      let dx=Math.abs(x1-x0), dy=Math.abs(y1-y0);
+      let sx=(x0<x1)?1:-1, sy=(y0<y1)?1:-1;
+      let err=dx-dy;
+      const pix=[];
+      while(true){
+        if(x0>=0&&x0<w&&y0>=0&&y0<h) pix.push(y0*w+x0);
+        if(x0===x1 && y0===y1) break;
+        const e2=2*err;
+        if(e2>-dy){ err-=dy; x0+=sx; }
+        if(e2< dx){ err+=dx; y0+=sy; }
+      }
+      lineCache[i][j]=new Uint32Array(pix);
+    }
+  }
+}
+
+function classifyColor(currentPin, nextPin){
+  if(!basePixels) return "black";
+  const line=lineCache[currentPin][nextPin];
+  let sum=0;
+  for(let k=0;k<line.length;k++) sum += (255 - basePixels[line[k]]);
+  const dark = sum/line.length; // 0..255
+
+  if(colorMode==="black") return "black";
+  if(colorMode==="black_yellow") return (dark >= 135) ? "black" : "yellow";
+
+  // black_white_yellow
+  if(dark >= 150) return "black";
+  if(dark >= 85)  return "yellow";
+  return "white";
+}
+
+function stepOnce(){
+  const maxLines=parseInt(el("sLines").value,10);
+  if(path.length>=maxLines) return;
+
+  const count=nails.length;
+  const currentPin=path[path.length-1];
+  let bestPin=-1, bestScore=-1;
+
+  const minJumpBase=Math.max(8, Math.floor(count*0.06));
+  const minJump=(threadType==="thick")?Math.max(minJumpBase, Math.floor(count*0.10)):minJumpBase;
+
+  for(let offset=minJump; offset<count-minJump; offset++){
+    const nextPin=(currentPin+offset)%count;
+    if(path.length>1 && nextPin===path[path.length-2]) continue;
+
+    const line=lineCache[currentPin][nextPin];
+    if(!line) continue;
+
+    let sum=0;
+    for(let k=0;k<line.length;k++) sum += (255 - workPixels[line[k]]);
+    let score = sum/line.length;
+
+    // prefer detail: penalize long lines (more for thick thread)
+    const p1=nails[currentPin], p2=nails[nextPin];
+    const dist = Math.hypot(p1.x-p2.x, p1.y-p2.y);
+    score -= dist * ((threadType==="thick") ? 0.018 : 0.010);
+
+    if(score>bestScore){ bestScore=score; bestPin=nextPin; }
+  }
+
+  if(bestPin!==-1){
+    const color=classifyColor(currentPin, bestPin);
+    steps.push({from: currentPin, to: bestPin, color});
+    path.push(bestPin);
+
+    const fade=(threadType==="thick")?60:32;
+    const line=lineCache[currentPin][bestPin];
+    for(let k=0;k<line.length;k++){
+      const idx=line[k];
+      workPixels[idx]=Math.min(255, workPixels[idx]+fade);
+    }
+  }else{
+    const rnd=Math.floor(Math.random()*count);
+    steps.push({from: currentPin, to: rnd, color:"black"});
+    path.push(rnd);
+  }
+}
+
+function runBatch(stepsCount){
+  for(let i=0;i<stepsCount;i++) stepOnce();
+  const maxLines=parseInt(el("sLines").value,10);
+  const pct=Math.floor((Math.min(maxLines, path.length)/maxLines)*100);
+  el("barFill").style.width=pct+"%";
+  setStatus(`יוצר… ${path.length} קווים (${pct}%)`);
+
+  if(path.length>=maxLines){
+    isRunning=false; isFinished=true;
+    setStatus("הסתיים! עברי ל'תצוגת תוצאה סופית' כדי לראות סימולציה. אפשר גם להוריד קבצים.");
+    el("btnPrev").disabled=false;
+    el("btnNext").disabled=false;
+    el("btnHighlightNext").disabled=false;
+    el("btnPlus50").disabled=false;
+    el("btnPlus100").disabled=false;
+    el("btnPlus500").disabled=false;
+    el("btnMinus100").disabled=false;
+    el("btnMinus500").disabled=false;
+    el("btnCSV").disabled=false;
+    el("btnSVG").disabled=false;
+    el("btnPNG").disabled=false;
+    el("btnZIP").disabled=false;
+    updateThreadMetersUI();
+    el("btnSim").disabled=false;
+    el("btnSimReset").disabled=false;
+  }
+  updateStepUI();
+  render();
+}
+
+function updateStepUI(){
+  if(steps.length===0) return;
+  stepIndex = clamp(stepIndex, 0, Math.max(0, steps.length-1));
+  el("stepNum").textContent=String(stepIndex+1);
+  const s=steps[stepIndex];
+  el("stepText").textContent = `מסמר ${s.from+1} → מסמר ${s.to+1} (${s.color==="black"?"שחור":s.color==="yellow"?"צהוב":"לבן"})`;
+  el("btnPrev").disabled = (stepIndex===0);
+  el("btnNext").disabled = (stepIndex>=steps.length-1);
+}
+
+function drawResult(){
+  const rctx=resCanvas.getContext("2d");
+  rctx.clearRect(0,0,CANVAS,CANVAS);
+  rctx.fillStyle=(canvasBg==="wood")?"#e9d9c3":"#fff";
+  rctx.fillRect(0,0,CANVAS,CANVAS);
+
+  const baseAlpha=(threadType==="thick")?0.22:0.17;
+  const baseWidth=(threadType==="thick")?1.8:0.6;
+
+  const limit = (simPlaying || (isFinished && highlightOnlyNext)) ? (stepIndex+1) : steps.length;
+  for(let i=0;i<limit;i++){
+    const s=steps[i];
+    const p1=nails[s.from], p2=nails[s.to];
+
+    // highlight-only-next: show ONLY current line
+    if(isFinished && highlightOnlyNext && i!==stepIndex) continue;
+
+    let a=baseAlpha;
+    if(s.color==="white") a*=0.9;
+    if(s.color==="yellow") a*=0.95;
+
+    rctx.save();
+    rctx.lineWidth=baseWidth;
+    rctx.strokeStyle=COLORS[s.color](a);
+    rctx.beginPath(); rctx.moveTo(p1.x,p1.y); rctx.lineTo(p2.x,p2.y); rctx.stroke();
+    rctx.restore();
+  }
+
+  if(isFinished && highlightOnlyNext && steps.length){
+    const s=steps[stepIndex];
+    const p1=nails[s.from], p2=nails[s.to];
+    rctx.save();
+    rctx.lineWidth=(threadType==="thick")?3.2:2.2;
+    rctx.strokeStyle=COLORS.blue(0.95);
+    rctx.beginPath(); rctx.moveTo(p1.x,p1.y); rctx.lineTo(p2.x,p2.y); rctx.stroke();
+    rctx.restore();
+  }
+
+  drawFrameAndNails(rctx,true);
+
+  ctx.clearRect(0,0,CANVAS,CANVAS);
+  ctx.drawImage(resCanvas,0,0);
+}
+
+/* ========= Exports ========= */
+async function exportZIP(){
+  if(!window.JSZip){ setStatus("JSZip לא נטען (בדקי חיבור לאינטרנט)."); return; }
+  if(steps.length===0){ setStatus("אין תוצאה לייצוא עדיין."); return; }
+
+  // Build CSV
+  let csv="Step,FromPin,ToPin,Color\n";
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    csv += `${i+1},${s.from+1},${s.to+1},${s.color}\n`;
+  }
+
+  // Build SVG (reuse exportSVG logic but as string)
+  const pad=12;
+  const r = CANVAS/2-pad;
+  let svg=`<?xml version="1.0" standalone="no"?>\n<svg width="${(getExportCm()*10)}mm" height="${(getExportCm()*10)}mm" viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg">\n`;
+  svg += `<rect width="100%" height="100%" fill="${canvasBg==="wood" ? "#e9d9c3" : "white"}"/>\n`;
+  if(frameShape==="circle"){
+    svg += `<circle cx="${CANVAS/2}" cy="${CANVAS/2}" r="${r}" stroke="black" stroke-width="2" fill="none"/>\n`;
+  }else{
+    svg += `<rect x="${pad}" y="${pad}" width="${CANVAS-2*pad}" height="${CANVAS-2*pad}" stroke="black" stroke-width="2" fill="none"/>\n`;
+  }
+
+  const baseAlpha=(threadType==="thick")?0.22:0.17;
+  const baseWidth=(threadType==="thick")?1.8:0.6;
+
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    const p1=nails[s.from], p2=nails[s.to];
+    let a=baseAlpha; if(s.color==="white") a*=0.9; if(s.color==="yellow") a*=0.95;
+    const stroke = s.color==="black" ? `rgba(0,0,0,${a})` : s.color==="yellow" ? `rgba(234,179,8,${a})` : `rgba(255,255,255,${a})`;
+    svg += `<line x1="${p1.x.toFixed(2)}" y1="${p1.y.toFixed(2)}" x2="${p2.x.toFixed(2)}" y2="${p2.y.toFixed(2)}" stroke="${stroke}" stroke-width="${baseWidth}" stroke-linecap="round"/>\n`;
+  }
+  svg += `</svg>`;
+
+  // Render PNG from result canvas
+  const prev=viewMode;
+  viewMode="result"; render(); viewMode=prev;
+
+    const {cm,dpi} = getExportPx();
+  const pngBlob = await renderPrintPNGBlob();
+
+  // Zip
+  const zip=new JSZip();
+  zip.file("instructions.csv", csv);
+  zip.file("vector_art.svg", svg);
+  if(pngBlob) if(pngBlob) zip.file(`stringart_${cm}cm_${dpi}dpi.png`, pngBlob);
+
+  const outBlob = await zip.generateAsync({type:"blob"});
+  downloadBlob("stringart_output.zip", outBlob);
+  setStatus("ה-ZIP ירד: CSV + SVG + PNG");
+}
+
+function computeThreadMeters(){
+  if(!path || path.length<2) return 0;
+  const sizeCmEl = document.getElementById("sizeCm");
+  const sizeCm = sizeCmEl ? parseFloat(sizeCmEl.value||"40") : 40;
+  const cmPerPx = sizeCm / CANVAS;
+  let totalPx = 0;
+  for(let i=1;i<path.length;i++){
+    const a = nails[path[i-1]];
+    const b = nails[path[i]];
+    totalPx += Math.hypot(a.x-b.x, a.y-b.y);
+  }
+  const totalCm = totalPx * cmPerPx;
+  return (totalCm/100) * 1.05; // +5% slack
+}
+function updateThreadMetersUI(){
+  const out = document.getElementById("threadMeters");
+  if(!out) return;
+  const m = computeThreadMeters();
+  out.textContent = (!m || !isFinite(m)) ? "— מטר" : (m.toFixed(1) + " מטר");
+}
+
+function exportCSV(){
+  let csv="Step,FromPin,ToPin,Color\n";
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    csv += `${i+1},${s.from+1},${s.to+1},${s.color}\n`;
+  }
+  downloadText("instructions.csv", csv);
+}
+function exportSVG(){
+  const r = CANVAS/2-12;
+  let svg=`<?xml version="1.0" standalone="no"?>\n<svg width="${CANVAS}" height="${CANVAS}" viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg">\n`;
+  svg += `<rect width="100%" height="100%" fill="${canvasBg==="wood" ? "#e9d9c3" : "white"}"/>\n`;
+  if(frameShape==="circle"){
+    svg += `<circle cx="${CANVAS/2}" cy="${CANVAS/2}" r="${r}" stroke="black" stroke-width="2" fill="none"/>\n`;
+  }else{
+    svg += `<rect x="12" y="12" width="${CANVAS-24}" height="${CANVAS-24}" stroke="black" stroke-width="2" fill="none"/>\n`;
+  }
+
+  const baseAlpha=(threadType==="thick")?0.22:0.17;
+  const baseWidth=(threadType==="thick")?1.8:0.6;
+
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    const p1=nails[s.from], p2=nails[s.to];
+    let a=baseAlpha; if(s.color==="white") a*=0.9; if(s.color==="yellow") a*=0.95;
+    const stroke = s.color==="black" ? `rgba(0,0,0,${a})` : s.color==="yellow" ? `rgba(234,179,8,${a})` : `rgba(255,255,255,${a})`;
+    svg += `<line x1="${p1.x.toFixed(2)}" y1="${p1.y.toFixed(2)}" x2="${p2.x.toFixed(2)}" y2="${p2.y.toFixed(2)}" stroke="${stroke}" stroke-width="${baseWidth}" stroke-linecap="round"/>\n`;
+  }
+  svg += `</svg>`;
+  downloadText("vector_art.svg", svg);
+}
+function stopSimulation(){
+  simPlaying=false;
+  if(simTimer){ clearInterval(simTimer); simTimer=null; }
+  if(el("btnSim")) el("btnSim").textContent="▶ הדמיה";
+}
+
+function startSimulation(){
+  if(!isFinished || steps.length===0) return;
+  simPlaying=true;
+  highlightOnlyNext=false;
+  el("btnHighlightNext").classList.remove("btnWarn");
+  // always show result tab for simulation
+  if(viewMode!=="result") setTab("result");
+  el("btnSim").textContent="⏸ עצור";
+  // play speed: ~20fps (can adjust later)
+  if(simTimer) clearInterval(simTimer);
+  simTimer = setInterval(()=>{
+    if(!simPlaying) return;
+    stepIndex = Math.min(steps.length-1, stepIndex+1);
+    updateStepUI();
+    render();
+    if(stepIndex>=steps.length-1){
+      stopSimulation();
+    }
+  }, 60);
+}
+
+
+function getExportCm(){
+  // Stable: no UI. Always use default (40cm) unless project JSON later adds board.size_cm.
+  try{
+    if(typeof currentProject === "object" && currentProject?.board?.size_cm) return currentProject.board.size_cm;
+  }catch(e){}
+  return EXPORT_CM_DEFAULT;
+}
+function getExportDPI(){
+  return EXPORT_DPI_DEFAULT;
+}
+function getExportPx(){
+  const cm = getExportCm();
+  const dpi = getExportDPI();
+  let px = Math.round((cm/2.54) * dpi);
+  px = clamp(px, 800, 9000);
+  return {cm, dpi, px};
+}
+async function renderPrintPNGBlob(){
+  const {px} = getExportPx();
+  const scale = px / CANVAS;
+
+  const c = document.createElement("canvas");
+  c.width = px; c.height = px;
+  const rctx = c.getContext("2d");
+
+  // background
+  rctx.fillStyle = (canvasBg==="wood") ? "#e9d9c3" : "#ffffff";
+  rctx.fillRect(0,0,px,px);
+
+  rctx.save();
+  rctx.scale(scale, scale);
+
+  // draw wires (same look as result)
+  const baseAlpha = (threadType==="thick") ? 0.22 : 0.17;
+  const baseWidth = (threadType==="thick") ? 1.8 : 0.6;
+
+  for(let i=0;i<steps.length;i++){
+    const s = steps[i];
+    const a = nails[s.from];
+    const b = nails[s.to];
+    rctx.lineWidth = baseWidth;
+    rctx.strokeStyle = COLORS[s.color](baseAlpha);
+    rctx.beginPath();
+    rctx.moveTo(a.x, a.y);
+    rctx.lineTo(b.x, b.y);
+    rctx.stroke();
+  }
+
+  // frame + nails + numbering
+  drawFrameAndNails(rctx, true);
+
+  rctx.restore();
+
+  return await new Promise((resolve)=>c.toBlob(resolve, "image/png"));
+}
+
+
+// -----------------------
+// Project JSON (safe export)
+// -----------------------
+function buildProjectJSON(){
+  // Save everything needed to reopen the guide later (image not required)
+  const sizeCm = 40; // meters2: fixed physical size unless you add UI later
+  return {
+    format: "stringart-project",
+    version: (typeof APP_VERSION!=="undefined") ? APP_VERSION : "V10.2.1a+meters2",
+    created_at: new Date().toISOString(),
+    board: {
+      shape: (typeof frameShape!=="undefined") ? frameShape : "circle",
+      bg: (typeof canvasBg!=="undefined") ? canvasBg : "white",
+      size_cm: sizeCm,
+      nails: (typeof nails!=="undefined") ? nails.length : null
+    },
+    generator: {
+      lines_requested: (document.getElementById("sLines") ? parseInt(document.getElementById("sLines").value,10) : null)
+    },
+    steps: (typeof steps!=="undefined") ? steps.map(s=>({from:s.from,to:s.to,color:s.color})) : [],
+    // also store simple pin path for compatibility
+    path: (typeof steps!=="undefined" && steps.length) ? [steps[0].from].concat(steps.map(s=>s.to)) : []
+  };
+}
+
+function exportProjectJSON(){
+  try{
+    if(typeof steps==="undefined" || !steps.length){
+      if(typeof setStatus==="function") setStatus("אין סכמה עדיין לשמירה.");
+      return;
+    }
+    const obj = buildProjectJSON();
+    const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
+    // robust download (append to DOM)
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "project.stringart.json";
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ try{URL.revokeObjectURL(url);}catch(e){} try{a.remove();}catch(e){} }, 2000);
+    if(typeof setStatus==="function") setStatus("Project JSON ירד. אפשר לטעון אותו בעתיד.");
+  }catch(err){
+    console.error(err);
+    if(typeof setStatus==="function") setStatus("שגיאה בשמירת Project JSON.");
+  }
+}
+
+
+// -----------------------
+// Project JSON (safe import)
+// -----------------------
+function applyProjectObject(obj){
+  // Validate minimal schema
+  if(!obj || !obj.steps || !Array.isArray(obj.steps) || obj.steps.length===0){
+    if(typeof setStatus==="function") setStatus("קובץ Project JSON לא תקין או ריק.");
+    return false;
+  }
+
+  // Restore board settings if exist (do not crash if UI elements missing)
+  try{
+    if(obj.board && typeof obj.board.shape==="string") frameShape = obj.board.shape;
+    if(obj.board && typeof obj.board.bg==="string") canvasBg = obj.board.bg;
+  }catch(e){}
+
+  // Restore nails count (rebuild nails) - prefer board.nails, else keep current
+  try{
+    const n = (obj.board && Number.isFinite(obj.board.nails)) ? obj.board.nails : null;
+    if(n && typeof buildNails==="function"){
+      // update slider if exists
+      const sN = document.getElementById("sNails");
+      if(sN){ sN.value = n; const out = document.getElementById("sNailsOut"); if(out) out.textContent = String(n); }
+      buildNails(n);
+    }
+  }catch(e){}
+
+  // Restore steps array
+  try{
+    steps = obj.steps.map(s=>({
+      from: (s.from|0),
+      to: (s.to|0),
+      color: (s.color||"black")
+    }));
+  }catch(e){
+    if(typeof setStatus==="function") setStatus("שגיאה בקריאת steps מהקובץ.");
+    return false;
+  }
+
+  // Viewer state: show result and enable guide
+  try{
+    currentStep = 0;
+    isRunning = false;
+    isFinished = true;
+    viewMode = "result";
+    // Update status
+    if(typeof setStatus==="function") setStatus("פרויקט נטען. אפשר להמשיך בהדרכה שלב-שלב.");
+    // If your UI has updateControls functions, call safely
+    if(typeof updateUIAfterGenerate==="function") updateUIAfterGenerate();
+  }catch(e){}
+
+  redrawAll?.();
+  return true;
+}
+
+function loadProjectJSONFromFile(file){
+  try{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        const text = String(e.target.result||"");
+        const obj = JSON.parse(text);
+        const ok = applyProjectObject(obj);
+        if(!ok) alert("Project JSON לא נטען: בדקי שהקובץ הוא project.stringart.json מהאפליקציה.");
+      }catch(err){
+        console.error(err);
+        alert("שגיאה בקריאת קובץ JSON.");
+        if(typeof setStatus==="function") setStatus("שגיאה בקריאת Project JSON.");
+      }
+    };
+    reader.readAsText(file);
+  }catch(err){
+    console.error(err);
+    alert("הדפדפן לא הצליח לקרוא את הקובץ.");
+  }
+}
+
+async function exportPNG(){
+  if(steps.length===0){ setStatus("אין תוצאה לייצוא עדיין."); return; }
+  try{
+    setStatus("מכין PNG להדפסה…");
+    const {cm,dpi} = getExportPx();
+    const blob = await renderPrintPNGBlob();
+    if(!blob){ setStatus("שגיאה: PNG לא נוצר."); return; }
+    downloadBlob(`stringart_${cm}cm_${dpi}dpi.png`, blob);
+    setStatus("PNG ירד בהצלחה.");
+  }catch(err){
+    console.error(err);
+    setStatus("שגיאה ביצוא PNG. נסי שוב.");
+  }
+}
+
+/* ========= Camera ========= */
+let camStream=null;
+let camFacing="user";
+
+async function startCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus("מצלמה לא נתמכת בדפדפן הזה. נסי Chrome/Safari עדכני.");
+    return;
+  }
+  el("camModal").classList.add("on");
+  try{
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode: camFacing}, audio:false});
+    el("camVideo").srcObject = camStream;
+    setCamStatus("המצלמה פעילה. לחצי 'צלם'.");
+  }catch(err){
+    console.error(err);
+    setCamStatus("לא הצלחתי לפתוח מצלמה. בדקי הרשאה/הגדרות דפדפן.");
+  }
+}
+function stopCamera(){
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  el("camModal").classList.remove("on");
+}
+function snapCamera(){
+  const v=el("camVideo");
+  if(!v || v.readyState<2){ setCamStatus("המצלמה נטענת…"); return; }
+  const vw=v.videoWidth, vh=v.videoHeight;
+  const s=Math.min(vw,vh);
+  const sx=(vw-s)/2, sy=(vh-s)/2;
+
+  const c=document.createElement("canvas");
+  c.width=CANVAS; c.height=CANVAS;
+  const cctx=c.getContext("2d");
+  if(camFacing==="user"){ cctx.translate(CANVAS,0); cctx.scale(-1,1); }
+  cctx.drawImage(v, sx, sy, s, s, 0,0,CANVAS,CANVAS);
+
+  const dataUrl=c.toDataURL("image/jpeg", 0.92);
+  const img=new Image();
+  img.onload=()=>{
+    srcImg=img;
+    stopCamera();
+    resetAlgorithmStateOnly();
+    processImage(true);
+    setStatus("צילום נטען. לחצי 'צור מדריך'.");
+  };
+  img.onerror=()=>setCamStatus("שגיאה: לא הצלחתי להפוך צילום לתמונה.");
+  img.src=dataUrl;
+}
+
+/* ========= UI wiring ========= */
+function setTab(which){
+  viewMode=which;
+  el("tabSource").classList.toggle("on", which==="source");
+  el("tabProcessed").classList.toggle("on", which==="processed");
+  el("tabResult").classList.toggle("on", which==="result");
+  render();
+}
+function setShape(shape){
+  frameShape=shape;
+  el("shapeCircle").classList.toggle("btnPrimary", shape==="circle");
+  el("shapeSquare").classList.toggle("btnPrimary", shape==="square");
+  buildNails(parseInt(el("sNails").value,10));
+  resetAlgorithmStateOnly();
+  if(srcImg) processImage(false);
+  render();
+}
+function setBg(bg){
+  canvasBg=bg;
+  el("bgWhite").classList.toggle("btnPrimary", bg==="white");
+  el("bgWood").classList.toggle("btnPrimary", bg==="wood");
+  if(srcImg) processImage(false);
+  render();
+}
+function updateSliderVals(){
+  el("vNails").textContent=`(${parseInt(el("sNails").value,10)})`;
+  el("vLines").textContent=`(${parseInt(el("sLines").value,10)})`;
+}
+function hardReset(){
+  srcImg=null; imgPixels=null; basePixels=null; workPixels=null;
+  resetAlgorithmStateOnly();
+  setStatus("מוכן. טעני תמונה כדי להתחיל.");
+  el("btnApplyRec").disabled=true;
+  el("btnApplyRec").textContent="החל כמות קווים מומלצת";
+  buildNails(parseInt(el("sNails").value,10));
+  render();
+}
+function loadDemo(){
+  const demoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
+    <rect width="100%" height="100%" fill="white"/>
+    <circle cx="300" cy="280" r="170" fill="#ddd"/>
+    <circle cx="240" cy="250" r="28" fill="#444"/>
+    <circle cx="360" cy="250" r="28" fill="#444"/>
+    <path d="M220 340 C260 390, 340 390, 380 340" stroke="#444" stroke-width="18" fill="none" stroke-linecap="round"/>
+    <path d="M265 290 C290 315, 310 315, 335 290" stroke="#666" stroke-width="10" fill="none" stroke-linecap="round"/>
+  </svg>`;
+  const url="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(demoSvg);
+  const img=new Image();
+  img.onload=()=>{ srcImg=img; resetAlgorithmStateOnly(); processImage(true); setStatus("דוגמה נטענה. לחצי 'צור מדריך'."); };
+  img.src=url;
+}
+
+async function generateGuide(extra=0){
+  if(!srcImg){ setStatus("קודם טעני תמונה או צלמי."); return; }
+  if(!imgPixels || !basePixels || !workPixels) processImage(false);
+
+  buildNails(parseInt(el("sNails").value,10));
+  setStatus("מחשב גיאומטריה…");
+  render();
+  await new Promise(r=>setTimeout(r,30));
+  precomputeLines();
+
+  resetAlgorithmStateOnly();
+  workPixels = new Uint8ClampedArray(basePixels);
+  isRunning=true;
+  setStatus("יוצר…");
+
+  if(extra!==0){
+      const newVal = clamp(parseInt(el("sLines").value,10)+extra, 500, 6000);
+  const rounded = Math.round(newVal/50)*50;
+  el("sLines").value = String(rounded);
+    updateSliderVals();
+  }
+
+  const chunk=140;
+  function loop(){
+    if(!isRunning) return;
+    runBatch(chunk);
+    if(isFinished) return;
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+
+function applyRecommendedLines(){
+  const rec=parseInt(el("btnApplyRec").dataset.rec||"0",10);
+  if(!rec) return;
+  el("sLines").value=String(rec);
+  updateSliderVals();
+  setStatus("הוחלה כמות קווים מומלצת. עכשיו לחצי 'צור מדריך'.");
+}
+
+/* ========= Init ========= */
+window.addEventListener("error",(e)=>{
+  console.error(e.error||e.message);
+  setStatus("שגיאה: "+(e.message||"תקלה לא ידועה"));
+});
+
+function init(){
+  colorMode=el("colorMode").value;
+  threadType=el("threadType").value;
+  nailNumberStep=parseInt(el("nailNumbering").value,10);
+  buildNails(parseInt(el("sNails").value,10));
+  updateSliderVals();
+  drawPlaceholder();
+
+  // tabs
+  el("tabSource").onclick=()=>setTab("source");
+  el("tabProcessed").onclick=()=>setTab("processed");
+  el("tabResult").onclick=()=>setTab("result");
+
+  // shape/bg
+  el("shapeCircle").onclick=()=>setShape("circle");
+  el("shapeSquare").onclick=()=>setShape("square");
+  el("bgWhite").onclick=()=>setBg("white");
+  el("bgWood").onclick=()=>setBg("wood");
+
+  // sliders nails/lines
+  el("sNails").addEventListener("input", ()=>{
+    updateSliderVals();
+    buildNails(parseInt(el("sNails").value,10));
+    resetAlgorithmStateOnly();
+    if(srcImg) processImage(false);
+    render();
+  });
+  el("sLines").addEventListener("input", ()=>{
+    updateSliderVals();
+    resetAlgorithmStateOnly();
+    render();
+  });
+
+  // processing sliders
+  ["sAuto","sGamma","sBlur"].forEach(id=>{
+    el(id).addEventListener("input", ()=>{
+      if(!srcImg){ render(); return; }
+      resetAlgorithmStateOnly();
+      processImage(false);
+    });
+  });
+
+  // thread options
+  el("nailNumbering").addEventListener("change", ()=>{
+    nailNumberStep = parseInt(el("nailNumbering").value,10);
+    render();
+  });
+
+  el("colorMode").addEventListener("change", ()=>{
+    colorMode=el("colorMode").value;
+    resetAlgorithmStateOnly();
+    setStatus("עודכן מצב צבעים. לחצי 'צור מדריך'.");
+    render();
+  });
+  el("threadType").addEventListener("change", ()=>{
+    threadType=el("threadType").value;
+    resetAlgorithmStateOnly();
+    if(srcImg) processImage(false);
+    setStatus("עודכן סוג חוט.");
+    render();
+  });
+  el("btnFocus").onclick=()=>{
+    focusOn=!focusOn;
+    el("btnFocus").textContent = focusOn ? "🎯 הסרת רקע / מיקוד אובייקט (ON)" : "🎯 הסרת רקע / מיקוד אובייקט (OFF)";
+    el("btnFocus").classList.toggle("btnGood", focusOn);
+    resetAlgorithmStateOnly();
+    if(srcImg) processImage(false);
+    setStatus(focusOn ? "מיקוד פעיל (רקע מוחלש)." : "מיקוד כבוי.");
+    render();
+  };
+
+  // buttons
+  el("btnReset").onclick=hardReset;
+  el("btnDemo").onclick=loadDemo;
+  el("btnAuto").onclick=()=>{ if(!srcImg){ setStatus("קודם טעני תמונה או צלמי."); return; } resetAlgorithmStateOnly(); processImage(true); setStatus("שופר אוטומטית. לחצי 'צור מדריך'."); };
+  el("btnProcess").onclick=()=>{ if(!srcImg){ setStatus("קודם טעני תמונה או צלמי."); return; } resetAlgorithmStateOnly(); processImage(false); setStatus("עיבוד עודכן. לחצי 'צור מדריך'."); };
+  el("btnRevert").onclick=()=>{ if(!srcImg){ setStatus("אין תמונה בזיכרון עדיין."); return; } resetAlgorithmStateOnly(); setTab("source"); setStatus("חזרה למקור התמונה. אפשר לעבד מחדש בלי להעלות שוב."); };
+  el("btnGuide").onclick=()=>generateGuide(0);
+  el("btnApplyRec").onclick=applyRecommendedLines;
+
+  // file upload
+  el("fileIn").addEventListener("change",(e)=>{
+    const f=e.target.files && e.target.files[0];
+    if(!f) return;
+    setStatus("טוען תמונה…");
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        srcImg=img;
+        resetAlgorithmStateOnly();
+        processImage(true);
+        setStatus("תמונה נטענה. לחצי 'צור מדריך'.");
+      };
+      img.onerror=()=>setStatus("שגיאה: לא הצלחתי לטעון תמונה. נסי JPG/PNG.");
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(f);
+    e.target.value="";
+  });
+
+  // camera
+  el("btnCam").onclick=startCamera;
+  el("btnCamClose").onclick=stopCamera;
+  el("btnSnap").onclick=snapCamera;
+  el("btnFlip").onclick=()=>{ camFacing=(camFacing==="user")?"environment":"user"; startCamera(); };
+
+  // step navigation
+  el("btnPrev").onclick=()=>{ stepIndex=Math.max(0,stepIndex-1); updateStepUI(); if(viewMode==="result") render(); };
+  el("btnNext").onclick=()=>{ stepIndex=Math.min(Math.max(0,steps.length-1), stepIndex+1); updateStepUI(); if(viewMode==="result") render(); };
+  el("btnHighlightNext").onclick=()=>{ stopSimulation(); highlightOnlyNext=!highlightOnlyNext; el("btnHighlightNext").classList.toggle("btnWarn", highlightOnlyNext); if(viewMode!=="result") setTab("result"); else render(); };
+
+  el("btnPlus50").onclick=()=>generateGuide(50);
+  el("btnPlus100").onclick=()=>generateGuide(100);
+  el("btnPlus500").onclick=()=>generateGuide(500);
+  el("btnMinus100").onclick=()=>generateGuide(-100);
+  el("btnMinus500").onclick=()=>generateGuide(-500);
+
+  // exports
+  el("btnCSV").onclick=exportCSV;
+  el("btnSVG").onclick=exportSVG;
+  el("btnPNG").onclick=exportPNG;
+  if(document.getElementById("btnSaveProject")) document.getElementById("btnSaveProject").onclick=exportProjectJSON;
+  if(document.getElementById("btnLoadProject")){
+    document.getElementById("btnLoadProject").onclick=()=>{
+      const inp = document.getElementById("projectFile");
+      if(inp) inp.click();
+    };
+  }
+  if(document.getElementById("projectFile")){
+    document.getElementById("projectFile").onchange=(e)=>{
+      const f = e.target.files && e.target.files[0];
+      if(f) loadProjectJSONFromFile(f);
+      e.target.value="";
+    };
+  }
+  el("btnZIP").onclick=exportZIP;
+  el("btnSim").onclick=()=>{ if(simPlaying) stopSimulation(); else startSimulation(); };
+  el("btnSimReset").onclick=()=>{ stopSimulation(); stepIndex=0; updateStepUI(); if(viewMode!=="result") setTab("result"); else render(); };
+
+  // swipe on canvas
+  let sx=null;
+  el("cnv").addEventListener("touchstart",(e)=>{ if(e.touches[0]) sx=e.touches[0].clientX; }, {passive:true});
+  el("cnv").addEventListener("touchend",(e)=>{
+    if(sx==null) return;
+    const ex=(e.changedTouches[0]||{}).clientX;
+    const dx=ex-sx; sx=null;
+    if(Math.abs(dx)<30) return;
+    if(dx<0) el("btnNext").click(); else el("btnPrev").click();
+  });
+
+  // keyboard
+  window.addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowRight") el("btnNext").click();
+    if(e.key==="ArrowLeft") el("btnPrev").click();
+  });
+
+  render();
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</body>
+</html>
