@@ -1,0 +1,9 @@
+{
+  "name": "String Art 40cm V10",
+  "short_name": "StringArt V10",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": []
+}
