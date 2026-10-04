@@ -25,7 +25,7 @@ public class PM_Game : MonoBehaviour
     readonly List<PM_Hotspot> stationHs = new List<PM_Hotspot>();
     readonly List<PM_Hotspot> toolHs = new List<PM_Hotspot>();
     readonly List<PM_Hotspot> fabricHs = new List<PM_Hotspot>();
-    readonly List<PM_Hotspot> fiberHs = new List<PM_Hotspot>();
+    readonly List<PM_FiberScreen> fiberScreens = new List<PM_FiberScreen>();
     public static PM_Game I;
     Vector2 desktopUV;
     float desktopTime = -1f;
@@ -118,23 +118,38 @@ public class PM_Game : MonoBehaviour
             Vector3 pos = station.AnchorPoint(info.anchor, parts) + Vector3.up * 0.04f;
             toolHs.Add(MakeHotspot(info, pos, parts[0], parts));
         }
-        // Floating fiber symbols in an arc above and behind the station.
+        // Floating fiber screens in an arc above and behind the station.
         foreach (PM_HotspotInfo info in PM_Content.FiberHotspots())
         {
             float ang;
+            string grp;
             switch (info.fiber)
             {
-                case PM_FabricType.Cotton: ang = 42f; break;
-                case PM_FabricType.Linen: ang = 21f; break;
-                case PM_FabricType.Wool: ang = 0f; break;
-                case PM_FabricType.Silk: ang = -21f; break;
-                default: ang = -42f; break;
+                case PM_FabricType.Cotton: ang = 56f; grp = "צמחי · תאית"; break;
+                case PM_FabricType.Linen: ang = 28f; grp = "צמחי · תאית"; break;
+                case PM_FabricType.Wool: ang = 0f; grp = "מן החי · חלבון"; break;
+                case PM_FabricType.Silk: ang = -28f; grp = "מן החי · חלבון"; break;
+                default: ang = -56f; grp = "כימי · פולימר"; break;
             }
             Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * station.Forward;
-            Vector3 pos = station.PlayerPos + dir * 1.9f + Vector3.up * 2.15f;
-            fiberHs.Add(MakeHotspot(info, pos, null, new List<Transform>()));
+            Vector3 pos = station.PlayerPos + dir * 2.4f + Vector3.up * 2.15f;
+            PM_FiberScreen fs = PM_FiberScreen.Create(info, grp, pos);
+            fs.onClick = OnFiberScreen;
+            fiberScreens.Add(fs);
         }
         ShowStationHotspots(false);
+    }
+
+    void OnFiberScreen(PM_FiberScreen fs)
+    {
+        bool open = !fs.Expanded;
+        foreach (PM_FiberScreen f in fiberScreens) f.SetExpanded(false);
+        fs.SetExpanded(open);
+        if (PM_Audio.I != null)
+        {
+            if (open) PM_Audio.I.PlayVoice("hs_" + fs.info.id);
+            else PM_Audio.I.StopVoice();
+        }
     }
 
     // Keyboard/mouse test: called by PM_DesktopCamera while the left mouse button is held on the fabric.
@@ -156,7 +171,7 @@ public class PM_Game : MonoBehaviour
     void ShowStationHotspots(bool on)
     {
         foreach (PM_Hotspot h in stationHs) if (h != null) h.gameObject.SetActive(on);
-        foreach (PM_Hotspot h in fiberHs) if (h != null) h.gameObject.SetActive(on);
+        foreach (PM_FiberScreen f in fiberScreens) if (f != null) { f.gameObject.SetActive(on); if (!on) f.SetExpanded(false); }
         if (!on) CloseCard();
     }
 
@@ -244,7 +259,10 @@ public class PM_Game : MonoBehaviour
             highlight.Show(station.Targets(s.target), PM_Util.Cyan, true);
 
         panel.SetContent(s.title, s.body, (stepIndex + 1) + "/" + steps.Count);
-        panel.SetAccent(s.target == PM_Target.Fabric ? PM_Util.ModeColor(PM_Content.Fabric(s.fabric).mode) : PM_Util.Cyan);
+        Color accent = PM_Util.Cyan;
+        if (s.target == PM_Target.Fabric) accent = PM_Util.ModeColor(PM_Content.Fabric(s.fabric).mode);
+        else if (s.group == PM_HotspotGroup.Tools) accent = PM_Util.Violet;
+        panel.SetAccent(accent);
         if (stepIndex == steps.Count - 1)
             panel.SetButtons(Btn(PM_Content.BtnExam, StartExam), Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnRepeat, RepeatVoice));
         else
@@ -332,8 +350,17 @@ public class PM_Game : MonoBehaviour
                 break;
             case PM_Action.Explore:
             {
-                List<PM_Hotspot> list = s.group == PM_HotspotGroup.Tools ? toolHs : (s.group == PM_HotspotGroup.Fibers ? fiberHs : stationHs);
+                List<PM_Hotspot> list = s.group == PM_HotspotGroup.Tools ? toolHs : stationHs;
                 int v = CountVisited(list);
+                if (s.group == PM_HotspotGroup.Fibers)
+                {
+                    list = new List<PM_Hotspot>();
+                    v = 0;
+                    foreach (PM_FiberScreen f in fiberScreens) if (f != null && f.Visited) v++;
+                    panel.SetStatus(string.Format(PM_Content.StExplored, v, fiberScreens.Count), PM_Util.Cyan);
+                    if (v >= fiberScreens.Count && fiberScreens.Count > 0) Complete(PM_Content.StAllExplored);
+                    break;
+                }
                 panel.SetStatus(string.Format(PM_Content.StExplored, v, list.Count), PM_Util.Cyan);
                 if (list.Count > 0 && v >= list.Count) Complete(PM_Content.StAllExplored);
                 break;
@@ -341,7 +368,7 @@ public class PM_Game : MonoBehaviour
             case PM_Action.IronFabric:
                 if (!ProcessIroning(dt, false))
                     panel.SetStatus(string.Format(PM_Content.StExplored, CountVisited(fabricHs), fabricHs.Count), PM_Util.Cyan);
-                if (fabric != null && fabric.Done) Complete(PM_Content.StDone);
+                if (fabric != null && fabric.Done) { Celebrate(); Complete(PM_Content.StDone); }
                 break;
         }
     }
@@ -435,7 +462,7 @@ public class PM_Game : MonoBehaviour
             }
         }
 
-        fabric.Iron(uv, radius, dt, rate, scorch, spots);
+        fabric.Iron(uv, radius, dt, rate, scorch, spots, mode / 3f);
         if (msg == null) { msg = string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)); msgColor = PM_Util.Cyan; }
         string timeText = exam ? "   " + string.Format(PM_Content.StTime, Mathf.CeilToInt(Mathf.Max(0f, examTime))) : "";
         panel.SetStatus(msg + timeText, msgColor);
@@ -528,8 +555,16 @@ public class PM_Game : MonoBehaviour
         }
     }
 
+    void Celebrate()
+    {
+        if (fabric == null) return;
+        fabric.Flash();
+        PM_Look.Burst(fabric.transform.position + Vector3.up * 0.05f, PM_Util.ModeColor(fabric.info.mode));
+    }
+
     void FinishExamFabric(string msg, Color c, string sound)
     {
+        if (sound == "ding") Celebrate();
         examFinishedFabric = true;
         doneTimer = 0f;
         panel.SetStatus(msg, c);

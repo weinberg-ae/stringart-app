@@ -9,6 +9,7 @@ public static class PM_Util
     public static readonly Color Yellow = new Color(1f, 0.85f, 0.1f);
     public static readonly Color Red = new Color(1f, 0.22f, 0.5f);   // neon pink-red
     public static readonly Color Green = new Color(0.2f, 1f, 0.45f);
+    public static readonly Color Violet = new Color(0.68f, 0.45f, 1f);
 
     public static Color ModeColor(int mode)
     {

@@ -12,7 +12,7 @@ public class PM_Panel : MonoBehaviour
     TextMeshProUGUI title, body, status, counter;
     CanvasGroup group;
     readonly List<Image> accentImages = new List<Image>();
-    Image headerImage, sepImage;
+    Image headerImage, sepImage, bgImage;
     float appear = 1f;
     readonly List<GameObject> buttons = new List<GameObject>();
 
@@ -79,7 +79,8 @@ public class PM_Panel : MonoBehaviour
 
         var bg = MakeRect(canvasGo.transform, "Background", 0, 0, wPx, hPx);
         group = canvasGo.AddComponent<CanvasGroup>();
-        bg.gameObject.AddComponent<Image>().color = new Color(0.0f, 0.05f, 0.09f, 0.62f);
+        bgImage = bg.gameObject.AddComponent<Image>();
+        bgImage.color = new Color(0.0f, 0.05f, 0.09f, 0.62f);
         var header = MakeRect(canvasGo.transform, "Header", 0, 0, wPx, titleSize * 1.7f + 25);
         headerImage = header.gameObject.AddComponent<Image>();
         headerImage.color = new Color(0.1f, 0.95f, 1f, 0.10f);
@@ -146,7 +147,10 @@ public class PM_Panel : MonoBehaviour
         }
         if (headerImage != null) headerImage.color = new Color(c.r, c.g, c.b, 0.12f);
         if (sepImage != null) sepImage.color = new Color(c.r, c.g, c.b, 0.6f);
-        if (title != null) title.color = c;
+        if (title != null) title.color = Color.Lerp(c, Color.white, 0.25f);
+        if (bgImage != null) bgImage.color = new Color(c.r * 0.15f, c.g * 0.15f, c.b * 0.15f, 0.7f);
+        if (body != null) body.color = Color.Lerp(Color.white, c, 0.15f);
+        if (headerImage != null) headerImage.color = new Color(c.r, c.g, c.b, 0.25f);
     }
 
     void Update()
@@ -165,7 +169,7 @@ public class PM_Panel : MonoBehaviour
         t.font = Font();
         t.fontSize = size;
         t.color = c;
-        t.alignment = TextAlignmentOptions.TopRight;
+        t.alignment = TextAlignmentOptions.Top;   // centered lines
         t.raycastTarget = false;
         t.text = "";
         return t;

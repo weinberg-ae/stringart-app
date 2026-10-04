@@ -10,6 +10,7 @@ public class PM_Audio : MonoBehaviour
     AudioSource voice;
     AudioSource ambient;
     AudioSource boiler;
+    AudioSource music;
     readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
 
     void Awake()
@@ -27,12 +28,18 @@ public class PM_Audio : MonoBehaviour
         boiler.playOnAwake = false;
         boiler.loop = true;
         boiler.volume = 0.25f;
+        music = gameObject.AddComponent<AudioSource>();
+        music.playOnAwake = false;
+        music.loop = true;
+        music.volume = 0.16f;
     }
 
     void Start()
     {
         AudioClip amb = Clip("ambient_factory");
         if (amb != null) { ambient.clip = amb; ambient.Play(); }
+        AudioClip mus = Clip("music_pad");
+        if (mus != null) { music.clip = mus; music.Play(); }
     }
 
     public AudioClip Clip(string name)
@@ -68,8 +75,14 @@ public class PM_Audio : MonoBehaviour
         if (c == null) return false;
         voice.clip = c;
         voice.Play();
+        music.volume = 0.08f;   // music steps back while the narrator speaks
         return true;
     }
 
     public void StopVoice() { voice.Stop(); }
+
+    void Update()
+    {
+        if (music != null && !voice.isPlaying && music.volume < 0.16f) music.volume = Mathf.MoveTowards(music.volume, 0.16f, Time.deltaTime * 0.05f);
+    }
 }

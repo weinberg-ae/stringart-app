@@ -254,7 +254,7 @@ public static class PM_Content
             "מניחים נייר אפייה או מטלית מתחת ומעל.\n" +
             "את הדבק מפעילים בלחיצה והחזקה של 10–15 שניות בכל נקודה — לא בהחלקה, כדי שהשכבות לא יזוזו.",
             PM_Target.Fusible, PM_Anchor.Top));
-        foreach (PM_HotspotInfo h in l) h.group = PM_HotspotGroup.Tools;
+        foreach (PM_HotspotInfo h in l) { h.group = PM_HotspotGroup.Tools; h.accent = PM_Util.Violet; }
         return l;
     }
 

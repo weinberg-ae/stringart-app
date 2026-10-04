@@ -15,7 +15,10 @@ public class PM_Fabric : MonoBehaviour
 
     Texture2D albedoTex, normalTex;
     Color32[] baseAlbedo, albedo, wrinkleNormal, normal;
-    float[] smooth, scorch, spots;
+    float[] smooth, scorch, spots, heat;
+    Texture2D heatTex;
+    Color32[] heatPx;
+    bool heatActive;
     float smoothSum;
     bool dirtyN, dirtyA;
     Material mat;
@@ -76,6 +79,15 @@ public class PM_Fabric : MonoBehaviour
         mat.EnableKeyword("_NORMALMAP");
         mat.SetFloat("_Smoothness", info.smoothness);
         mat.SetFloat("_Metallic", 0f);
+        // Thermal view: heat left by the iron glows and slowly cools down.
+        heatTex = new Texture2D(Res, Res, TextureFormat.RGBA32, false);
+        heatTex.wrapMode = TextureWrapMode.Clamp;
+        heatTex.SetPixels32(heatPx);
+        heatTex.Apply(false);
+        mat.EnableKeyword("_EMISSION");
+        mat.SetTexture("_EmissionMap", heatTex);
+        mat.SetColor("_EmissionColor", Color.white * 1.8f);
+        mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
         mr.material = mat;
     }
 
@@ -89,6 +101,8 @@ public class PM_Fabric : MonoBehaviour
         smooth = new float[count];
         scorch = new float[count];
         spots = new float[count];
+        heat = new float[count];
+        heatPx = new Color32[count];
 
         // Height field of wrinkles: sharp creases (like real crumpled cloth) + soft waves.
         float ox = seed * 13.1f, oz = seed * 7.7f;
@@ -183,7 +197,7 @@ public class PM_Fabric : MonoBehaviour
 
     // Called by the iron every frame while it touches the fabric.
     // smoothRate: 0..1 multiplier of smoothing speed. scorchRate / spotRate: damage per second (0 = none).
-    public void Iron(Vector2 uv, float radiusMeters, float dt, float smoothRate, float scorchRate, float spotRate)
+    public void Iron(Vector2 uv, float radiusMeters, float dt, float smoothRate, float scorchRate, float spotRate, float heatLevel = 0.6f)
     {
         int cx = Mathf.RoundToInt(uv.x * (Res - 1));
         int cy = Mathf.RoundToInt(uv.y * (Res - 1));
@@ -211,6 +225,8 @@ public class PM_Fabric : MonoBehaviour
                     normal[i] = new Color32((byte)Mathf.Lerp(a.r, 128, s), (byte)Mathf.Lerp(a.g, 128, s), (byte)Mathf.Lerp(a.b, 255, s), 255);
                     dirtyN = true;
                 }
+                float hTarget = heatLevel * fall;
+                if (heat[i] < hTarget) { heat[i] = Mathf.Min(hTarget, heat[i] + dt * 2.5f); heatActive = true; }
                 bool hurt = false;
                 if (scorchRate > 0f) { scorch[i] = Mathf.Min(1f, scorch[i] + scorchRate * dt * fall); hurt = true; }
                 if (spotRate > 0f && Random.value < spotRate * dt * 3f) { spots[i] = 1f; hurt = true; }
@@ -235,8 +251,45 @@ public class PM_Fabric : MonoBehaviour
         return c;
     }
 
+    // Whole cloth glows warm for a moment (used when ironing is finished).
+    public void Flash()
+    {
+        for (int i = 0; i < heat.Length; i++) heat[i] = Mathf.Max(heat[i], 0.75f);
+        heatActive = true;
+    }
+
+    static Color32 Thermal(float t)
+    {
+        Color c;
+        if (t < 0.33f) c = Color.Lerp(Color.black, new Color(0.25f, 0.02f, 0.55f), t / 0.33f);
+        else if (t < 0.66f) c = Color.Lerp(new Color(0.25f, 0.02f, 0.55f), new Color(1f, 0.3f, 0.05f), (t - 0.33f) / 0.33f);
+        else c = Color.Lerp(new Color(1f, 0.3f, 0.05f), new Color(1f, 0.95f, 0.7f), (t - 0.66f) / 0.34f);
+        c.a = 1f;
+        return c;
+    }
+
+    void UpdateHeat()
+    {
+        if (!heatActive) return;
+        float decay = Time.deltaTime * 0.3f;
+        bool any = false;
+        for (int i = 0; i < heat.Length; i++)
+        {
+            float h = heat[i];
+            if (h <= 0f) { if (heatPx[i].r != 0 || heatPx[i].g != 0 || heatPx[i].b != 0) heatPx[i] = new Color32(0, 0, 0, 255); continue; }
+            h = Mathf.Max(0f, h - decay);
+            heat[i] = h;
+            heatPx[i] = Thermal(h);
+            any = true;
+        }
+        heatTex.SetPixels32(heatPx);
+        heatTex.Apply(false);
+        heatActive = any;
+    }
+
     void LateUpdate()
     {
+        UpdateHeat();
         if (dirtyN) { normalTex.SetPixels32(normal); normalTex.Apply(true); dirtyN = false; }
         if (dirtyA) { albedoTex.SetPixels32(albedo); albedoTex.Apply(true); dirtyA = false; }
         if (info != null && info.type == PM_FabricType.Polyester && Damage > 0.05f)
@@ -247,6 +300,7 @@ public class PM_Fabric : MonoBehaviour
     {
         if (albedoTex != null) Destroy(albedoTex);
         if (normalTex != null) Destroy(normalTex);
+        if (heatTex != null) Destroy(heatTex);
         if (mat != null) Destroy(mat);
     }
 }

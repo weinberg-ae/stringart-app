@@ -457,6 +457,7 @@ public class PM_Station : MonoBehaviour
         if (PM_Audio.I != null)
         {
             if (on) PM_Audio.I.Play("power_on");
+            if (on) PM_Look.PulseRing(new Vector3(BoardCenter.x, PlayerPos.y + 0.01f, BoardCenter.z), PM_Util.Cyan);
             PM_Audio.I.SetBoiler(on);
         }
         if (!on) { Pressure = 0f; SetMode(0); }

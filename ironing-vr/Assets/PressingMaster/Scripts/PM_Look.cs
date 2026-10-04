@@ -36,6 +36,45 @@ public static class PM_Look
         }
     }
 
+    // Sparkle burst (finished ironing).
+    public static void Burst(Vector3 pos, Color c)
+    {
+        var go = new GameObject("PM_Burst");
+        go.transform.position = pos;
+        var ps = go.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = ps.main;
+        main.loop = false;
+        main.duration = 1f;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1.4f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.4f, 1.6f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.01f, 0.03f);
+        main.startColor = new ParticleSystem.MinMaxGradient(c, Color.white);
+        main.gravityModifier = 0.25f;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        var em = ps.emission;
+        em.rateOverTime = 0f;
+        em.SetBursts(new[] { new ParticleSystem.Burst(0f, 90) });
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.1f;
+        var pr = go.GetComponent<ParticleSystemRenderer>();
+        var m = PM_Util.TransparentMaterial(Color.white);
+        m.mainTexture = PM_Util.SoftDot(32);
+        pr.material = m;
+        ps.Play();
+        Object.Destroy(go, 3f);
+    }
+
+    // Light wave running over the floor (power on).
+    public static void PulseRing(Vector3 center, Color c)
+    {
+        var go = new GameObject("PM_Pulse");
+        go.transform.position = center;
+        var p = go.AddComponent<PM_Pulse>();
+        p.color = c;
+    }
+
     // Neon grid on the floor that fades out with distance.
     public static void GridFloor(Vector3 center, Vector3 forward, Vector3 right)
     {
@@ -139,5 +178,28 @@ public static class PM_Look
         PM_Util.Line(root, "Outline", pts, PM_Util.Cyan, 0.006f, true);
         var glow = PM_Util.Line(root, "Glow", pts, new Color(0.1f, 0.95f, 1f, 0.25f), 0.03f, true);
         glow.transform.localPosition = Vector3.down * 0.001f;
+    }
+}
+
+// Expanding glowing ring on the floor.
+public class PM_Pulse : MonoBehaviour
+{
+    public Color color = Color.cyan;
+    LineRenderer lr;
+    float t;
+
+    void Start()
+    {
+        lr = PM_Util.Line(transform, "Ring", PM_Util.Circle(1f, 96, Vector3.right, Vector3.forward, Vector3.zero), color, 0.03f, true);
+    }
+
+    void Update()
+    {
+        t += Time.deltaTime / 1.8f;
+        float r = Mathf.Lerp(0.2f, 7f, t);
+        lr.transform.localScale = new Vector3(r, 1f, r);
+        Color c = color; c.a = (1f - t) * 0.9f;
+        lr.startColor = c; lr.endColor = c;
+        if (t >= 1f) Destroy(gameObject);
     }
 }
