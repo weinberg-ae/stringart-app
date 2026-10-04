@@ -17,6 +17,8 @@ public class PM_Hotspot : MonoBehaviour
     float phase;
     bool hovered;
     Transform label;
+    Transform ring;
+    LineRenderer ringLine;
 
     public static PM_Hotspot Create(PM_HotspotInfo info, Vector3 worldPos, Transform parent, List<Transform> parts)
     {
@@ -71,6 +73,10 @@ public class PM_Hotspot : MonoBehaviour
         t.text = PM_Hebrew.VisualLine(info.label);
         label = lg.transform;
 
+        ring = new GameObject("Ring").transform;
+        ring.SetParent(transform, false);
+        ringLine = PM_Util.Line(ring, "Circle", PM_Util.Circle(0.035f, 40, Vector3.right, Vector3.up, Vector3.zero), PM_Util.Cyan, 0.003f, true);
+
         var click = PM_Clickable.Add(gameObject, () => { if (onClick != null) onClick(this); });
         click.onHover = v => hovered = v;
     }
@@ -89,6 +95,13 @@ public class PM_Hotspot : MonoBehaviour
         if (hovered) s *= 1.5f;
         visual.localScale = Vector3.one * s;
         Camera cam = Camera.main;
+        float rt = Mathf.Repeat(Time.time * 0.6f + phase, 1f);
+        ring.localScale = Vector3.one * (1f + rt * 2.2f);
+        Color rc = Visited ? PM_Util.Green : PM_Util.Cyan;
+        rc.a = (1f - rt) * 0.7f;
+        ringLine.startColor = rc;
+        ringLine.endColor = rc;
+        if (cam != null) ring.rotation = Quaternion.LookRotation(ring.position - cam.transform.position, Vector3.up);
         if (cam != null && label != null)
         {
             Vector3 d = label.position - cam.transform.position;

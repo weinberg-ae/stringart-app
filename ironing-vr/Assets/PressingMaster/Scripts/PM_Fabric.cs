@@ -72,7 +72,7 @@ public class PM_Fabric : MonoBehaviour
         mat.SetTexture("_MainTex", albedoTex);
         mat.SetColor("_BaseColor", Color.white);
         mat.SetTexture("_BumpMap", normalTex);
-        mat.SetFloat("_BumpScale", 1.6f);
+        mat.SetFloat("_BumpScale", 1.2f);
         mat.EnableKeyword("_NORMALMAP");
         mat.SetFloat("_Smoothness", info.smoothness);
         mat.SetFloat("_Metallic", 0f);
@@ -90,28 +90,49 @@ public class PM_Fabric : MonoBehaviour
         scorch = new float[count];
         spots = new float[count];
 
-        // Height field of wrinkles: ridged noise + diagonal folds.
+        // Height field of wrinkles: sharp creases (like real crumpled cloth) + soft waves.
         float ox = seed * 13.1f, oz = seed * 7.7f;
-        float depth = info.type == PM_FabricType.Linen ? 1.3f : (info.type == PM_FabricType.Silk ? 0.7f : 1f);
+        float depth = info.type == PM_FabricType.Linen ? 1.3f : (info.type == PM_FabricType.Silk ? 0.6f : 1f);
+        var rnd = new System.Random(seed * 31 + 7);
+        int creases = info.type == PM_FabricType.Linen ? 14 : 10;
+        var cx = new float[creases]; var cy = new float[creases]; var dirx = new float[creases]; var diry = new float[creases];
+        var len = new float[creases]; var wid = new float[creases]; var amp = new float[creases];
+        float baseAngle = (float)rnd.NextDouble() * Mathf.PI;
+        for (int i = 0; i < creases; i++)
+        {
+            cx[i] = (float)rnd.NextDouble(); cy[i] = (float)rnd.NextDouble();
+            float ang = baseAngle + ((float)rnd.NextDouble() - 0.5f) * 1.6f;
+            dirx[i] = Mathf.Cos(ang); diry[i] = Mathf.Sin(ang);
+            len[i] = 0.15f + (float)rnd.NextDouble() * 0.45f;
+            wid[i] = 0.006f + (float)rnd.NextDouble() * 0.014f;
+            amp[i] = 0.5f + (float)rnd.NextDouble() * 0.6f;
+        }
         var h = new float[count];
         for (int y = 0; y < Res; y++)
             for (int x = 0; x < Res; x++)
             {
                 float u = x / (float)Res, w = y / (float)Res;
-                float n1 = Mathf.PerlinNoise(ox + u * 3.2f, oz + w * 2.6f);
-                float ridge = 1f - Mathf.Abs(n1 * 2f - 1f);
-                float n2 = Mathf.PerlinNoise(ox + 40 + u * 7f, oz + 40 + w * 6f);
-                float ridge2 = 1f - Mathf.Abs(n2 * 2f - 1f);
-                float folds = Mathf.Pow(ridge, 6f) * 0.9f + Mathf.Pow(ridge2, 8f) * 0.5f;
-                float fine = Mathf.PerlinNoise(ox + u * 22f, oz + w * 22f) * 0.08f;
-                h[y * Res + x] = (folds + fine) * depth;
+                float warp = (Mathf.PerlinNoise(ox + u * 5f, oz + w * 5f) - 0.5f) * 0.05f;
+                float sum = 0f;
+                for (int i = 0; i < creases; i++)
+                {
+                    float px = u - cx[i], py = w - cy[i];
+                    float along = px * dirx[i] + py * diry[i];
+                    float across = -px * diry[i] + py * dirx[i] + warp;
+                    float l = len[i] * 0.5f;
+                    if (along < -l || along > l) continue;
+                    float taper = 1f - Mathf.Abs(along) / l;
+                    sum += amp[i] * taper * Mathf.Exp(-(across * across) / (wid[i] * wid[i]) * 0.5f);
+                }
+                float wave = Mathf.PerlinNoise(ox + u * 2.5f, oz + w * 2.5f) * 0.25f;
+                h[y * Res + x] = (sum + wave) * depth;
             }
         for (int y = 0; y < Res; y++)
             for (int x = 0; x < Res; x++)
             {
                 float hl = h[y * Res + Mathf.Max(x - 1, 0)], hr = h[y * Res + Mathf.Min(x + 1, Res - 1)];
                 float hd = h[Mathf.Max(y - 1, 0) * Res + x], hu = h[Mathf.Min(y + 1, Res - 1) * Res + x];
-                Vector3 nn = new Vector3((hl - hr) * 6f, (hd - hu) * 6f, 1f).normalized;
+                Vector3 nn = new Vector3((hl - hr) * 9f, (hd - hu) * 9f, 1f).normalized;
                 wrinkleNormal[y * Res + x] = new Color32((byte)((nn.x * 0.5f + 0.5f) * 255), (byte)((nn.y * 0.5f + 0.5f) * 255), (byte)((nn.z * 0.5f + 0.5f) * 255), 255);
                 normal[y * Res + x] = wrinkleNormal[y * Res + x];
             }
@@ -143,7 +164,7 @@ public class PM_Fabric : MonoBehaviour
                         break;
                 }
                 // Wrinkle shading baked lightly into the color.
-                float shade = 1f - h[y * Res + x] * 0.12f;
+                float shade = 1f - Mathf.Clamp01(h[y * Res + x]) * 0.06f;
                 Color col = c * m * shade;
                 col.a = 1f;
                 baseAlbedo[y * Res + x] = col;

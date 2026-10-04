@@ -10,6 +10,8 @@ public class PM_Panel : MonoBehaviour
     static TMP_FontAsset font;
 
     TextMeshProUGUI title, body, status, counter;
+    CanvasGroup group;
+    float appear = 1f;
     readonly List<GameObject> buttons = new List<GameObject>();
 
     public static TMP_FontAsset Font()
@@ -74,8 +76,12 @@ public class PM_Panel : MonoBehaviour
         rt.localScale = Vector3.one * 0.001f;
 
         var bg = MakeRect(canvasGo.transform, "Background", 0, 0, wPx, hPx);
-        bg.gameObject.AddComponent<Image>().color = new Color(0.01f, 0.03f, 0.07f, 0.9f);
-        MakeFrame(canvasGo.transform, wPx, hPx, 4, PM_Util.Cyan);
+        group = canvasGo.AddComponent<CanvasGroup>();
+        bg.gameObject.AddComponent<Image>().color = new Color(0.0f, 0.05f, 0.09f, 0.62f);
+        var header = MakeRect(canvasGo.transform, "Header", 0, 0, wPx, titleSize * 1.7f + 25);
+        header.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.95f, 1f, 0.10f);
+        MakeFrame(canvasGo.transform, wPx, hPx, 2, new Color(0.1f, 0.95f, 1f, 0.35f));
+        MakeCorners(canvasGo.transform, wPx, hPx, 70, 6, PM_Util.Cyan);
         float titleH = titleSize * 1.7f;
         float sepY = 20 + titleH + 3;
         var sep = MakeRect(canvasGo.transform, "Line", 30, sepY, wPx - 60, 3);
@@ -112,6 +118,27 @@ public class PM_Panel : MonoBehaviour
         MakeRect(parent, "FrameR", w - t, 0, t, h).gameObject.AddComponent<Image>().color = c;
     }
 
+    static void MakeCorners(Transform parent, float w, float h, float len, float t, Color c)
+    {
+        MakeRect(parent, "C1a", 0, 0, len, t).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C1b", 0, 0, t, len).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C2a", w - len, 0, len, t).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C2b", w - t, 0, t, len).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C3a", 0, h - t, len, t).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C3b", 0, h - len, t, len).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C4a", w - len, h - t, len, t).gameObject.AddComponent<Image>().color = c;
+        MakeRect(parent, "C4b", w - t, h - len, t, len).gameObject.AddComponent<Image>().color = c;
+    }
+
+    void Update()
+    {
+        if (appear >= 1f) return;
+        appear = Mathf.Min(1f, appear + Time.deltaTime * 3.5f);
+        float e = Mathf.SmoothStep(0f, 1f, appear);
+        if (group != null) group.alpha = e;
+        transform.localScale = Vector3.one * Mathf.Lerp(0.94f, 1f, e);
+    }
+
     static TextMeshProUGUI MakeText(Transform parent, string name, float x, float y, float w, float h, float size, Color c)
     {
         var r = MakeRect(parent, name, x, y, w, h);
@@ -130,6 +157,7 @@ public class PM_Panel : MonoBehaviour
         title.text = PM_Hebrew.Visual(titleText, titleChars);
         body.text = PM_Hebrew.Visual(bodyText, bodyChars);
         counter.text = counterText ?? "";
+        appear = 0f;
         SetStatus("", Color.white);
     }
 
@@ -166,7 +194,8 @@ public class PM_Panel : MonoBehaviour
         Destroy(vis.GetComponent<Collider>());
         vis.transform.SetParent(root.transform, false);
         vis.transform.localScale = new Vector3(w, 0.075f, 0.02f);
-        var mat = PM_Util.NeonMaterial(c, 0.6f);
+        var mat = PM_Util.NeonMaterial(c, 0.45f);
+        mat.SetColor("_BaseColor", new Color(0.02f, 0.03f, 0.05f));
         vis.GetComponent<Renderer>().material = mat;
 
         var canvasGo = new GameObject("Label", typeof(RectTransform));
@@ -182,7 +211,9 @@ public class PM_Panel : MonoBehaviour
         t.text = PM_Hebrew.VisualLine(label);
 
         var click = PM_Clickable.Add(root, action);
-        click.onHover = h => mat.SetColor("_EmissionColor", c * (h ? 2.2f : 0.6f));
+        click.onHover = h => mat.SetColor("_EmissionColor", c * (h ? 2.2f : 0.45f));
+        var edge = new[] { new Vector3(-w / 2, -0.0375f, -0.011f), new Vector3(w / 2, -0.0375f, -0.011f), new Vector3(w / 2, 0.0375f, -0.011f), new Vector3(-w / 2, 0.0375f, -0.011f) };
+        PM_Util.Line(root.transform, "Edge", edge, c, 0.003f, true);
         return root;
     }
 

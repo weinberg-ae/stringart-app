@@ -9,6 +9,9 @@ using UnityEngine.InputSystem;
 // Without headset: hold right mouse button to look around, W A S D Q E to move.
 public class PM_Game : MonoBehaviour
 {
+    [Tooltip("Graphite + neon look for the table. Uncheck to keep the original blue model.")]
+    public bool restyleTable = true;
+
     enum State { Menu, Learning, ExamIntro, ExamFabric, ExamResult }
 
     PM_Station station;
@@ -24,6 +27,7 @@ public class PM_Game : MonoBehaviour
     readonly List<PM_Hotspot> fabricHs = new List<PM_Hotspot>();
     PM_Hotspot openHs;
     PM_Garment garment;
+    LineRenderer cardLink;
 
     State state;
     List<PM_Step> steps;
@@ -60,6 +64,10 @@ public class PM_Game : MonoBehaviour
         card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
         card.gameObject.SetActive(false);
         BuildHotspots();
+        PM_Look.PostFX();
+        PM_Look.GridFloor(station.PlayerPos, station.Forward, station.Right);
+        PM_Look.Dust(station.PlayerPos + station.Forward * 0.8f);
+        if (restyleTable) station.Restyle();
         // Tailor's mannequin standing next to the station (decoration).
         PM_Garment.Show("mannequin", station.PlayerPos + station.Forward * 1.5f - station.Right * 2.5f, 1.6f,
             station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
@@ -131,6 +139,12 @@ public class PM_Game : MonoBehaviour
         Vector3 pos = h.transform.position + Vector3.up * 0.32f - station.Forward * 0.18f;
         pos.y = Mathf.Clamp(pos.y, station.PlayerPos.y + 1.1f, station.PlayerPos.y + 1.75f);
         card.Place(pos, head);
+        if (cardLink == null)
+        {
+            cardLink = PM_Util.Line(null, "PM_CardLink", new[] { Vector3.zero, Vector3.zero }, PM_Util.Cyan, 0.003f, false);
+            cardLink.useWorldSpace = true;
+        }
+        cardLink.gameObject.SetActive(true);
         cardHighlight.Clear();
         if (h.info.target != PM_Target.Fabric) cardHighlight.Show(h.parts, PM_Util.Green, false);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
@@ -140,6 +154,7 @@ public class PM_Game : MonoBehaviour
     {
         openHs = null;
         if (card != null) card.gameObject.SetActive(false);
+        if (cardLink != null) cardLink.gameObject.SetActive(false);
         if (cardHighlight != null) { cardHighlight.Clear(); station.RefreshButtons(); }
     }
 
@@ -499,6 +514,11 @@ public class PM_Game : MonoBehaviour
     {
         float dt = Time.deltaTime;
         HandleKeyboard();
+        if (openHs != null && cardLink != null && card.gameObject.activeSelf)
+        {
+            cardLink.SetPosition(0, openHs.transform.position);
+            cardLink.SetPosition(1, card.transform.position - card.transform.up * (0.26f));
+        }
         if (station != null && station.Iron != null) station.Iron.simulateSteam = KeyHeld(Key.LeftShift);
         switch (state)
         {

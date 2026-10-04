@@ -398,6 +398,15 @@ public class PM_Station : MonoBehaviour
         PM_Util.Line(parent, name + "_Edge", e, edge, 0.003f, true);
     }
 
+    public void Restyle()
+    {
+        var keep = new HashSet<string> { GaugeFace, GaugeRing, GaugeNeedle, "3dSolid 39", "3dSolid 40", "3dSolid 51", RestPart };
+        for (int m = 1; m <= 3; m++) keep.Add(TempButtonParts[m]);
+        Transform board = PM_Util.FindDeep(Table, BoardPart);
+        if (board == null) return;
+        PM_Look.RestyleStation(Table, keep, board, PM_Util.WorldBounds(board), Forward, Right);
+    }
+
     public void ShowTools(bool on)
     {
         if (tools != null) tools.gameObject.SetActive(on);
