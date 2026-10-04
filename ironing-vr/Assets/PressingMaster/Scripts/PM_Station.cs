@@ -125,6 +125,7 @@ public class PM_Station : MonoBehaviour
 
         Transform board = PM_Util.FindDeep(Table, BoardPart);
         Transform rest = PM_Util.FindDeep(Table, RestPart);
+        if (rest != null) targets[PM_Target.Rest] = new List<Transform> { rest };
         Transform btn = PM_Util.FindDeep(Table, TempButtonParts[2]);
         if (board == null || btn == null)
         {
@@ -299,13 +300,13 @@ public class PM_Station : MonoBehaviour
     void BuildTools()
     {
         tools = new GameObject("PM_Tools").transform;
-        tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z) - Right * 0.3f;
+        tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
         tools.rotation = BoardRotation;
 
         // Tailor's ham: egg-shaped wireframe.
         var ham = new GameObject("PM_Ham").transform;
         ham.SetParent(tools, false);
-        ham.localPosition = new Vector3(0, 0.08f, 0);
+        ham.localPosition = new Vector3(-0.5f, 0.08f, 0);
         for (int i = 0; i < 6; i++)
         {
             float a = i * Mathf.PI / 6f;
@@ -337,12 +338,13 @@ public class PM_Station : MonoBehaviour
         // Point presser / clapper: wooden base + pointed top board on a post.
         var pp = new GameObject("PM_PointPresser").transform;
         pp.SetParent(tools, false);
-        WireBox(pp, new Vector3(0, 0.02f, 0), new Vector3(0.32f, 0.04f, 0.08f), PM_Util.Yellow);
+        pp.localPosition = new Vector3(-0.17f, 0, 0);
+        WireBox(pp, new Vector3(0, 0.02f, 0), new Vector3(0.30f, 0.04f, 0.08f), PM_Util.Yellow);
         WireBox(pp, new Vector3(0.05f, 0.08f, 0), new Vector3(0.03f, 0.08f, 0.03f), PM_Util.Yellow);
         Vector3[] top =
         {
-            new Vector3(-0.16f, 0.12f, -0.03f), new Vector3(0.10f, 0.12f, -0.03f), new Vector3(0.17f, 0.12f, 0f),
-            new Vector3(0.10f, 0.12f, 0.03f), new Vector3(-0.16f, 0.12f, 0.03f)
+            new Vector3(-0.15f, 0.12f, -0.03f), new Vector3(0.09f, 0.12f, -0.03f), new Vector3(0.15f, 0.12f, 0f),
+            new Vector3(0.09f, 0.12f, 0.03f), new Vector3(-0.15f, 0.12f, 0.03f)
         };
         PM_Util.Line(pp, "Top", top, PM_Util.Yellow, 0.004f, true);
         for (int i = 0; i < top.Length; i++) top[i].y = 0.135f;
@@ -350,18 +352,22 @@ public class PM_Station : MonoBehaviour
         targets[PM_Target.PointPresser] = new List<Transform> { pp };
 
         // Pressing cloth: translucent sheet.
-        var cloth = Sheet(tools, "PM_Cloth", new Vector3(0.1f, 0.006f, 0), new Vector2(0.45f, 0.32f), new Color(1f, 1f, 1f, 0.35f), Color.white);
+        var cloth = new GameObject("PM_Cloth").transform;
+        cloth.SetParent(tools, false);
+        cloth.localPosition = new Vector3(0.17f, 0, 0);
+        Sheet(cloth, "Cloth", new Vector3(0, 0.006f, 0), new Vector2(0.27f, 0.22f), new Color(1f, 1f, 1f, 0.35f), Color.white);
         targets[PM_Target.Cloth] = new List<Transform> { cloth };
 
         // Fusible: baking paper above and below the fusible interfacing (exploded view).
         var fus = new GameObject("PM_Fusible").transform;
         fus.SetParent(tools, false);
-        Sheet(fus, "PaperBottom", new Vector3(0.1f, 0.01f, 0), new Vector2(0.4f, 0.3f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
-        Sheet(fus, "Interfacing", new Vector3(0.1f, 0.06f, 0), new Vector2(0.32f, 0.22f), new Color(1f, 0.85f, 0.1f, 0.5f), PM_Util.Yellow);
-        Sheet(fus, "PaperTop", new Vector3(0.1f, 0.11f, 0), new Vector2(0.4f, 0.3f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
+        fus.localPosition = new Vector3(0.5f, 0, 0);
+        Sheet(fus, "PaperBottom", new Vector3(0, 0.01f, 0), new Vector2(0.26f, 0.2f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
+        Sheet(fus, "Interfacing", new Vector3(0, 0.05f, 0), new Vector2(0.2f, 0.14f), new Color(1f, 0.85f, 0.1f, 0.5f), PM_Util.Yellow);
+        Sheet(fus, "PaperTop", new Vector3(0, 0.09f, 0), new Vector2(0.26f, 0.2f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
         targets[PM_Target.Fusible] = new List<Transform> { fus };
 
-        ShowTool(PM_Target.None);
+        ShowTools(false);
     }
 
     void WireBox(Transform parent, Vector3 c, Vector3 s, Color col)
@@ -374,7 +380,7 @@ public class PM_Station : MonoBehaviour
         for (int i = 0; i < 4; i++) PM_Util.Line(parent, "E" + i, new[] { bottom[i], topR[i] }, col, 0.004f, false);
     }
 
-    Transform Sheet(Transform parent, string name, Vector3 pos, Vector2 size, Color fill, Color edge)
+    void Sheet(Transform parent, string name, Vector3 pos, Vector2 size, Color fill, Color edge)
     {
         var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
         Destroy(q.GetComponent<Collider>());
@@ -390,25 +396,34 @@ public class PM_Station : MonoBehaviour
             pos + new Vector3(size.x / 2, 0.001f, size.y / 2), pos + new Vector3(-size.x / 2, 0.001f, size.y / 2)
         };
         PM_Util.Line(parent, name + "_Edge", e, edge, 0.003f, true);
-        return q.transform;
     }
 
-    public void ShowTool(PM_Target t)
+    public void ShowTools(bool on)
     {
-        foreach (PM_Target k in new[] { PM_Target.Ham, PM_Target.PointPresser, PM_Target.Cloth, PM_Target.Fusible })
+        if (tools != null) tools.gameObject.SetActive(on);
+    }
+
+    // Where a point of light should float for the given parts.
+    public Vector3 AnchorPoint(PM_Anchor anchor, List<Transform> parts)
+    {
+        if (anchor == PM_Anchor.BoardLeft)
+            return new Vector3(BoardCenter.x, BoardTopY + 0.05f, BoardCenter.z) - Right * 0.58f - Forward * 0.12f;
+        bool wasActive = tools != null && tools.gameObject.activeSelf;
+        if (tools != null) tools.gameObject.SetActive(true);
+        Bounds b = PM_Util.WorldBounds(parts);
+        if (tools != null) tools.gameObject.SetActive(wasActive);
+        float depth = Mathf.Abs(Forward.x) * b.size.x + Mathf.Abs(Forward.z) * b.size.z;
+        switch (anchor)
         {
-            List<Transform> l;
-            if (!targets.TryGetValue(k, out l)) continue;
-            foreach (Transform x in l)
-            {
-                // Sheets: the edge line is a sibling; toggle the whole tool root when possible.
-                Transform root = x.parent == tools ? x : x.parent;
-                root.gameObject.SetActive(k == t);
-            }
+            case PM_Anchor.Front:
+                return b.center - Forward * (depth * 0.5f + 0.05f);
+            case PM_Anchor.FrontBelow:
+                return b.center - Forward * (depth * 0.5f + 0.05f) - Vector3.up * 0.06f;
+            case PM_Anchor.IronFront:
+                return new Vector3(b.center.x, b.min.y + 0.03f, b.center.z) - Forward * (depth * 0.5f + 0.06f) + Right * 0.06f;
+            default:
+                return new Vector3(b.center.x, b.max.y + 0.06f, b.center.z);
         }
-        // Edges of the cloth sheet live directly under the tools root.
-        foreach (Transform child in tools)
-            if (child.name.StartsWith("PM_Cloth")) child.gameObject.SetActive(t == PM_Target.Cloth);
     }
 
     // ---------- Runtime state ----------

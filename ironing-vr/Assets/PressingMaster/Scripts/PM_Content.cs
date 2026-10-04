@@ -2,8 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // All game texts (Hebrew) and fabric data. Edit texts here.
-public enum PM_Target { None, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric }
-public enum PM_Action { Next, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric }
+public enum PM_Target { None, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest }
+public enum PM_Action { Next, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
+public enum PM_HotspotGroup { None, Station, Tools, Fabric }
+public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft }
 public enum PM_FabricType { Cotton, Linen, Wool, Silk, Polyester }
 public enum PM_Steam { Required, Optional, Forbidden }
 public enum PM_Weave { Plain, Slub, Twill, Satin, Smooth }
@@ -16,6 +18,7 @@ public class PM_Step
     public PM_Target target;
     public PM_Action action;
     public PM_FabricType fabric;
+    public PM_HotspotGroup group = PM_HotspotGroup.None;
 
     public PM_Step(string id, string title, string body, PM_Target target, PM_Action action, PM_FabricType fabric = PM_FabricType.Cotton)
     {
@@ -35,6 +38,20 @@ public class PM_FabricInfo
     public float ironSeconds;   // time of continuous ironing on one spot to smooth it
     public string cue;          // exam: how it looks
     public string burn;         // exam: burn test result
+    public string fiberText, pressText, burnText;  // learning: texts of the three points of light
+}
+
+public class PM_HotspotInfo
+{
+    public string id, label, title, body;
+    public PM_Target target;
+    public PM_Anchor anchor;
+    public PM_HotspotGroup group;
+
+    public PM_HotspotInfo(string id, string label, string title, string body, PM_Target target, PM_Anchor anchor)
+    {
+        this.id = id; this.label = label; this.title = title; this.body = body; this.target = target; this.anchor = anchor;
+    }
 }
 
 public static class PM_Content
@@ -44,6 +61,7 @@ public static class PM_Content
     public const string BtnLearn = "מסלול לימוד";
     public const string BtnExam = "מבחן";
     public const string BtnMenu = "תפריט";
+    public const string BtnClose = "סגור";
 
     public static readonly string[] ModeDots = { "", "•", "••", "•••" };
     public static readonly string[] ModeTemp = { "", "110°C", "150°C", "200°C" };
@@ -74,179 +92,259 @@ public static class PM_Content
     public const string StGrabbed = "המגהץ ביד.";
     public const string StSteamAir = "פליטת קיטור: {0}%";
     public const string StTime = "זמן: {0} שניות";
+    public const string StExplored = "נקודות שנלמדו: {0}/{1}";
+    public const string StAllExplored = "כל הנקודות נלמדו — מצוין!";
 
-    // ---------- Learning path ----------
+    // ---------- Learning path (main window: only short tasks and critical rules) ----------
     public static List<PM_Step> LearningSteps()
     {
         var s = new List<PM_Step>();
         s.Add(new PM_Step("learn_intro", "מסלול לימוד",
-            "במסלול הזה נכיר את עמדת הגיהוץ, את כלי העזר ואת חמשת סוגי הבדים העיקריים.\n" +
-            "החלק שצריך לגעת בו מואר. כוונו אליו את היד או את הקרן ולחצו על ההדק.\n" +
+            "על העמדה פזורות נקודות אור.\n" +
+            "געו בנקודה ביד — או כוונו אליה את הקרן ולחצו על ההדק — ויופיע הסבר עם קריינות.\n" +
+            "בחלון הזה יופיעו רק המשימות וכללי הבטיחות.\n" +
             "כדי להמשיך — לחצו על \"הבא\".",
             PM_Target.None, PM_Action.Next));
 
         s.Add(new PM_Step("power", "הפעלת העמדה",
-            "המתג הראשי מפעיל את דוד הקיטור ואת חימום המגהץ.\n" +
-            "סובבו את המתג המואר בצד ימין של לוח הבקרה.",
+            "סובבו את המתג הראשי המואר בצד ימין של לוח הבקרה.",
             PM_Target.Power, PM_Action.Power));
 
-        s.Add(new PM_Step("pressure", "מד לחץ הקיטור",
-            "המים בדוד מתחממים והלחץ עולה. לחץ עבודה תקין: 3.5–4 בר.\n" +
-            "אין להתחיל לגהץ לפני שהמחוג מגיע לטווח: לחץ נמוך נותן קיטור רטוב, שמשאיר כתמי מים על הבד.\n" +
-            "המתינו עד שהמחוג יעלה.",
-            PM_Target.Gauge, PM_Action.WaitPressure));
+        var explore = new PM_Step("explore_station", "הכירו את העמדה",
+            "געו בכל נקודות האור על העמדה כדי ללמוד על חלקיה.\n" +
+            "בטיחות — חובה:\n" +
+            "• לא מכוונים קיטור אל היד או אל הגוף.\n" +
+            "• המגהץ מונח רק על משטח ההנחה — לא על הבד.\n" +
+            "• לא מתחילים לגהץ לפני שהלחץ מגיע ל-3.5 בר.",
+            PM_Target.None, PM_Action.Explore);
+        explore.group = PM_HotspotGroup.Station;
+        s.Add(explore);
 
-        s.Add(new PM_Step("safety", "הוראות בטיחות",
-            "• קיטור חם מ-100°C וגורם לכוויות — לעולם לא מכוונים קיטור אל היד או אל הגוף.\n" +
-            "• בין פעולה לפעולה המגהץ מונח על משטח ההנחה בלבד, לא על הבד.\n" +
-            "• לפני תחילת העבודה פולטים קיטור באוויר, כדי לנקז מים שהתעבו בצינור.\n" +
-            "• לא מושכים ולא מקפלים את כבל המגהץ.\n" +
-            "• בסיום: מכבים את המתג הראשי ומחכים שהעמדה תתקרר.",
-            PM_Target.None, PM_Action.Next));
-
-        s.Add(new PM_Step("boom", "זרוע תליית הכבל",
-            "הכבל וצינור הקיטור תלויים על זרוע עם קפיץ.\n" +
-            "כך הם לא נגררים על הבד ולא מקמטים אותו, לא מפריעים לתנועת היד, והצינור נשאר ישר — פחות מים מתעבים בתוכו.",
-            PM_Target.Boom, PM_Action.Next));
-
-        s.Add(new PM_Step("iron", "המגהץ המקצועי",
-            "מגהץ קיטור תעשייתי, כבד יותר ממגהץ ביתי — המשקל עוזר ללחוץ על הבד.\n" +
-            "מחזיקים בידית. כפתור הקיטור נמצא מתחת לידית; בשלט — ההדק.\n" +
-            "הרימו את המגהץ: כוונו אליו את היד ולחצו על הכפתור הצדדי (Grip) והחזיקו.",
+        s.Add(new PM_Step("iron", "הרמת המגהץ",
+            "כוונו את היד אל המגהץ, לחצו על הכפתור הצדדי (Grip) והחזיקו.",
             PM_Target.Iron, PM_Action.GrabIron));
 
         s.Add(new PM_Step("purge", "פליטת קיטור ראשונית",
             "החזיקו את המגהץ באוויר, הרחק מהבד ומהגוף, ולחצו על ההדק במשך 2 שניות.\n" +
-            "כך מנקזים את המים שהתעבו בצינור, ומונעים כתמים בגיהוץ הראשון.",
+            "כך מנקזים מים שהתעבו בצינור.",
             PM_Target.Iron, PM_Action.SteamInAir));
 
         s.Add(new PM_Step("temp", "בחירת טמפרטורה",
-            "שלוש דרגות, לפי סימני תווית הטיפול בבגד:\n" +
-            "• — עד 110°C: סינתטי (פוליאסטר, ניילון, אקריל)\n" +
-            "•• — עד 150°C: צמר, משי\n" +
-            "••• — עד 200°C: כותנה, פשתן\n" +
-            "גם במגהץ עצמו יש וסת (תרמוסטט): מכוונים לפי הבד הרגיש ביותר בבגד.\n" +
-            "לחצו על אחד מכפתורי הטמפרטורה.",
+            "לחצו על אחד מכפתורי הטמפרטורה בלוח הבקרה.\n" +
+            "• — עד 110°C\n•• — עד 150°C\n••• — עד 200°C",
             PM_Target.TempButtons, PM_Action.PressTemp));
 
-        s.Add(new PM_Step("shoe", "סוליית טפלון",
-            "כיסוי טפלון שמלבישים על סוליית המגהץ.\n" +
-            "מגן על בדים עדינים וכהים מפני ברק (לאס) וחריכה, ומפזר את החום באופן אחיד.\n" +
-            "מתאים במיוחד לצמר, למשי ולבדים כהים.",
-            PM_Target.Iron, PM_Action.Next));
-
-        s.Add(new PM_Step("sleeve", "שרוולון מובנה",
-            "קרש צר שמחובר לעמדה.\n" +
-            "מגהצים עליו שרוולים, מכפלות מכנסיים וחלקים צרים — שכבה אחת בכל פעם, בלי ליצור קפל בצד השני.",
-            PM_Target.SleeveBoard, PM_Action.Next));
-
-        s.Add(new PM_Step("ham", "כרית חייט (קבנצ'יק)",
-            "כרית קשיחה בצורת ביצה, ממולאת בנסורת.\n" +
-            "משמשת לגיהוץ ולעיצוב אזורים מעוגלים: חזה בז'קט, פנסים, תפרי כתף, ראש שרוול.\n" +
-            "שומרת על הצורה התלת-ממדית של הבגד.",
-            PM_Target.Ham, PM_Action.Next));
-
-        s.Add(new PM_Step("point", "חמור — מגהצון לפינות",
-            "כלי עץ עם קצה צר ומחודד.\n" +
-            "בעזרתו פותחים תפרים בתוך צווארונים, דשים ופינות.\n" +
-            "בבסיס העץ (קלאפר) לוחצים על הבד מיד אחרי הקיטור: העץ סופג חום ולחות ומקבע קפל חד ושטוח.",
-            PM_Target.PointPresser, PM_Action.Next));
-
-        s.Add(new PM_Step("cloth", "מטלית גיהוץ",
-            "בד כותנה דק או אורגנזה שמניחים בין המגהץ לבגד.\n" +
-            "חובה בצמר, במשי ובבדים כהים — מונעת ברק וכתמים.\n" +
-            "מטלית לחה מוסיפה לחות לבדים שצריכים אותה.",
-            PM_Target.Cloth, PM_Action.Next));
-
-        s.Add(new PM_Step("fusible", "דביקונים (פליזלין)",
-            "לעולם לא מגהצים דביקון ישירות על כיסוי הקרש או במגע עם סוליית המגהץ!\n" +
-            "מניחים נייר אפייה או מטלית מתחת ומעל.\n" +
-            "את הדבק מפעילים בלחיצה והחזקה של 10–15 שניות בכל נקודה — לא בהחלקה, כדי שהשכבות לא יזוזו.",
-            PM_Target.Fusible, PM_Action.Next));
+        var tools = new PM_Step("tools", "כלי עזר לגיהוץ",
+            "על משטח הגיהוץ ארבעה כלי עזר.\n" +
+            "געו בנקודות האור כדי ללמוד מתי ולמה משתמשים בכל אחד.",
+            PM_Target.None, PM_Action.Explore);
+        tools.group = PM_HotspotGroup.Tools;
+        s.Add(tools);
 
         s.Add(new PM_Step("fibers", "חמשת סוגי הסיבים",
-            "בגדים עשויים מסיבים:\n" +
             "• צמחיים (תאית) — כותנה ופשתן\n" +
             "• מן החי (חלבון) — צמר ומשי\n" +
             "• כימיים (סינתטיים) — פוליאסטר\n" +
             "מקור הסיב קובע איך הבד מגיב לחום, ללחות וללחץ.",
             PM_Target.None, PM_Action.Next));
 
-        AddFabric(s, PM_FabricType.Cotton, "cotton", "כותנה",
-            "מקור: צמחי — סיבים שגדלים סביב זרעי צמח הכותנה. חומר: תאית (צלולוז).\n" +
-            "צורה: סיב קצר (2–4 ס\"מ), שטוח ומפותל כמו סרט.\n" +
-            "מבנה הבד: גם אריגה (פופלין, דנים) וגם סריגה (טריקו, חולצות טי).",
-            "חום: גבוה, ••• (עד 200°C).\n" +
-            "לחות: קיטור מלא. כותנה יבשה מאוד — מרטיבים מעט לפני הגיהוץ.\n" +
-            "לחץ: אפשר ללחוץ חזק.\n" +
-            "בדים כהים — מגהצים מהצד ההפוך, כדי למנוע ברק.",
-            "נדלקת מהר, בלהבה צהובה, וממשיכה לבעור גם אחרי שמרחיקים את האש.\n" +
-            "ריח: נייר שרוף.\n" +
-            "שארית: אפר אפור ורך, שמתפורר לאבק.");
-
-        AddFabric(s, PM_FabricType.Linen, "linen", "פשתן",
-            "מקור: צמחי — סיבים מגבעול צמח הפשתן. חומר: תאית.\n" +
-            "צורה: סיב ארוך וקשיח, כמעט בלי גמישות — ולכן מתקמט מאוד.\n" +
-            "מבנה הבד: בעיקר אריגה; לחוט יש עיבויים לא אחידים.",
-            "חום: הגבוה ביותר, ••• (200°C).\n" +
-            "לחות: הרבה. מגהצים כשהבד עדיין לח, או מרססים מים לפני.\n" +
-            "לחץ: חזק. בדים כהים — מהצד ההפוך, אחרת נוצר ברק.\n" +
-            "ההבדל מכותנה: פשתן קשיח יותר ומתקמט יותר, ולכן דורש יותר לחות וזמן.",
-            "כמו כותנה: בוער מהר בלהבה צהובה, ריח של נייר שרוף, אפר אפור ורך.\n" +
-            "את ההבדל מכותנה רואים בבד עצמו: חוט עבה ולא אחיד, מגע קשיח וקריר.");
-
-        AddFabric(s, PM_FabricType.Wool, "wool", "צמר",
-            "מקור: מן החי — שיער כבשים. חומר: חלבון (קרטין).\n" +
-            "צורה: סיב מסולסל עם קשקשים זעירים; גמיש וקפיצי.\n" +
-            "מבנה הבד: אריגה (בדי חליפות) או סריגה (סוודרים).",
-            "חום: בינוני, •• (עד 150°C).\n" +
-            "לחות: חובה קיטור, ותמיד דרך מטלית גיהוץ.\n" +
-            "לחץ: מניחים ומרימים — לא מחליקים, כדי לא למתוח את הבד.\n" +
-            "לא מגהצים עד ייבוש מלא: נוצר ברק (לאס) והסיבים נמעכים.\n" +
-            "בעזרת קיטור אפשר לעצב צמר: לכווץ או למתוח.",
-            "בוער לאט, מתכווץ מהאש, ולרוב כבה מעצמו.\n" +
-            "ריח: שיער או נוצות שרופים.\n" +
-            "שארית: גוש שחור ופריך, שמתפורר בין האצבעות.");
-
-        AddFabric(s, PM_FabricType.Silk, "silk", "משי",
-            "מקור: מן החי — חוט מפקעת של תולעת המשי. חומר: חלבון (פיברואין).\n" +
-            "צורה: סיב ארוך מאוד ורציף (פילמנט), חלק ומבריק.\n" +
-            "מבנה הבד: בעיקר אריגה — סאטן, שיפון, קרפ.",
-            "חום: נמוך עד בינוני, •• (עד 150°C) — מתחילים בחום הנמוך.\n" +
-            "לחות: בלי קיטור ובלי ריסוס — טיפות מים משאירות כתמים.\n" +
-            "לחץ: קל. מגהצים מהצד ההפוך ודרך מטלית.",
-            "בוער לאט ומתכווץ מהאש.\n" +
-            "ריח: שיער שרוף, עדין יותר מצמר.\n" +
-            "שארית: כדורית שחורה קטנה, שנמעכת בקלות.");
-
-        AddFabric(s, PM_FabricType.Polyester, "polyester", "פוליאסטר",
-            "מקור: כימי — מופק מנפט. חומר: פולימר (פלסטיק).\n" +
-            "צורה: סיב חלק ואחיד, שנמס בחום (תרמופלסטי).\n" +
-            "מבנה הבד: גם אריגה וגם סריגה — בגדי ספורט, בטנות, חולצות.",
-            "חום: נמוך, • (עד 110°C).\n" +
-            "לחות: לא נחוצה; מעט קיטור מותר.\n" +
-            "לחץ: קל. בחום גבוה הסיב נמס: מופיע ברק פלסטיקי והבד נדבק לסוליה.\n" +
-            "כדאי לגהץ דרך מטלית.",
-            "מתכווץ מהאש ונמס, מטפטף ובוער עם עשן שחור.\n" +
-            "ריח: כימי, מתקתק.\n" +
-            "שארית: חרוז שחור וקשה, שלא מתפורר.");
+        foreach (PM_FabricType t in new[] { PM_FabricType.Cotton, PM_FabricType.Linen, PM_FabricType.Wool, PM_FabricType.Silk, PM_FabricType.Polyester })
+        {
+            PM_FabricInfo f = Fabric(t);
+            var st = new PM_Step(t.ToString().ToLower(), f.name,
+                "נדרש: " + ModeLabel(f.mode) + " — " + SteamLabel(f.steam) + "\n" +
+                "געו בנקודות האור ליד הבד: הסיב, גיהוץ, מבחן שריפה.\n" +
+                "אחר כך — גהצו את הבד עד שכל הקמטים ייעלמו.",
+                PM_Target.Fabric, PM_Action.IronFabric, t);
+            st.group = PM_HotspotGroup.Fabric;
+            s.Add(st);
+        }
 
         s.Add(new PM_Step("learn_end", "סיום מסלול הלימוד",
             "כל הכבוד! הכרתם את העמדה, את כלי העזר ואת חמשת סוגי הסיבים.\n" +
-            "עכשיו אפשר לעבור למבחן: בדים בלי שם — ועליכם לזהות אותם ולגהץ נכון.\n" +
-            "לחצו על \"מבחן\" או על \"תפריט\".",
+            "עכשיו אפשר לעבור למבחן: בדים בלי שם — ועליכם לזהות אותם ולגהץ נכון.",
             PM_Target.None, PM_Action.Next));
         return s;
     }
 
-    static void AddFabric(List<PM_Step> s, PM_FabricType t, string id, string name, string fiber, string pressing, string burn)
+    public static string SteamLabel(PM_Steam s)
     {
-        s.Add(new PM_Step(id + "_fiber", name + " — הסיב", fiber, PM_Target.Fabric, PM_Action.Next, t));
-        s.Add(new PM_Step(id + "_press", name + " — גיהוץ", pressing, PM_Target.Fabric, PM_Action.Next, t));
-        s.Add(new PM_Step(id + "_burn", name + " — מבחן שריפה", burn, PM_Target.Fabric, PM_Action.Next, t));
-        s.Add(new PM_Step(id + "_practice", "תרגול: " + name,
-            "בחרו טמפרטורה בלוח הבקרה, החליטו אם צריך קיטור (הדק), והעבירו את המגהץ על הבד עד שכל הקמטים ייעלמו.",
-            PM_Target.Fabric, PM_Action.IronFabric, t));
+        if (s == PM_Steam.Required) return "עם קיטור";
+        if (s == PM_Steam.Forbidden) return "בלי קיטור";
+        return "קיטור לא חובה";
+    }
+
+    // ---------- Points of light ----------
+    public static List<PM_HotspotInfo> StationHotspots()
+    {
+        var l = new List<PM_HotspotInfo>();
+        l.Add(new PM_HotspotInfo("power", "מתג ראשי", "המתג הראשי",
+            "מפעיל את דוד הקיטור ואת חימום המגהץ.\n" +
+            "בסיום העבודה: מכבים את המתג ומחכים שהעמדה תתקרר לפני ניקוי או הזזה.",
+            PM_Target.Power, PM_Anchor.Front));
+        l.Add(new PM_HotspotInfo("gauge", "מד לחץ", "מד לחץ הקיטור (מנומטר)",
+            "המים בדוד מתחממים והלחץ עולה. לחץ עבודה תקין: 3.5–4 בר.\n" +
+            "לא מתחילים לגהץ לפני שהמחוג מגיע לטווח: לחץ נמוך נותן קיטור רטוב, שמשאיר כתמי מים על הבד.\n" +
+            "לחץ גבוה מהטווח — מכבים את העמדה ומדווחים.",
+            PM_Target.Gauge, PM_Anchor.Front));
+        l.Add(new PM_HotspotInfo("temp", "טמפרטורה", "בחירת טמפרטורה",
+            "שלוש דרגות, לפי סימני תווית הטיפול בבגד:\n" +
+            "• — עד 110°C: סינתטי (פוליאסטר, ניילון, אקריל)\n" +
+            "•• — עד 150°C: צמר, משי\n" +
+            "••• — עד 200°C: כותנה, פשתן\n" +
+            "גם במגהץ עצמו יש וסת (תרמוסטט): מכוונים לפי הבד הרגיש ביותר בבגד.",
+            PM_Target.TempButtons, PM_Anchor.FrontBelow));
+        l.Add(new PM_HotspotInfo("iron", "מגהץ", "המגהץ המקצועי",
+            "מגהץ קיטור תעשייתי, כבד יותר ממגהץ ביתי — המשקל עוזר ללחוץ על הבד.\n" +
+            "מחזיקים בידית. כפתור הקיטור נמצא מתחת לידית; בשלט — ההדק.\n" +
+            "לפני הגיהוץ הראשון פולטים קיטור באוויר, כדי לנקז מים שהתעבו בצינור.",
+            PM_Target.Iron, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("shoe", "סוליית טפלון", "סוליית טפלון",
+            "כיסוי טפלון שמלבישים על סוליית המגהץ.\n" +
+            "מגן על בדים עדינים וכהים מפני ברק (לאס) וחריכה, ומפזר את החום באופן אחיד.\n" +
+            "מתאים במיוחד לצמר, למשי ולבדים כהים.",
+            PM_Target.Iron, PM_Anchor.IronFront));
+        l.Add(new PM_HotspotInfo("rest", "משטח הנחה", "משטח ההנחה של המגהץ",
+            "משטח עמיד לחום שעליו מניחים את המגהץ בין פעולה לפעולה.\n" +
+            "לעולם לא משאירים מגהץ חם על הבד או על כיסוי הקרש — זו הסיבה העיקרית לכתמי חריכה ולשריפות.",
+            PM_Target.Rest, PM_Anchor.Front));
+        l.Add(new PM_HotspotInfo("boom", "זרוע הכבל", "זרוע תליית הכבל",
+            "הכבל וצינור הקיטור תלויים על זרוע עם קפיץ.\n" +
+            "כך הם לא נגררים על הבד ולא מקמטים אותו, לא מפריעים לתנועת היד, והצינור נשאר ישר — פחות מים מתעבים בתוכו.",
+            PM_Target.Boom, PM_Anchor.Front));
+        l.Add(new PM_HotspotInfo("sleeve", "שרוולון", "שרוולון מובנה",
+            "קרש צר שמחובר לעמדה.\n" +
+            "מגהצים עליו שרוולים, מכפלות מכנסיים וחלקים צרים — שכבה אחת בכל פעם, בלי ליצור קפל בצד השני.",
+            PM_Target.SleeveBoard, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("board", "משטח גיהוץ", "משטח הגיהוץ",
+            "משטח רחב עם ריפוד וכיסוי עמיד לחום.\n" +
+            "בעמדות מקצועיות רבות יש במשטח יניקת אוויר (ואקום): היא מחזיקה את הבד במקום ומוציאה ממנו קיטור ולחות, כך שהבד מתייבש ומתקבע מהר.\n" +
+            "שומרים על הכיסוי נקי — לכלוך ודבק עוברים לבגד.",
+            PM_Target.Board, PM_Anchor.BoardLeft));
+        foreach (PM_HotspotInfo h in l) h.group = PM_HotspotGroup.Station;
+        return l;
+    }
+
+    public static List<PM_HotspotInfo> ToolHotspots()
+    {
+        var l = new List<PM_HotspotInfo>();
+        l.Add(new PM_HotspotInfo("ham", "כרית חייט", "כרית חייט (קבנצ'יק)",
+            "כרית קשיחה בצורת ביצה, ממולאת בנסורת.\n" +
+            "משמשת לגיהוץ ולעיצוב אזורים מעוגלים: חזה בז'קט, פנסים, תפרי כתף, ראש שרוול.\n" +
+            "שומרת על הצורה התלת-ממדית של הבגד.",
+            PM_Target.Ham, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("point", "חמור", "חמור — מגהצון לפינות",
+            "כלי עץ עם קצה צר ומחודד.\n" +
+            "בעזרתו פותחים תפרים בתוך צווארונים, דשים ופינות.\n" +
+            "בבסיס העץ (קלאפר) לוחצים על הבד מיד אחרי הקיטור: העץ סופג חום ולחות ומקבע קפל חד ושטוח.",
+            PM_Target.PointPresser, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("cloth", "מטלית גיהוץ", "מטלית גיהוץ",
+            "בד כותנה דק או אורגנזה שמניחים בין המגהץ לבגד.\n" +
+            "חובה בצמר, במשי ובבדים כהים — מונעת ברק וכתמים.\n" +
+            "מטלית לחה מוסיפה לחות לבדים שצריכים אותה.",
+            PM_Target.Cloth, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("fusible", "דביקונים", "דביקונים (פליזלין)",
+            "לעולם לא מגהצים דביקון ישירות על כיסוי הקרש או במגע עם סוליית המגהץ!\n" +
+            "מניחים נייר אפייה או מטלית מתחת ומעל.\n" +
+            "את הדבק מפעילים בלחיצה והחזקה של 10–15 שניות בכל נקודה — לא בהחלקה, כדי שהשכבות לא יזוזו.",
+            PM_Target.Fusible, PM_Anchor.Top));
+        foreach (PM_HotspotInfo h in l) h.group = PM_HotspotGroup.Tools;
+        return l;
+    }
+
+    public static List<PM_HotspotInfo> FabricHotspots(PM_FabricType t)
+    {
+        PM_FabricInfo f = Fabric(t);
+        string id = t.ToString().ToLower();
+        var l = new List<PM_HotspotInfo>
+        {
+            new PM_HotspotInfo(id + "_fiber", "הסיב", f.name + " — הסיב", f.fiberText, PM_Target.Fabric, PM_Anchor.Top),
+            new PM_HotspotInfo(id + "_press", "גיהוץ", f.name + " — גיהוץ", f.pressText, PM_Target.Fabric, PM_Anchor.Top),
+            new PM_HotspotInfo(id + "_burn", "מבחן שריפה", f.name + " — מבחן שריפה", f.burnText, PM_Target.Fabric, PM_Anchor.Top)
+        };
+        foreach (PM_HotspotInfo h in l) h.group = PM_HotspotGroup.Fabric;
+        return l;
+    }
+
+    static void FabricTexts(PM_FabricInfo f)
+    {
+        switch (f.type)
+        {
+            case PM_FabricType.Cotton:
+                f.fiberText =
+                    "מקור: צמחי — סיבים שגדלים סביב זרעי צמח הכותנה. חומר: תאית (צלולוז).\n" +
+                    "צורה: סיב קצר (2–4 ס\"מ), שטוח ומפותל כמו סרט.\n" +
+                    "מבנה הבד: גם אריגה (פופלין, דנים) וגם סריגה (טריקו, חולצות טי).";
+                f.pressText =
+                    "חום: גבוה, ••• (עד 200°C).\n" +
+                    "לחות: קיטור מלא. כותנה יבשה מאוד — מרטיבים מעט לפני הגיהוץ.\n" +
+                    "לחץ: אפשר ללחוץ חזק.\n" +
+                    "בדים כהים — מגהצים מהצד ההפוך, כדי למנוע ברק.";
+                f.burnText =
+                    "נדלקת מהר, בלהבה צהובה, וממשיכה לבעור גם אחרי שמרחיקים את האש.\n" +
+                    "ריח: נייר שרוף.\n" +
+                    "שארית: אפר אפור ורך, שמתפורר לאבק.";
+                break;
+            case PM_FabricType.Linen:
+                f.fiberText =
+                    "מקור: צמחי — סיבים מגבעול צמח הפשתן. חומר: תאית.\n" +
+                    "צורה: סיב ארוך וקשיח, כמעט בלי גמישות — ולכן מתקמט מאוד.\n" +
+                    "מבנה הבד: בעיקר אריגה; לחוט יש עיבויים לא אחידים.";
+                f.pressText =
+                    "חום: הגבוה ביותר, ••• (200°C).\n" +
+                    "לחות: הרבה. מגהצים כשהבד עדיין לח, או מרססים מים לפני.\n" +
+                    "לחץ: חזק. בדים כהים — מהצד ההפוך, אחרת נוצר ברק.\n" +
+                    "ההבדל מכותנה: פשתן קשיח יותר ומתקמט יותר, ולכן דורש יותר לחות וזמן.";
+                f.burnText =
+                    "כמו כותנה: בוער מהר בלהבה צהובה, ריח של נייר שרוף, אפר אפור ורך.\n" +
+                    "את ההבדל מכותנה רואים בבד עצמו: חוט עבה ולא אחיד, מגע קשיח וקריר.";
+                break;
+            case PM_FabricType.Wool:
+                f.fiberText =
+                    "מקור: מן החי — שיער כבשים. חומר: חלבון (קרטין).\n" +
+                    "צורה: סיב מסולסל עם קשקשים זעירים; גמיש וקפיצי.\n" +
+                    "מבנה הבד: אריגה (בדי חליפות) או סריגה (סוודרים).";
+                f.pressText =
+                    "חום: בינוני, •• (עד 150°C).\n" +
+                    "לחות: חובה קיטור, ותמיד דרך מטלית גיהוץ.\n" +
+                    "לחץ: מניחים ומרימים — לא מחליקים, כדי לא למתוח את הבד.\n" +
+                    "לא מגהצים עד ייבוש מלא: נוצר ברק (לאס) והסיבים נמעכים.\n" +
+                    "בעזרת קיטור אפשר לעצב צמר: לכווץ או למתוח.";
+                f.burnText =
+                    "בוער לאט, מתכווץ מהאש, ולרוב כבה מעצמו.\n" +
+                    "ריח: שיער או נוצות שרופים.\n" +
+                    "שארית: גוש שחור ופריך, שמתפורר בין האצבעות.";
+                break;
+            case PM_FabricType.Silk:
+                f.fiberText =
+                    "מקור: מן החי — חוט מפקעת של תולעת המשי. חומר: חלבון (פיברואין).\n" +
+                    "צורה: סיב ארוך מאוד ורציף (פילמנט), חלק ומבריק.\n" +
+                    "מבנה הבד: בעיקר אריגה — סאטן, שיפון, קרפ.";
+                f.pressText =
+                    "חום: נמוך עד בינוני, •• (עד 150°C) — מתחילים בחום הנמוך.\n" +
+                    "לחות: בלי קיטור ובלי ריסוס — טיפות מים משאירות כתמים.\n" +
+                    "לחץ: קל. מגהצים מהצד ההפוך ודרך מטלית.";
+                f.burnText =
+                    "בוער לאט ומתכווץ מהאש.\n" +
+                    "ריח: שיער שרוף, עדין יותר מצמר.\n" +
+                    "שארית: כדורית שחורה קטנה, שנמעכת בקלות.";
+                break;
+            case PM_FabricType.Polyester:
+                f.fiberText =
+                    "מקור: כימי — מופק מנפט. חומר: פולימר (פלסטיק).\n" +
+                    "צורה: סיב חלק ואחיד, שנמס בחום (תרמופלסטי).\n" +
+                    "מבנה הבד: גם אריגה וגם סריגה — בגדי ספורט, בטנות, חולצות.";
+                f.pressText =
+                    "חום: נמוך, • (עד 110°C).\n" +
+                    "לחות: לא נחוצה; מעט קיטור מותר.\n" +
+                    "לחץ: קל. בחום גבוה הסיב נמס: מופיע ברק פלסטיקי והבד נדבק לסוליה.\n" +
+                    "כדאי לגהץ דרך מטלית.";
+                f.burnText =
+                    "מתכווץ מהאש ונמס, מטפטף ובוער עם עשן שחור.\n" +
+                    "ריח: כימי, מתקתק.\n" +
+                    "שארית: חרוז שחור וקשה, שלא מתפורר.";
+                break;
+        }
     }
 
     // ---------- Exam ----------
@@ -307,6 +405,7 @@ public static class PM_Content
                 cue = "בד חלק, מבריק מעט, אחיד לגמרי.",
                 burn = "נמס ומטפטף, עשן שחור, חרוז קשה שלא מתפורר."
             };
+            foreach (PM_FabricInfo fi in fabrics.Values) FabricTexts(fi);
         }
         return fabrics[t];
     }

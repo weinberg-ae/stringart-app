@@ -7,9 +7,6 @@ using UnityEngine.UI;
 // Floating holographic screen with Hebrew text and pressable 3D buttons.
 public class PM_Panel : MonoBehaviour
 {
-    public const float Width = 1.0f;   // meters
-    public const float Height = 0.7f;  // meters
-
     static TMP_FontAsset font;
 
     TextMeshProUGUI title, body, status, counter;
@@ -40,11 +37,27 @@ public class PM_Panel : MonoBehaviour
         return font;
     }
 
+    // Layout of this screen (pixels; 1000 px = 1 meter).
+    int wPx = 1000, hPx = 700, bodyChars = 50, titleChars = 34;
+    float titleSize = 52, bodySize = 34;
+    bool hasStatus = true;
+
+    public float HeightMeters { get { return hPx * 0.001f; } }
+
+    // Main screen.
     public static PM_Panel Create(Transform parent)
     {
-        var root = new GameObject("PM_Panel");
+        return Create(parent, "PM_Panel", 1000, 700, 52, 34, 50, true);
+    }
+
+    // Generic screen (also used for the small info cards).
+    public static PM_Panel Create(Transform parent, string name, int widthPx, int heightPx, float titleSize, float bodySize, int bodyChars, bool status)
+    {
+        var root = new GameObject(name);
         root.transform.SetParent(parent, false);
         var p = root.AddComponent<PM_Panel>();
+        p.wPx = widthPx; p.hPx = heightPx; p.titleSize = titleSize; p.bodySize = bodySize;
+        p.bodyChars = bodyChars; p.titleChars = Mathf.Max(16, (int)(widthPx / (titleSize * 0.55f))); p.hasStatus = status;
         p.Build();
         return p;
     }
@@ -56,18 +69,23 @@ public class PM_Panel : MonoBehaviour
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         var rt = canvasGo.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(1000, 700);
+        rt.sizeDelta = new Vector2(wPx, hPx);
         rt.localScale = Vector3.one * 0.001f;
 
-        var bg = MakeRect(canvasGo.transform, "Background", 0, 0, 1000, 700);
+        var bg = MakeRect(canvasGo.transform, "Background", 0, 0, wPx, hPx);
         bg.gameObject.AddComponent<Image>().color = new Color(0.01f, 0.03f, 0.07f, 0.9f);
-        MakeFrame(canvasGo.transform, 1000, 700, 4, PM_Util.Cyan);
-        var sep = MakeRect(canvasGo.transform, "Line", 30, 108, 940, 3);
+        MakeFrame(canvasGo.transform, wPx, hPx, 4, PM_Util.Cyan);
+        float titleH = titleSize * 1.7f;
+        float sepY = 20 + titleH + 3;
+        var sep = MakeRect(canvasGo.transform, "Line", 30, sepY, wPx - 60, 3);
         sep.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.95f, 1f, 0.6f);
 
-        title = MakeText(canvasGo.transform, "Title", 30, 20, 940, 85, 52, PM_Util.Cyan);
-        body = MakeText(canvasGo.transform, "Body", 30, 125, 940, 470, 34, Color.white);
-        status = MakeText(canvasGo.transform, "Status", 30, 605, 940, 75, 34, PM_Util.Yellow);
+        float statusH = hasStatus ? 80 : 0;
+        float bodyY = sepY + 17;
+        title = MakeText(canvasGo.transform, "Title", 30, 20, wPx - 60, titleH, titleSize, PM_Util.Cyan);
+        body = MakeText(canvasGo.transform, "Body", 30, bodyY, wPx - 60, hPx - bodyY - statusH - 15, bodySize, Color.white);
+        status = MakeText(canvasGo.transform, "Status", 30, hPx - 95, wPx - 60, 75, 34, PM_Util.Yellow);
+        status.gameObject.SetActive(hasStatus);
         counter = MakeText(canvasGo.transform, "Counter", 30, 30, 200, 50, 26, new Color(0.5f, 0.8f, 0.9f));
         counter.alignment = TextAlignmentOptions.TopLeft;
     }
@@ -108,8 +126,8 @@ public class PM_Panel : MonoBehaviour
 
     public void SetContent(string titleText, string bodyText, string counterText)
     {
-        title.text = PM_Hebrew.Visual(titleText, 34);
-        body.text = PM_Hebrew.Visual(bodyText, 50);
+        title.text = PM_Hebrew.Visual(titleText, titleChars);
+        body.text = PM_Hebrew.Visual(bodyText, bodyChars);
         counter.text = counterText ?? "";
         SetStatus("", Color.white);
     }
@@ -130,7 +148,7 @@ public class PM_Panel : MonoBehaviour
         for (int i = 0; i < items.Length; i++)
         {
             float x = total * 0.5f - w * 0.5f - i * (w + gap); // first item on the right
-            buttons.Add(MakeButton(items[i].Key, items[i].Value, new Vector3(x, -Height * 0.5f - 0.07f, -0.03f), w, i == 0));
+            buttons.Add(MakeButton(items[i].Key, items[i].Value, new Vector3(x, -HeightMeters * 0.5f - 0.07f, -0.03f), w, i == 0));
         }
     }
 

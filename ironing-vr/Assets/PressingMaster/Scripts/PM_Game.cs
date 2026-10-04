@@ -16,6 +16,14 @@ public class PM_Game : MonoBehaviour
     PM_Highlight highlight;
     PM_Fabric fabric;
 
+    // Points of light + info card
+    PM_Panel card;
+    PM_Highlight cardHighlight;
+    readonly List<PM_Hotspot> stationHs = new List<PM_Hotspot>();
+    readonly List<PM_Hotspot> toolHs = new List<PM_Hotspot>();
+    readonly List<PM_Hotspot> fabricHs = new List<PM_Hotspot>();
+    PM_Hotspot openHs;
+
     State state;
     List<PM_Step> steps;
     int stepIndex;
@@ -47,6 +55,10 @@ public class PM_Game : MonoBehaviour
         highlight = PM_Highlight.Create("PM_Highlight");
         panel = PM_Panel.Create(null);
         panel.Place(station.PanelPos, station.PlayerPos + Vector3.up * 1.6f);
+        cardHighlight = PM_Highlight.Create("PM_CardHighlight");
+        card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
+        card.gameObject.SetActive(false);
+        BuildHotspots();
         ShowMenu();
 
         // Without a headset: put the camera at eye height looking at the table, mouse + WASD control.
@@ -69,13 +81,79 @@ public class PM_Game : MonoBehaviour
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
     }
 
+    // ---------------- Points of light ----------------
+    void BuildHotspots()
+    {
+        foreach (PM_HotspotInfo info in PM_Content.StationHotspots())
+        {
+            List<Transform> parts = station.Targets(info.target);
+            if (parts.Count == 0) { Debug.LogWarning("[PM] Нет деталей для точки " + info.id); continue; }
+            Vector3 pos = station.AnchorPoint(info.anchor, parts);
+            Transform parent = info.target == PM_Target.Iron && station.Iron != null ? station.Iron.transform : station.Table;
+            stationHs.Add(MakeHotspot(info, pos, parent, parts));
+        }
+        foreach (PM_HotspotInfo info in PM_Content.ToolHotspots())
+        {
+            List<Transform> parts = station.Targets(info.target);
+            if (parts.Count == 0) continue;
+            Vector3 pos = station.AnchorPoint(info.anchor, parts) + Vector3.up * 0.04f;
+            toolHs.Add(MakeHotspot(info, pos, parts[0], parts));
+        }
+        ShowStationHotspots(false);
+    }
+
+    PM_Hotspot MakeHotspot(PM_HotspotInfo info, Vector3 pos, Transform parent, List<Transform> parts)
+    {
+        PM_Hotspot h = PM_Hotspot.Create(info, pos, parent, parts);
+        h.onClick = OpenCard;
+        return h;
+    }
+
+    void ShowStationHotspots(bool on)
+    {
+        foreach (PM_Hotspot h in stationHs) if (h != null) h.gameObject.SetActive(on);
+        if (!on) CloseCard();
+    }
+
+    void OpenCard(PM_Hotspot h)
+    {
+        if (openHs == h && card.gameObject.activeSelf) { CloseCard(); return; }
+        openHs = h;
+        h.SetVisited(true);
+        card.gameObject.SetActive(true);
+        card.SetContent(h.info.title, h.info.body, "");
+        card.SetButtons(Btn(PM_Content.BtnClose, CloseCard), Btn(PM_Content.BtnRepeat, () => { if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id); }));
+        Vector3 head = Camera.main != null ? Camera.main.transform.position : station.PlayerPos + Vector3.up * 1.6f;
+        Vector3 pos = h.transform.position + Vector3.up * 0.32f - station.Forward * 0.18f;
+        pos.y = Mathf.Clamp(pos.y, station.PlayerPos.y + 1.1f, station.PlayerPos.y + 1.75f);
+        card.Place(pos, head);
+        cardHighlight.Clear();
+        if (h.info.target != PM_Target.Fabric) cardHighlight.Show(h.parts, PM_Util.Green, false);
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
+    }
+
+    void CloseCard()
+    {
+        openHs = null;
+        if (card != null) card.gameObject.SetActive(false);
+        if (cardHighlight != null) { cardHighlight.Clear(); station.RefreshButtons(); }
+    }
+
+    static int CountVisited(List<PM_Hotspot> list)
+    {
+        int n = 0;
+        foreach (PM_Hotspot h in list) if (h != null && h.Visited) n++;
+        return n;
+    }
+
     static KeyValuePair<string, Action> Btn(string label, Action a) { return new KeyValuePair<string, Action>(label, a); }
 
     void ClearStepVisuals()
     {
         highlight.Clear();
         station.RefreshButtons();
-        station.ShowTool(PM_Target.None);
+        station.ShowTools(false);
+        ShowStationHotspots(false);
         RemoveFabric();
         if (PM_Audio.I != null) PM_Audio.I.StopVoice();
     }
@@ -99,11 +177,13 @@ public class PM_Game : MonoBehaviour
 
         highlight.Clear();
         station.RefreshButtons();
-        station.ShowTool(IsTool(s.target) ? s.target : PM_Target.None);
+        station.ShowTools(s.group == PM_HotspotGroup.Tools);
+        ShowStationHotspots(true);
+        CloseCard();
 
         if (s.target == PM_Target.Fabric)
         {
-            if (fabric == null || fabric.info.type != s.fabric) SpawnFabric(s.fabric, stepIndex);
+            if (fabric == null || fabric.info.type != s.fabric) { SpawnFabric(s.fabric, stepIndex); AddFabricHotspots(); }
         }
         else RemoveFabric();
 
@@ -120,9 +200,17 @@ public class PM_Game : MonoBehaviour
         RepeatVoice();
     }
 
-    static bool IsTool(PM_Target t)
+    void AddFabricHotspots()
     {
-        return t == PM_Target.Ham || t == PM_Target.PointPresser || t == PM_Target.Cloth || t == PM_Target.Fusible;
+        fabricHs.Clear();
+        if (fabric == null) return;
+        List<PM_HotspotInfo> infos = PM_Content.FabricHotspots(fabric.info.type);
+        Vector3 c = fabric.transform.position + Vector3.up * 0.14f + station.Forward * 0.14f;
+        for (int i = 0; i < infos.Count; i++)
+        {
+            Vector3 pos = c + station.Right * (0.17f - 0.17f * i);
+            fabricHs.Add(MakeHotspot(infos[i], pos, fabric.transform, new List<Transform> { fabric.transform }));
+        }
     }
 
     void RepeatVoice()
@@ -188,8 +276,17 @@ public class PM_Game : MonoBehaviour
             case PM_Action.PressTemp:
                 if (modeClickedThisStep) Complete(string.Format(PM_Content.StModeSet, PM_Content.ModeDots[station.Mode], PM_Content.ModeTemp[station.Mode]));
                 break;
+            case PM_Action.Explore:
+            {
+                List<PM_Hotspot> list = s.group == PM_HotspotGroup.Tools ? toolHs : stationHs;
+                int v = CountVisited(list);
+                panel.SetStatus(string.Format(PM_Content.StExplored, v, list.Count), PM_Util.Cyan);
+                if (list.Count > 0 && v >= list.Count) Complete(PM_Content.StAllExplored);
+                break;
+            }
             case PM_Action.IronFabric:
-                ProcessIroning(dt, false);
+                if (!ProcessIroning(dt, false))
+                    panel.SetStatus(string.Format(PM_Content.StExplored, CountVisited(fabricHs), fabricHs.Count), PM_Util.Cyan);
                 if (fabric != null && fabric.Done) Complete(PM_Content.StDone);
                 break;
         }
