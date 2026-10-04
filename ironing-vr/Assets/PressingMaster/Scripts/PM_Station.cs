@@ -50,6 +50,7 @@ public class PM_Station : MonoBehaviour
     readonly Dictionary<PM_Target, List<Transform>> targets = new Dictionary<PM_Target, List<Transform>>();
     readonly Material[] buttonMats = new Material[4];
     readonly Color[] buttonBaseEmission = new Color[4];
+    readonly Material[] capMats = new Material[4];
     Transform needle, powerKnob;
     Vector3 gaugeCenter, knobCenter;
     float needleAngle;
@@ -219,6 +220,18 @@ public class PM_Station : MonoBehaviour
             }
             Bounds bb = PM_Util.WorldBounds(b);
             int mode = m;
+            // Neon cap in front of the button: lights up in the color of its fiber group.
+            var cap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Destroy(cap.GetComponent<Collider>());
+            cap.name = "PM_ButtonCap_" + m;
+            float d = Mathf.Abs(Forward.x) * bb.size.x + Mathf.Abs(Forward.z) * bb.size.z;
+            float size = Mathf.Max(bb.size.y, Mathf.Abs(Right.x) * bb.size.x + Mathf.Abs(Right.z) * bb.size.z) * 1.15f;
+            cap.transform.position = bb.center - Forward * (d * 0.5f + 0.004f);
+            cap.transform.rotation = Quaternion.FromToRotation(Vector3.up, -Forward);
+            cap.transform.localScale = new Vector3(size, 0.003f, size);
+            capMats[m] = PM_Util.NeonMaterial(PM_Util.ModeColor(m), 0f);
+            cap.GetComponent<Renderer>().material = capMats[m];
+            cap.transform.SetParent(Table, true);
             var hit = PM_Util.HitBox("PM_TempHit_" + m, bb, 1.6f, 0.045f, Table);
             PM_Clickable.Add(hit, () => { if (onModeClicked != null) onModeClicked(mode); });
             Label(bb.center + Vector3.up * 0.045f - Forward * 0.01f, PM_Content.ModeDots[m] + "\n" + PM_Content.ModeTemp[m], 20, PM_Util.ModeColor(m));
@@ -482,6 +495,14 @@ public class PM_Station : MonoBehaviour
     void Update()
     {
         if (Table == null) return;
+        for (int m = 1; m <= 3; m++)
+        {
+            if (capMats[m] == null) continue;
+            Color c = PM_Util.ModeColor(m);
+            float k = !Powered ? 0.05f : (Mode == m ? 3.5f + Mathf.Sin(Time.time * 6f) * 1f : 0.6f);
+            capMats[m].SetColor("_EmissionColor", c * k);
+            capMats[m].SetColor("_BaseColor", c * (Powered ? 0.35f : 0.08f));
+        }
         if (Powered) Pressure = Mathf.MoveTowards(Pressure, WorkPressure, Time.deltaTime * 0.45f);
         else Pressure = Mathf.MoveTowards(Pressure, 0f, Time.deltaTime * 1.5f);
         float wobble = Powered && Pressure >= WorkPressure - 0.01f ? Mathf.Sin(Time.time * 7f) * 0.04f : 0f;

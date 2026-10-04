@@ -43,6 +43,20 @@ public class PM_DesktopCamera : MonoBehaviour
                 }
             }
         }
+        // Hold the left mouse button on the fabric = iron it (Shift = steam).
+        if (mouse != null && mouse.leftButton.isPressed && PM_Game.I != null)
+        {
+            Camera cam = GetComponent<Camera>();
+            if (cam != null)
+            {
+                Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                foreach (RaycastHit h in Physics.RaycastAll(ray, 20f))
+                {
+                    PM_Fabric f = h.collider.GetComponent<PM_Fabric>();
+                    if (f != null) { PM_Game.I.DesktopIron(f, h.textureCoord, h.point); break; }
+                }
+            }
+        }
         if (kb == null) return;
         Vector3 move = Vector3.zero;
         if (kb[Key.W].isPressed) move += transform.forward;

@@ -18,6 +18,8 @@ public class PM_Iron : MonoBehaviour
     public float SoleRadius { get; private set; }
 
     public System.Action onGrab;
+    float desktopUntil = -1f;
+    bool desktopHolding;
 
     XRGrabInteractable grab;
     Transform holder;
@@ -139,11 +141,28 @@ public class PM_Iron : MonoBehaviour
         returnFromRot = transform.localRotation;
     }
 
+    // Mouse test: put the iron on the fabric under the cursor.
+    public void PlaceAt(Vector3 point)
+    {
+        if (Held) return;
+        if (!desktopHolding) { desktopHolding = true; transform.localRotation = restLocalRot; }
+        returnT = -1f;
+        transform.position += point + Vector3.up * 0.004f - SoleWorld;
+        desktopUntil = Time.time + 0.2f;
+    }
+
     public Vector3 SoleWorld { get { return transform.TransformPoint(localSole); } }
     public Vector3 DownWorld { get { return transform.TransformDirection(localDown); } }
 
     void Update()
     {
+        if (desktopHolding && Time.time > desktopUntil)
+        {
+            desktopHolding = false;
+            returnT = 0f;
+            returnFromPos = transform.localPosition;
+            returnFromRot = transform.localRotation;
+        }
         // Return to the rest when released.
         if (returnT >= 0f && !Held)
         {

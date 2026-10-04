@@ -25,6 +25,10 @@ public class PM_Game : MonoBehaviour
     readonly List<PM_Hotspot> stationHs = new List<PM_Hotspot>();
     readonly List<PM_Hotspot> toolHs = new List<PM_Hotspot>();
     readonly List<PM_Hotspot> fabricHs = new List<PM_Hotspot>();
+    readonly List<PM_Hotspot> fiberHs = new List<PM_Hotspot>();
+    public static PM_Game I;
+    Vector2 desktopUV;
+    float desktopTime = -1f;
     PM_Hotspot openHs;
     PM_Garment garment;
     LineRenderer cardLink;
@@ -46,6 +50,7 @@ public class PM_Game : MonoBehaviour
 
     void Awake()
     {
+        I = this;
         if (FindAnyObjectByType<PM_Audio>() == null) gameObject.AddComponent<PM_Audio>();
     }
 
@@ -65,6 +70,7 @@ public class PM_Game : MonoBehaviour
         card.gameObject.SetActive(false);
         BuildHotspots();
         PM_Look.PostFX();
+        PM_Shapes.Atmosphere(station.PlayerPos);
         PM_Look.GridFloor(station.PlayerPos, station.Forward, station.Right);
         PM_Look.Dust(station.PlayerPos + station.Forward * 0.8f);
         if (restyleTable) station.Restyle();
@@ -89,6 +95,7 @@ public class PM_Game : MonoBehaviour
         state = State.Menu;
         ClearStepVisuals();
         panel.SetContent(PM_Content.MenuTitle, PM_Content.MenuBody, "");
+        panel.SetAccent(PM_Util.Cyan);
         panel.SetButtons(Btn(PM_Content.BtnLearn, StartLearning), Btn(PM_Content.BtnExam, StartExam));
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
     }
@@ -111,7 +118,32 @@ public class PM_Game : MonoBehaviour
             Vector3 pos = station.AnchorPoint(info.anchor, parts) + Vector3.up * 0.04f;
             toolHs.Add(MakeHotspot(info, pos, parts[0], parts));
         }
+        // Floating fiber symbols in an arc above and behind the station.
+        foreach (PM_HotspotInfo info in PM_Content.FiberHotspots())
+        {
+            float ang;
+            switch (info.fiber)
+            {
+                case PM_FabricType.Cotton: ang = 42f; break;
+                case PM_FabricType.Linen: ang = 21f; break;
+                case PM_FabricType.Wool: ang = 0f; break;
+                case PM_FabricType.Silk: ang = -21f; break;
+                default: ang = -42f; break;
+            }
+            Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * station.Forward;
+            Vector3 pos = station.PlayerPos + dir * 1.9f + Vector3.up * 2.15f;
+            fiberHs.Add(MakeHotspot(info, pos, null, new List<Transform>()));
+        }
         ShowStationHotspots(false);
+    }
+
+    // Keyboard/mouse test: called by PM_DesktopCamera while the left mouse button is held on the fabric.
+    public void DesktopIron(PM_Fabric f, Vector2 uv, Vector3 point)
+    {
+        if (f != fabric) return;
+        desktopUV = uv;
+        desktopTime = Time.time;
+        if (station.Iron != null) station.Iron.PlaceAt(point);
     }
 
     PM_Hotspot MakeHotspot(PM_HotspotInfo info, Vector3 pos, Transform parent, List<Transform> parts)
@@ -124,6 +156,7 @@ public class PM_Game : MonoBehaviour
     void ShowStationHotspots(bool on)
     {
         foreach (PM_Hotspot h in stationHs) if (h != null) h.gameObject.SetActive(on);
+        foreach (PM_Hotspot h in fiberHs) if (h != null) h.gameObject.SetActive(on);
         if (!on) CloseCard();
     }
 
@@ -134,6 +167,7 @@ public class PM_Game : MonoBehaviour
         h.SetVisited(true);
         card.gameObject.SetActive(true);
         card.SetContent(h.info.title, h.info.body, "");
+        card.SetAccent(h.info.accent);
         card.SetButtons(Btn(PM_Content.BtnClose, CloseCard), Btn(PM_Content.BtnRepeat, () => { if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id); }));
         Vector3 head = Camera.main != null ? Camera.main.transform.position : station.PlayerPos + Vector3.up * 1.6f;
         Vector3 pos = h.transform.position + Vector3.up * 0.32f - station.Forward * 0.18f;
@@ -146,7 +180,7 @@ public class PM_Game : MonoBehaviour
         }
         cardLink.gameObject.SetActive(true);
         cardHighlight.Clear();
-        if (h.info.target != PM_Target.Fabric) cardHighlight.Show(h.parts, PM_Util.Green, false);
+        if (h.info.target != PM_Target.Fabric && h.parts.Count > 0) cardHighlight.Show(h.parts, h.info.accent, false);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
     }
 
@@ -210,6 +244,7 @@ public class PM_Game : MonoBehaviour
             highlight.Show(station.Targets(s.target), PM_Util.Cyan, true);
 
         panel.SetContent(s.title, s.body, (stepIndex + 1) + "/" + steps.Count);
+        panel.SetAccent(s.target == PM_Target.Fabric ? PM_Util.ModeColor(PM_Content.Fabric(s.fabric).mode) : PM_Util.Cyan);
         if (stepIndex == steps.Count - 1)
             panel.SetButtons(Btn(PM_Content.BtnExam, StartExam), Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnRepeat, RepeatVoice));
         else
@@ -297,7 +332,7 @@ public class PM_Game : MonoBehaviour
                 break;
             case PM_Action.Explore:
             {
-                List<PM_Hotspot> list = s.group == PM_HotspotGroup.Tools ? toolHs : stationHs;
+                List<PM_Hotspot> list = s.group == PM_HotspotGroup.Tools ? toolHs : (s.group == PM_HotspotGroup.Fibers ? fiberHs : stationHs);
                 int v = CountVisited(list);
                 panel.SetStatus(string.Format(PM_Content.StExplored, v, list.Count), PM_Util.Cyan);
                 if (list.Count > 0 && v >= list.Count) Complete(PM_Content.StAllExplored);
@@ -340,13 +375,15 @@ public class PM_Game : MonoBehaviour
     {
         if (fabric == null) return false;
         PM_Iron iron = station.Iron;
-        bool simulated = KeyHeld(Key.Space);
+        bool mouseIroning = Time.time - desktopTime < 0.15f;
+        bool simulated = KeyHeld(Key.Space) || mouseIroning;
         bool touching = simulated || (iron != null && iron.Touching == fabric);
         if (!touching) return false;
 
         bool steaming = (iron != null && iron.Steaming) || (simulated && KeyHeld(Key.LeftShift) && station.PressureOk);
         Vector2 uv;
-        if (simulated)
+        if (mouseIroning) uv = desktopUV;
+        else if (simulated)
         {
             float t = Time.time;
             uv = new Vector2(0.5f + 0.45f * Mathf.Sin(t * 1.7f), 0.5f + 0.42f * Mathf.Sin(t * 2.9f + 1f));

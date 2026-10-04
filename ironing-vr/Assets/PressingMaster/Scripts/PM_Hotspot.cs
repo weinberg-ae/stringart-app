@@ -35,28 +35,47 @@ public class PM_Hotspot : MonoBehaviour
     void Build()
     {
         phase = UnityEngine.Random.value * 6f;
+        Color acc = info.accent;
         var sc = gameObject.AddComponent<SphereCollider>();
-        sc.radius = 0.055f;
+        sc.radius = info.isFiber ? 0.2f : 0.055f;
 
         visual = new GameObject("Visual").transform;
         visual.SetParent(transform, false);
+        core = PM_Util.NeonMaterial(acc, 3f);
+        halo = PM_Util.TransparentMaterial(new Color(acc.r, acc.g, acc.b, 0.22f));
+        if (info.isFiber)
+        {
+            PM_Shapes.Fiber(info.fiber, visual, acc);
+            BuildLabel(-0.13f, 40, acc);
+            var cl = PM_Clickable.Add(gameObject, () => { if (onClick != null) onClick(this); });
+            cl.onHover = v => hovered = v;
+            return;
+        }
         var c = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         Destroy(c.GetComponent<Collider>());
         c.transform.SetParent(visual, false);
         c.transform.localScale = Vector3.one * 0.028f;
-        core = PM_Util.NeonMaterial(PM_Util.Cyan, 3f);
         c.GetComponent<Renderer>().material = core;
         var h = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         Destroy(h.GetComponent<Collider>());
         h.transform.SetParent(visual, false);
         h.transform.localScale = Vector3.one * 0.065f;
-        halo = PM_Util.TransparentMaterial(new Color(0.1f, 0.95f, 1f, 0.22f));
         h.GetComponent<Renderer>().material = halo;
+        BuildLabel(0.055f, 34, Color.white);
 
-        // Short Hebrew label above the point.
+        ring = new GameObject("Ring").transform;
+        ring.SetParent(transform, false);
+        ringLine = PM_Util.Line(ring, "Circle", PM_Util.Circle(0.035f, 40, Vector3.right, Vector3.up, Vector3.zero), acc, 0.003f, true);
+
+        var click = PM_Clickable.Add(gameObject, () => { if (onClick != null) onClick(this); });
+        click.onHover = v => hovered = v;
+    }
+
+    void BuildLabel(float y, float size, Color col)
+    {
         var lg = new GameObject("Label", typeof(RectTransform));
         lg.transform.SetParent(transform, false);
-        lg.transform.localPosition = new Vector3(0, 0.055f, 0);
+        lg.transform.localPosition = new Vector3(0, y, 0);
         var canvas = lg.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         var rt = lg.GetComponent<RectTransform>();
@@ -66,38 +85,53 @@ public class PM_Hotspot : MonoBehaviour
         t.transform.SetParent(lg.transform, false);
         t.rectTransform.sizeDelta = new Vector2(260, 50);
         t.font = PM_Panel.Font();
-        t.fontSize = 34;
+        t.fontSize = size;
         t.alignment = TextAlignmentOptions.Center;
-        t.color = Color.white;
+        t.color = col;
         t.raycastTarget = false;
         t.text = PM_Hebrew.VisualLine(info.label);
         label = lg.transform;
-
-        ring = new GameObject("Ring").transform;
-        ring.SetParent(transform, false);
-        ringLine = PM_Util.Line(ring, "Circle", PM_Util.Circle(0.035f, 40, Vector3.right, Vector3.up, Vector3.zero), PM_Util.Cyan, 0.003f, true);
-
-        var click = PM_Clickable.Add(gameObject, () => { if (onClick != null) onClick(this); });
-        click.onHover = v => hovered = v;
     }
 
     public void SetVisited(bool v)
     {
         Visited = v;
-        Color col = v ? PM_Util.Green : PM_Util.Cyan;
+        if (info.isFiber) return;
+        Color col = v ? PM_Util.Green : info.accent;
         core.SetColor("_EmissionColor", col * 3f);
         halo.color = new Color(col.r, col.g, col.b, 0.22f);
     }
 
     void Update()
     {
-        float s = 1f + 0.18f * Mathf.Sin(Time.time * 3.2f + phase);
-        if (hovered) s *= 1.5f;
-        visual.localScale = Vector3.one * s;
         Camera cam = Camera.main;
+        if (info.isFiber)
+        {
+            float k = Visited ? 1f : 1f + 0.06f * Mathf.Sin(Time.time * 2f + phase);
+            visual.localScale = Vector3.one * (hovered ? k * 1.2f : k);
+            if (cam != null)
+            {
+                Vector3 fd = transform.position - cam.transform.position;
+                fd.y = 0;
+                if (fd.sqrMagnitude > 0.001f) visual.rotation = Quaternion.LookRotation(fd, Vector3.up) * Quaternion.Euler(0, 0, Mathf.Sin(Time.time * 0.6f + phase) * 8f);
+            }
+        }
+        else
+        {
+            float s = 1f + 0.18f * Mathf.Sin(Time.time * 3.2f + phase);
+            if (hovered) s *= 1.5f;
+            visual.localScale = Vector3.one * s;
+        }
+        if (cam != null && label != null)
+        {
+            Vector3 ld = label.position - cam.transform.position;
+            ld.y = 0;
+            if (ld.sqrMagnitude > 0.0001f) label.rotation = Quaternion.LookRotation(ld, Vector3.up);
+        }
+        if (ring == null) return;
         float rt = Mathf.Repeat(Time.time * 0.6f + phase, 1f);
         ring.localScale = Vector3.one * (1f + rt * 2.2f);
-        Color rc = Visited ? PM_Util.Green : PM_Util.Cyan;
+        Color rc = Visited ? PM_Util.Green : info.accent;
         rc.a = (1f - rt) * 0.7f;
         ringLine.startColor = rc;
         ringLine.endColor = rc;

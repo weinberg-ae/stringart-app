@@ -4,7 +4,7 @@ using UnityEngine;
 // All game texts (Hebrew) and fabric data. Edit texts here.
 public enum PM_Target { None, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest }
 public enum PM_Action { Next, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
-public enum PM_HotspotGroup { None, Station, Tools, Fabric }
+public enum PM_HotspotGroup { None, Station, Tools, Fabric, Fibers }
 public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft }
 public enum PM_FabricType { Cotton, Linen, Wool, Silk, Polyester }
 public enum PM_Steam { Required, Optional, Forbidden }
@@ -38,7 +38,7 @@ public class PM_FabricInfo
     public float ironSeconds;   // time of continuous ironing on one spot to smooth it
     public string cue;          // exam: how it looks
     public string burn;         // exam: burn test result
-    public string fiberText, pressText, burnText;
+    public string fiberText, pressText, burnText, lookText;
     public string garment;      // name of the example garment model  // learning: texts of the three points of light
 }
 
@@ -48,6 +48,9 @@ public class PM_HotspotInfo
     public PM_Target target;
     public PM_Anchor anchor;
     public PM_HotspotGroup group;
+    public Color accent = new Color(0.1f, 0.95f, 1f);   // color of the point and of its card
+    public bool isFiber;                                  // drawn as a floating fiber symbol
+    public PM_FabricType fiber;
 
     public PM_HotspotInfo(string id, string label, string title, string body, PM_Target target, PM_Anchor anchor)
     {
@@ -142,19 +145,21 @@ public static class PM_Content
         tools.group = PM_HotspotGroup.Tools;
         s.Add(tools);
 
-        s.Add(new PM_Step("fibers", "חמשת סוגי הסיבים",
-            "• צמחיים (תאית) — כותנה ופשתן\n" +
-            "• מן החי (חלבון) — צמר ומשי\n" +
-            "• כימיים (סינתטיים) — פוליאסטר\n" +
-            "מקור הסיב קובע איך הבד מגיב לחום, ללחות וללחץ.",
-            PM_Target.None, PM_Action.Next));
+        var fibers = new PM_Step("fibers", "חמשת סוגי הסיבים",
+            "מעל העמדה מרחפים חמישה סיבים זוהרים. געו בכל סיב כדי ללמוד על מקורו ומבנהו.\n" +
+            "• ורוד-אדום — צמחיים (תאית): כותנה, פשתן — חום גבוה •••\n" +
+            "• צהוב — מן החי (חלבון): צמר, משי — חום בינוני ••\n" +
+            "• כחול — כימיים: פוליאסטר — חום נמוך •",
+            PM_Target.None, PM_Action.Explore);
+        fibers.group = PM_HotspotGroup.Fibers;
+        s.Add(fibers);
 
         foreach (PM_FabricType t in new[] { PM_FabricType.Cotton, PM_FabricType.Linen, PM_FabricType.Wool, PM_FabricType.Silk, PM_FabricType.Polyester })
         {
             PM_FabricInfo f = Fabric(t);
             var st = new PM_Step(t.ToString().ToLower(), f.name,
                 "נדרש: " + ModeLabel(f.mode) + " — " + SteamLabel(f.steam) + "\n" +
-                "געו בנקודות האור ליד הבד: הסיב, גיהוץ, מבחן שריפה.\n" +
+                "געו בנקודות האור ליד הבד: זיהוי, גיהוץ, מבחן שריפה.\n" +
                 "אחר כך — גהצו את הבד עד שכל הקמטים ייעלמו.",
                 PM_Target.Fabric, PM_Action.IronFabric, t);
             st.group = PM_HotspotGroup.Fabric;
@@ -259,11 +264,28 @@ public static class PM_Content
         string id = t.ToString().ToLower();
         var l = new List<PM_HotspotInfo>
         {
-            new PM_HotspotInfo(id + "_fiber", "הסיב", f.name + " — הסיב", f.fiberText, PM_Target.Fabric, PM_Anchor.Top),
+            new PM_HotspotInfo(id + "_look", "זיהוי", f.name + " — זיהוי הבד", f.lookText, PM_Target.Fabric, PM_Anchor.Top),
             new PM_HotspotInfo(id + "_press", "גיהוץ", f.name + " — גיהוץ", f.pressText, PM_Target.Fabric, PM_Anchor.Top),
             new PM_HotspotInfo(id + "_burn", "מבחן שריפה", f.name + " — מבחן שריפה", f.burnText, PM_Target.Fabric, PM_Anchor.Top)
         };
-        foreach (PM_HotspotInfo h in l) h.group = PM_HotspotGroup.Fabric;
+        foreach (PM_HotspotInfo h in l) { h.group = PM_HotspotGroup.Fabric; h.accent = PM_Util.ModeColor(f.mode); }
+        return l;
+    }
+
+    // Floating fiber symbols above the station.
+    public static List<PM_HotspotInfo> FiberHotspots()
+    {
+        var l = new List<PM_HotspotInfo>();
+        foreach (PM_FabricType t in new[] { PM_FabricType.Cotton, PM_FabricType.Linen, PM_FabricType.Wool, PM_FabricType.Silk, PM_FabricType.Polyester })
+        {
+            PM_FabricInfo f = Fabric(t);
+            var h = new PM_HotspotInfo("fiber_" + t.ToString().ToLower(), "סיב " + f.name, "סיב " + f.name, f.fiberText, PM_Target.None, PM_Anchor.Top);
+            h.group = PM_HotspotGroup.Fibers;
+            h.accent = PM_Util.ModeColor(f.mode);
+            h.isFiber = true;
+            h.fiber = t;
+            l.Add(h);
+        }
         return l;
     }
 
@@ -407,6 +429,16 @@ public static class PM_Content
                 burn = "נמס ומטפטף, עשן שחור, חרוז קשה שלא מתפורר."
             };
             foreach (PM_FabricInfo fi in fabrics.Values) FabricTexts(fi);
+            fabrics[PM_FabricType.Cotton].lookText =
+                "מראה: מט, אחיד, בלי ברק.\nמגע: רך ונעים, נושם.\nבדיקת קימוט: מועכים פינה ביד — נשארים קמטים בינוניים.";
+            fabrics[PM_FabricType.Linen].lookText =
+                "מראה: מט, עם עיבויים בחוט ומרקם לא אחיד.\nמגע: קשיח, קריר ויבש.\nבדיקת קימוט: מתקמט מהר ועמוק — הקמטים נשארים חדים.";
+            fabrics[PM_FabricType.Wool].lookText =
+                "מראה: מט, לעיתים שעיר מעט; בבדי חליפות — מבנה אלכסוני.\nמגע: חם, קפיצי וגמיש.\nבדיקת קימוט: חוזר לצורתו כמעט בלי קמטים.";
+            fabrics[PM_FabricType.Silk].lookText =
+                "מראה: ברק עדין ויוקרתי, נופל ברכות.\nמגע: חלק, קריר בהתחלה ומתחמם מהר.\nבדיקת קימוט: מתקמט מעט; בשפשוף נשמע רשרוש אופייני.";
+            fabrics[PM_FabricType.Polyester].lookText =
+                "מראה: אחיד לגמרי, לעיתים ברק \"פלסטיקי\".\nמגע: חלק, פחות נושם, לפעמים חשמל סטטי.\nבדיקת קימוט: כמעט לא מתקמט — חוזר מיד לצורתו.";
             fabrics[PM_FabricType.Cotton].garment = "דוגמה: מעיל ג'ינס — ג'ינס הוא אריג כותנה";
             fabrics[PM_FabricType.Linen].garment = "צמח הפשתן — מהגבעול מפיקים את סיבי הפשתן";
             fabrics[PM_FabricType.Wool].garment = "דוגמה: ז'קט צמר";

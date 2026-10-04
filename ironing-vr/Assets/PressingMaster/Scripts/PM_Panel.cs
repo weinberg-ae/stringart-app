@@ -11,6 +11,8 @@ public class PM_Panel : MonoBehaviour
 
     TextMeshProUGUI title, body, status, counter;
     CanvasGroup group;
+    readonly List<Image> accentImages = new List<Image>();
+    Image headerImage, sepImage;
     float appear = 1f;
     readonly List<GameObject> buttons = new List<GameObject>();
 
@@ -79,13 +81,17 @@ public class PM_Panel : MonoBehaviour
         group = canvasGo.AddComponent<CanvasGroup>();
         bg.gameObject.AddComponent<Image>().color = new Color(0.0f, 0.05f, 0.09f, 0.62f);
         var header = MakeRect(canvasGo.transform, "Header", 0, 0, wPx, titleSize * 1.7f + 25);
-        header.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.95f, 1f, 0.10f);
+        headerImage = header.gameObject.AddComponent<Image>();
+        headerImage.color = new Color(0.1f, 0.95f, 1f, 0.10f);
         MakeFrame(canvasGo.transform, wPx, hPx, 2, new Color(0.1f, 0.95f, 1f, 0.35f));
         MakeCorners(canvasGo.transform, wPx, hPx, 70, 6, PM_Util.Cyan);
+        foreach (Image im in canvasGo.GetComponentsInChildren<Image>(true))
+            if (im.name.StartsWith("C") || im.name.StartsWith("Frame")) accentImages.Add(im);
         float titleH = titleSize * 1.7f;
         float sepY = 20 + titleH + 3;
         var sep = MakeRect(canvasGo.transform, "Line", 30, sepY, wPx - 60, 3);
-        sep.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.95f, 1f, 0.6f);
+        sepImage = sep.gameObject.AddComponent<Image>();
+        sepImage.color = new Color(0.1f, 0.95f, 1f, 0.6f);
 
         float statusH = hasStatus ? 80 : 0;
         float bodyY = sepY + 17;
@@ -128,6 +134,19 @@ public class PM_Panel : MonoBehaviour
         MakeRect(parent, "C3b", 0, h - len, t, len).gameObject.AddComponent<Image>().color = c;
         MakeRect(parent, "C4a", w - len, h - t, len, t).gameObject.AddComponent<Image>().color = c;
         MakeRect(parent, "C4b", w - t, h - len, t, len).gameObject.AddComponent<Image>().color = c;
+    }
+
+    // Color theme of the screen (frame, corners, header, title). Used to match fiber groups.
+    public void SetAccent(Color c)
+    {
+        foreach (Image im in accentImages)
+        {
+            float a = im.name.StartsWith("Frame") ? 0.35f : 1f;
+            im.color = new Color(c.r, c.g, c.b, a);
+        }
+        if (headerImage != null) headerImage.color = new Color(c.r, c.g, c.b, 0.12f);
+        if (sepImage != null) sepImage.color = new Color(c.r, c.g, c.b, 0.6f);
+        if (title != null) title.color = c;
     }
 
     void Update()
