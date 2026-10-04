@@ -229,12 +229,12 @@ public static class PM_Content
     public static List<PM_HotspotInfo> ToolHotspots()
     {
         var l = new List<PM_HotspotInfo>();
-        l.Add(new PM_HotspotInfo("ham", "כרית חייט", "כרית חייט (קבנצ'יק)",
-            "כרית קשיחה בצורת ביצה, ממולאת בנסורת.\n" +
+        l.Add(new PM_HotspotInfo("ham", "חמור (קבנצ'יק)", "חמור — כרית חייט (קבנצ'יק)",
+            "כרית קשיחה וגדולה בצורת ביצה, ממולאת בנסורת.\n" +
             "משמשת לגיהוץ ולעיצוב אזורים מעוגלים: חזה בז'קט, פנסים, תפרי כתף, ראש שרוול.\n" +
             "שומרת על הצורה התלת-ממדית של הבגד.",
             PM_Target.Ham, PM_Anchor.Top));
-        l.Add(new PM_HotspotInfo("point", "חמור", "חמור — מגהצון לפינות",
+        l.Add(new PM_HotspotInfo("point", "מגהצון פינות", "מגהצון לפינות וצווארונים",
             "כלי עץ עם קצה צר ומחודד.\n" +
             "בעזרתו פותחים תפרים בתוך צווארונים, דשים ופינות.\n" +
             "בבסיס העץ (קלאפר) לוחצים על הבד מיד אחרי הקיטור: העץ סופג חום ולחות ומקבע קפל חד ושטוח.",
@@ -408,7 +408,7 @@ public static class PM_Content
             };
             foreach (PM_FabricInfo fi in fabrics.Values) FabricTexts(fi);
             fabrics[PM_FabricType.Cotton].garment = "דוגמה: מעיל ג'ינס — ג'ינס הוא אריג כותנה";
-            fabrics[PM_FabricType.Linen].garment = "דוגמה: בד פשתן";
+            fabrics[PM_FabricType.Linen].garment = "צמח הפשתן — מהגבעול מפיקים את סיבי הפשתן";
             fabrics[PM_FabricType.Wool].garment = "דוגמה: ז'קט צמר";
             fabrics[PM_FabricType.Silk].garment = "דוגמה: שמלת משי";
             fabrics[PM_FabricType.Polyester].garment = "דוגמה: שמלה מפוליאסטר";

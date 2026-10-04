@@ -61,7 +61,7 @@ public class PM_Game : MonoBehaviour
         card.gameObject.SetActive(false);
         BuildHotspots();
         // Tailor's mannequin standing next to the station (decoration).
-        PM_Garment.Show("mannequin", station.PlayerPos + station.Forward * 1.1f - station.Right * 2.0f, 1.6f,
+        PM_Garment.Show("mannequin", station.PlayerPos + station.Forward * 1.5f - station.Right * 2.5f, 1.6f,
             station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
         ShowMenu();
 
@@ -307,7 +307,7 @@ public class PM_Game : MonoBehaviour
 
         // Garment made of this fabric, shown as a rotating exhibit left of the board (name hidden in the exam).
         PM_FabricInfo info = PM_Content.Fabric(t);
-        Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.05f + station.Forward * 0.05f;
+        Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.3f + station.Forward * 0.05f;
         string label = state == State.Learning ? info.garment : "?";
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, label, info.smoothness, true);
     }
@@ -499,6 +499,7 @@ public class PM_Game : MonoBehaviour
     {
         float dt = Time.deltaTime;
         HandleKeyboard();
+        if (station != null && station.Iron != null) station.Iron.simulateSteam = KeyHeld(Key.LeftShift);
         switch (state)
         {
             case State.Learning: UpdateLearning(dt); break;

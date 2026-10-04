@@ -18,7 +18,8 @@ public class PM_Panel : MonoBehaviour
         Font f = Resources.Load<Font>("PM_Fonts/VarelaRound-Regular");
         if (f != null)
         {
-            font = TMP_FontAsset.CreateFontAsset(f);
+            // Big atlas (2048) so all letters fit in ONE texture — with a small atlas some Hebrew letters were blank.
+            font = TMP_FontAsset.CreateFontAsset(f, 64, 6, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true);
             // Put every letter into the atlas right away, otherwise Hebrew letters appear missing or overlapping.
             if (font != null)
             {

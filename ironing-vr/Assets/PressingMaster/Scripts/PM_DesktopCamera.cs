@@ -26,6 +26,23 @@ public class PM_DesktopCamera : MonoBehaviour
             pitch = Mathf.Clamp(pitch - d.y * 0.15f, -80f, 80f);
         }
         transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+
+        // Left mouse click on a point of light / button / switch = the same as pressing it in VR.
+        if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+        {
+            Camera cam = GetComponent<Camera>();
+            if (cam != null)
+            {
+                Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                RaycastHit[] hits = Physics.RaycastAll(ray, 20f);
+                System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+                foreach (RaycastHit h in hits)
+                {
+                    PM_Clickable c = h.collider.GetComponentInParent<PM_Clickable>();
+                    if (c != null) { c.Click(); break; }
+                }
+            }
+        }
         if (kb == null) return;
         Vector3 move = Vector3.zero;
         if (kb[Key.W].isPressed) move += transform.forward;

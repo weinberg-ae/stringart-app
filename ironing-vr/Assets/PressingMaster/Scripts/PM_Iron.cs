@@ -8,7 +8,8 @@ public class PM_Iron : MonoBehaviour
     public bool Held { get { return grab != null && grab.isSelected; } }
     public bool TriggerDown { get; private set; }
     public bool Steaming { get; private set; }
-    public bool steamAllowed;              // set by the game (power on + pressure ok)
+    public bool steamAllowed;
+    public bool simulateSteam;             // keyboard test (Left Shift) without the headset              // set by the game (power on + pressure ok)
 
     // Contact with fabric (updated every frame).
     public PM_Fabric Touching { get; private set; }
@@ -88,13 +89,13 @@ public class PM_Iron : MonoBehaviour
         main.playOnAwake = false;
         main.startLifetime = 1.1f;
         main.startSpeed = 0.35f;
-        main.startSize = 0.05f;
-        main.startColor = new Color(1f, 1f, 1f, 0.45f);
+        main.startSize = 0.08f;
+        main.startColor = new Color(1f, 1f, 1f, 0.7f);
         main.gravityModifier = -0.06f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.maxParticles = 300;
         var em = steam.emission;
-        em.rateOverTime = 70f;
+        em.rateOverTime = 110f;
         var shape = steam.shape;
         shape.shapeType = ParticleSystemShapeType.Cone;
         shape.angle = 35f;
@@ -106,7 +107,7 @@ public class PM_Iron : MonoBehaviour
         col.enabled = true;
         var g = new Gradient();
         g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
-                  new[] { new GradientAlphaKey(0.5f, 0), new GradientAlphaKey(0f, 1) });
+                  new[] { new GradientAlphaKey(0.8f, 0), new GradientAlphaKey(0f, 1) });
         col.color = new ParticleSystem.MinMaxGradient(g);
         var pr = go.GetComponent<ParticleSystemRenderer>();
         var m = PM_Util.TransparentMaterial(Color.white);
@@ -153,7 +154,7 @@ public class PM_Iron : MonoBehaviour
             if (returnT >= 1f) returnT = -1f;
         }
 
-        bool shouldSteam = Held && TriggerDown && steamAllowed;
+        bool shouldSteam = ((Held && TriggerDown) || simulateSteam) && steamAllowed;
         if (shouldSteam != Steaming)
         {
             Steaming = shouldSteam;
