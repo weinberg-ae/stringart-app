@@ -18,6 +18,9 @@ public class PM_Iron : MonoBehaviour
     public float SoleRadius { get; private set; }
 
     public System.Action onGrab;
+    public float heat;                     // 0..1 set by the station (temperature button)
+    Material soleMat;
+    float hapticTimer, secondPulse = -1f;
     float desktopUntil = -1f;
     bool desktopHolding;
 
@@ -70,12 +73,27 @@ public class PM_Iron : MonoBehaviour
         grab.movementType = XRBaseInteractable.MovementType.Instantaneous;
         grab.throwOnDetach = false;
         grab.useDynamicAttach = true;
+        // A little lag behind the hand = the iron feels heavy.
+        grab.smoothPosition = true;
+        grab.smoothPositionAmount = 9f;
+        grab.smoothRotation = true;
+        grab.smoothRotationAmount = 7f;
         grab.selectEntered.AddListener(OnGrab);
         grab.selectExited.AddListener(OnRelease);
         grab.activated.AddListener(a => TriggerDown = true);
         grab.deactivated.AddListener(a => TriggerDown = false);
 
         BuildSteam();
+
+        // The lowest part of the iron is the soleplate: it glows when hot.
+        Renderer sole = null;
+        float minY = float.MaxValue;
+        foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+        {
+            if (r is ParticleSystemRenderer || r is LineRenderer) continue;
+            if (r.bounds.min.y < minY) { minY = r.bounds.min.y; sole = r; }
+        }
+        if (sole != null) { soleMat = sole.material; soleMat.EnableKeyword("_EMISSION"); }
     }
 
     void BuildSteam()
@@ -127,7 +145,8 @@ public class PM_Iron : MonoBehaviour
     {
         holder = args.interactorObject.transform;
         returnT = -1f;
-        PM_Clickable.Haptic(holder, 0.3f, 0.1f);
+        PM_Clickable.Haptic(holder, 0.7f, 0.08f);   // "thunk" — first pulse
+        secondPulse = Time.time + 0.12f;              // second, softer pulse
         if (onGrab != null) onGrab();
     }
 
@@ -155,6 +174,24 @@ public class PM_Iron : MonoBehaviour
 
     void Update()
     {
+        // Hot soleplate glow (orange -> white-hot with temperature).
+        if (soleMat != null)
+        {
+            Color hot = Color.Lerp(new Color(1f, 0.25f, 0.02f), new Color(1f, 0.75f, 0.4f), heat);
+            soleMat.SetColor("_EmissionColor", hot * (heat * 2.2f * (0.9f + 0.1f * Mathf.Sin(Time.time * 4f))));
+        }
+        // Haptics in the hand: double "thunk" on grab, warm hum while held, hiss while steaming.
+        if (holder != null)
+        {
+            if (secondPulse > 0f && Time.time >= secondPulse) { PM_Clickable.Haptic(holder, 0.3f, 0.06f); secondPulse = -1f; }
+            hapticTimer -= Time.deltaTime;
+            if (hapticTimer <= 0f && Touching == null)
+            {
+                hapticTimer = 0.1f;
+                float amp = Steaming ? 0.22f + Random.value * 0.1f : heat * 0.08f * (0.7f + 0.3f * Mathf.Sin(Time.time * 6f));
+                if (amp > 0.01f) PM_Clickable.Haptic(holder, amp, 0.11f);
+            }
+        }
         if (desktopHolding && Time.time > desktopUntil)
         {
             desktopHolding = false;
@@ -197,7 +234,7 @@ public class PM_Iron : MonoBehaviour
             TouchUV = h.textureCoord;
             break;
         }
-        if (Touching != null) PM_Clickable.Haptic(holder, Steaming ? 0.25f : 0.12f, 0.05f);
+        if (Touching != null) PM_Clickable.Haptic(holder, Steaming ? 0.3f : 0.15f, 0.05f);
     }
 
     public void Buzz(float amplitude, float duration)

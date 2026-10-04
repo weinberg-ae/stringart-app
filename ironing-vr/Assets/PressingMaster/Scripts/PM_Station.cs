@@ -511,6 +511,6 @@ public class PM_Station : MonoBehaviour
         else Pressure = Mathf.MoveTowards(Pressure, 0f, Time.deltaTime * 1.5f);
         float wobble = Powered && Pressure >= WorkPressure - 0.01f ? Mathf.Sin(Time.time * 7f) * 0.04f : 0f;
         SetNeedle(Pressure + wobble);
-        if (Iron != null) Iron.steamAllowed = PressureOk;
+        if (Iron != null) { Iron.steamAllowed = PressureOk; Iron.heat = Powered ? Mode / 3f : 0f; }
     }
 }
