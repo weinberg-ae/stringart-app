@@ -37,6 +37,7 @@ public class PM_Game : MonoBehaviour
     List<PM_Step> steps;
     int stepIndex;
     bool stepDone;
+    bool fibersBasicDone;
     float doneTimer;
     float steamAirTime;
     bool modeClickedThisStep;
@@ -118,22 +119,22 @@ public class PM_Game : MonoBehaviour
             Vector3 pos = station.AnchorPoint(info.anchor, parts) + Vector3.up * 0.04f;
             toolHs.Add(MakeHotspot(info, pos, parts[0], parts));
         }
-        // Floating fiber screens in an arc above and behind the station.
-        foreach (PM_HotspotInfo info in PM_Content.FiberHotspots())
+        // Floating fiber screens in two arcs above and behind the station:
+        // lower row = the five fabrics of the game, upper row = more fibers.
+        List<PM_HotspotInfo> fibers = PM_Content.FiberHotspots();
+        int basicCount = 0, extraCount = 0;
+        foreach (PM_HotspotInfo info in fibers) if (info.extraFiber) extraCount++; else basicCount++;
+        int bi = 0, ei = 0;
+        foreach (PM_HotspotInfo info in fibers)
         {
-            float ang;
-            string grp;
-            switch (info.fiber)
-            {
-                case PM_FabricType.Cotton: ang = 56f; grp = "צמחי · תאית"; break;
-                case PM_FabricType.Linen: ang = 28f; grp = "צמחי · תאית"; break;
-                case PM_FabricType.Wool: ang = 0f; grp = "מן החי · חלבון"; break;
-                case PM_FabricType.Silk: ang = -28f; grp = "מן החי · חלבון"; break;
-                default: ang = -56f; grp = "כימי · פולימר"; break;
-            }
+            bool extra = info.extraFiber;
+            int i = extra ? ei++ : bi++;
+            int n = extra ? extraCount : basicCount;
+            float span = extra ? 60f : 56f;
+            float ang = n > 1 ? Mathf.Lerp(span, -span, i / (float)(n - 1)) : 0f;
             Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * station.Forward;
-            Vector3 pos = station.PlayerPos + dir * 2.4f + Vector3.up * 2.15f;
-            PM_FiberScreen fs = PM_FiberScreen.Create(info, grp, pos);
+            Vector3 pos = station.PlayerPos + dir * (extra ? 2.6f : 2.4f) + Vector3.up * (extra ? 2.85f : 2.15f);
+            PM_FiberScreen fs = PM_FiberScreen.Create(info, info.fiberGroup, pos);
             fs.onClick = OnFiberScreen;
             fiberScreens.Add(fs);
         }
@@ -239,6 +240,7 @@ public class PM_Game : MonoBehaviour
         stepIndex = Mathf.Clamp(i, 0, steps.Count - 1);
         PM_Step s = steps[stepIndex];
         stepDone = false;
+        fibersBasicDone = false;
         doneTimer = 0f;
         steamAirTime = 0f;
         modeClickedThisStep = false;
@@ -357,9 +359,23 @@ public class PM_Game : MonoBehaviour
                 {
                     list = new List<PM_Hotspot>();
                     v = 0;
-                    foreach (PM_FiberScreen f in fiberScreens) if (f != null && f.Visited) v++;
-                    panel.SetStatus(string.Format(PM_Content.StExplored, v, fiberScreens.Count), PM_Util.Cyan);
+                    int basic = 0, basicSeen = 0;
+                    foreach (PM_FiberScreen f in fiberScreens)
+                    {
+                        if (f == null) continue;
+                        if (f.Visited) v++;
+                        if (!f.info.extraFiber) { basic++; if (f.Visited) basicSeen++; }
+                    }
+                    // The five basic fibers are required; the extra ones are for curious learners.
                     if (v >= fiberScreens.Count && fiberScreens.Count > 0) Complete(PM_Content.StAllExplored);
+                    else if (basic > 0 && basicSeen >= basic)
+                    {
+                        // No auto-advance here: the learner may keep exploring the upper row, "Next" continues.
+                        if (!fibersBasicDone && PM_Audio.I != null) PM_Audio.I.Play("ding", 0.7f);
+                        fibersBasicDone = true;
+                        panel.SetStatus(string.Format(PM_Content.StFibersBasic, v, fiberScreens.Count), PM_Util.Green);
+                    }
+                    else panel.SetStatus(string.Format(PM_Content.StExplored, v, fiberScreens.Count), PM_Util.Cyan);
                     break;
                 }
                 panel.SetStatus(string.Format(PM_Content.StExplored, v, list.Count), PM_Util.Cyan);

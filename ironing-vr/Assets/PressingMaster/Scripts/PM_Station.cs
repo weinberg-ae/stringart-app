@@ -270,7 +270,7 @@ public class PM_Station : MonoBehaviour
         var t = new GameObject("Text", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
         t.transform.SetParent(go.transform, false);
         t.rectTransform.sizeDelta = new Vector2(70, 60);
-        t.font = PM_Panel.Font();
+        PM_Panel.Prepare(t);
         t.fontSize = size;
         t.alignment = TextAlignmentOptions.Center;
         t.color = c;

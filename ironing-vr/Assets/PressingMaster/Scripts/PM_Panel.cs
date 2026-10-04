@@ -32,6 +32,7 @@ public class PM_Panel : MonoBehaviour
                 for (char c = ' '; c <= '~'; c++) chars.Append(c);
                 chars.Append("•—–°×״׳");
                 font.TryAddCharacters(chars.ToString());
+                RemoveKerning(font);
             }
         }
         if (font == null)
@@ -40,6 +41,46 @@ public class PM_Panel : MonoBehaviour
             font = TMP_Settings.defaultFontAsset;
         }
         return font;
+    }
+
+    // Sets our Hebrew font on a text and switches off kerning/font features.
+    // The font's kerning pairs are made for right-to-left order; our text is already reversed,
+    // so the pairs hit the wrong letters — letters climbed on each other and random gaps appeared.
+    public static void Prepare(TextMeshProUGUI t)
+    {
+        t.font = Font();
+        var flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+        var features = t.GetType().GetProperty("fontFeatures", flags);
+        if (features != null)
+        {
+            var list = features.GetValue(t, null) as System.Collections.IList;
+            if (list != null) list.Clear();
+            else if (features.CanWrite) features.SetValue(t, Activator.CreateInstance(features.PropertyType), null);
+        }
+        else
+        {
+            var kerning = t.GetType().GetProperty("enableKerning", flags);
+            if (kerning != null && kerning.CanWrite) kerning.SetValue(t, false, null);
+        }
+    }
+
+    // Empties the kerning / mark positioning tables that the font asset read from the font file.
+    static void RemoveKerning(TMP_FontAsset fa)
+    {
+        try
+        {
+            var all = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tableProp = fa.GetType().GetProperty("fontFeatureTable", all);
+            object table = tableProp != null ? tableProp.GetValue(fa, null) : null;
+            if (table == null) return;
+            foreach (var f in table.GetType().GetFields(all))
+            {
+                object v = f.GetValue(table);
+                if (v is System.Collections.IList) ((System.Collections.IList)v).Clear();
+                else if (v is System.Collections.IDictionary) ((System.Collections.IDictionary)v).Clear();
+            }
+        }
+        catch (Exception e) { Debug.Log("[PM] Kerning not removed: " + e.Message); }
     }
 
     // Layout of this screen (pixels; 1000 px = 1 meter).
@@ -166,7 +207,7 @@ public class PM_Panel : MonoBehaviour
     {
         var r = MakeRect(parent, name, x, y, w, h);
         var t = r.gameObject.AddComponent<TextMeshProUGUI>();
-        t.font = Font();
+        Prepare(t);
         t.fontSize = size;
         t.color = c;
         t.alignment = TextAlignmentOptions.Top;   // centered lines

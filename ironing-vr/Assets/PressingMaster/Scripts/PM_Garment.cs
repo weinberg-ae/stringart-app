@@ -121,7 +121,7 @@ public class PM_Garment : MonoBehaviour
         var t = new GameObject("Text", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
         t.transform.SetParent(go.transform, false);
         t.rectTransform.sizeDelta = new Vector2(1100, 60);
-        t.font = PM_Panel.Font();
+        PM_Panel.Prepare(t);
         t.fontSize = 36;
         t.alignment = TextAlignmentOptions.Center;
         t.color = PM_Util.Cyan;

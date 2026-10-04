@@ -84,7 +84,7 @@ public class PM_Hotspot : MonoBehaviour
         var t = new GameObject("Text", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
         t.transform.SetParent(lg.transform, false);
         t.rectTransform.sizeDelta = new Vector2(260, 50);
-        t.font = PM_Panel.Font();
+        PM_Panel.Prepare(t);
         t.fontSize = size;
         t.alignment = TextAlignmentOptions.Center;
         t.color = col;

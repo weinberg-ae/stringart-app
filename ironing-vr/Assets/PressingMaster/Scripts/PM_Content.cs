@@ -6,7 +6,7 @@ public enum PM_Target { None, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard
 public enum PM_Action { Next, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
 public enum PM_HotspotGroup { None, Station, Tools, Fabric, Fibers }
 public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft }
-public enum PM_FabricType { Cotton, Linen, Wool, Silk, Polyester }
+public enum PM_FabricType { Cotton, Linen, Wool, Silk, Polyester, Viscose, Modal, Lyocell, Acetate, Polyamide, Acrylic, Elastane }
 public enum PM_Steam { Required, Optional, Forbidden }
 public enum PM_Weave { Plain, Slub, Twill, Satin, Smooth }
 
@@ -52,6 +52,8 @@ public class PM_HotspotInfo
     public Color accent = new Color(0.1f, 0.95f, 1f);   // color of the point and of its card
     public bool isFiber;                                  // drawn as a floating fiber symbol
     public PM_FabricType fiber;
+    public string fiberGroup;                             // family line under the fiber name
+    public bool extraFiber;                               // upper row: fibers that are only explained, not ironed
 
     public PM_HotspotInfo(string id, string label, string title, string body, PM_Target target, PM_Anchor anchor)
     {
@@ -99,6 +101,7 @@ public static class PM_Content
     public const string StTime = "זמן: {0} שניות";
     public const string StExplored = "נקודות שנלמדו: {0}/{1}";
     public const string StAllExplored = "כל הנקודות נלמדו — מצוין!";
+    public const string StFibersBasic = "חמשת הסיבים הבסיסיים נלמדו — אפשר להמשיך. סיבים שנלמדו: {0}/{1}";
 
     // ---------- Learning path (main window: only short tasks and critical rules) ----------
     public static List<PM_Step> LearningSteps()
@@ -146,11 +149,13 @@ public static class PM_Content
         tools.group = PM_HotspotGroup.Tools;
         s.Add(tools);
 
-        var fibers = new PM_Step("fibers", "חמשת סוגי הסיבים",
-            "מעל העמדה מרחפים חמישה סיבים זוהרים. געו בכל סיב כדי ללמוד על מקורו ומבנהו.\n" +
-            "• ורוד-אדום — צמחיים (תאית): כותנה, פשתן — חום גבוה •••\n" +
-            "• צהוב — מן החי (חלבון): צמר, משי — חום בינוני ••\n" +
-            "• כחול — כימיים: פוליאסטר — חום נמוך •",
+        var fibers = new PM_Step("fibers", "עולם הסיבים",
+            "מעל העמדה מרחפים מסכי סיבים. געו בכל מסך כדי ללמוד על הסיב.\n" +
+            "שורה תחתונה — חמשת הסיבים שתגהצו בעמדה. שורה עליונה — סיבים נוספים.\n" +
+            "צבע המסך = חום הגיהוץ:\n" +
+            "• ורוד-אדום — חום גבוה •••\n" +
+            "• צהוב — חום בינוני ••\n" +
+            "• כחול — חום נמוך •",
             PM_Target.None, PM_Action.Explore);
         fibers.group = PM_HotspotGroup.Fibers;
         s.Add(fibers);
@@ -287,7 +292,7 @@ public static class PM_Content
         return l;
     }
 
-    // Floating fiber symbols above the station.
+    // Floating fiber screens above the station: the five fabrics of the game + more fibers to know.
     public static List<PM_HotspotInfo> FiberHotspots()
     {
         var l = new List<PM_HotspotInfo>();
@@ -299,9 +304,58 @@ public static class PM_Content
             h.accent = PM_Util.ModeColor(f.mode);
             h.isFiber = true;
             h.fiber = t;
+            h.fiberGroup = t == PM_FabricType.Cotton || t == PM_FabricType.Linen ? "טבעי · צמחי · תאית"
+                         : t == PM_FabricType.Polyester ? "סינתטי · פולימר מנפט" : "טבעי · מן החי · חלבון";
             l.Add(h);
         }
+        l.Add(Extra(PM_FabricType.Viscose, "ויסקוזה", "מלאכותי · תאית מעץ", 2,
+            "מקור: מלאכותי — תאית מעיסת עץ, שמומסת ונמשכת מחדש לסיב.\n" +
+            "תכונות: רכה, נופלת יפה, סופגת היטב. כשהיא רטובה — חלשה ומתכווצת בקלות.\n" +
+            "גיהוץ: חום בינוני ••, מהצד ההפוך, קיטור קל. לא מותחים בד רטוב.\n" +
+            "שימושים: שמלות, חולצות, בטנות."));
+        l.Add(Extra(PM_FabricType.Modal, "מודאל", "מלאכותי · תאית מעץ", 2,
+            "מקור: מלאכותי — תאית מעץ אשור, בתהליך משופר של ויסקוזה.\n" +
+            "תכונות: רך וחלק מאוד, חזק יותר מוויסקוזה גם כשהוא רטוב, כמעט לא מתכווץ.\n" +
+            "גיהוץ: חום בינוני ••, קיטור קל.\n" +
+            "שימושים: הלבשה תחתונה, פיג'מות, חולצות טריקו."));
+        l.Add(Extra(PM_FabricType.Lyocell, "ליוסל (טנסל)", "מלאכותי · תאית מעץ", 2,
+            "מקור: מלאכותי — תאית מעץ אקליפטוס, בתהליך ידידותי לסביבה: הממס ממוחזר.\n" +
+            "תכונות: חזק גם כשהוא רטוב, רך, נושם וסופג. נוטה להתקמט.\n" +
+            "גיהוץ: חום בינוני ••, עם קיטור.\n" +
+            "שימושים: חולצות, ג'ינס רך, מצעים. שם מסחרי: טנסל."));
+        l.Add(Extra(PM_FabricType.Acetate, "אצטט", "מלאכותי · תאית וחומצה", 1,
+            "מקור: מלאכותי — תאית שעברה תגובה עם חומצה אצטית.\n" +
+            "תכונות: מבריק כמו משי ונופל יפה, אבל רגיש מאוד לחום. אצטון (מסיר לק) ממיס אותו!\n" +
+            "גיהוץ: חום נמוך •, מהצד ההפוך, דרך מטלית, בלי קיטור.\n" +
+            "שימושים: בטנות, שמלות ערב."));
+        l.Add(Extra(PM_FabricType.Polyamide, "פוליאמיד (ניילון)", "סינתטי · פולימר מנפט", 1,
+            "מקור: סינתטי — פולימר מנפט. השם המוכר: ניילון.\n" +
+            "תכונות: חזק מאוד, עמיד בשחיקה, קל וגמיש, מתייבש מהר.\n" +
+            "גיהוץ: חום נמוך •. בחום גבוה נמס ומקבל ברק.\n" +
+            "שימושים: גרביונים, בגדי ים, מעילי רוח, תיקים."));
+        l.Add(Extra(PM_FabricType.Acrylic, "אקריליק", "סינתטי · פולימר מנפט", 1,
+            "מקור: סינתטי — פולימר מנפט, שמחקה צמר.\n" +
+            "תכונות: קל, חם ורך, לא מתכווץ — אבל נוטה ליצור גלולים (פילינג).\n" +
+            "גיהוץ: חום נמוך •, בלי קיטור ובלי לחץ: חום ולחות מותחים אותו לצמיתות.\n" +
+            "שימושים: סוודרים, צעיפים, שמיכות."));
+        l.Add(Extra(PM_FabricType.Elastane, "אלסטן (לייקרה)", "סינתטי · פוליאוריתן", 1,
+            "מקור: סינתטי — פוליאוריתן. שמות מסחריים: לייקרה, ספנדקס.\n" +
+            "תכונות: נמתח עד פי 5 מאורכו וחוזר לצורתו. מופיע תמיד בתערובת (2–20%) עם סיב אחר.\n" +
+            "גיהוץ: חום נמוך •, מהר. חום גבוה הורס את הגמישות. בבד מעורב — לפי החום הנמוך.\n" +
+            "שימושים: ג'ינס נמתח, טייץ, בגדי ספורט ובגדי ים."));
         return l;
+    }
+
+    static PM_HotspotInfo Extra(PM_FabricType t, string name, string family, int mode, string text)
+    {
+        var h = new PM_HotspotInfo("fiber_" + t.ToString().ToLower(), name, name, text, PM_Target.None, PM_Anchor.Top);
+        h.group = PM_HotspotGroup.Fibers;
+        h.accent = PM_Util.ModeColor(mode);
+        h.isFiber = true;
+        h.fiber = t;
+        h.fiberGroup = family;
+        h.extraFiber = true;
+        return h;
     }
 
     static void FabricTexts(PM_FabricInfo f)

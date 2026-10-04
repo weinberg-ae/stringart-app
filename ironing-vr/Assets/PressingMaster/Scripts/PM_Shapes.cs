@@ -110,7 +110,109 @@ public static class PM_Shapes
                 Draw(parent, Circle(0.012f, new Vector3(0.18f, 0f, 0), 10), c, w * 0.8f, true);
                 break;
             }
+            case PM_FabricType.Viscose:   // smooth fiber with lengthwise stripes + serrated cross-section
+            {
+                Draw(parent, Poly(-0.27f, 0.03f, 0.14f, 0.03f), c, w, false);
+                Draw(parent, Poly(-0.27f, -0.03f, 0.14f, -0.03f), c, w, false);
+                Draw(parent, Poly(-0.25f, 0.01f, 0.12f, 0.01f), c, w * 0.5f, false);
+                Draw(parent, Poly(-0.25f, -0.012f, 0.12f, -0.012f), c, w * 0.5f, false);
+                Draw(parent, Lobes(new Vector3(0.21f, 0f, 0f), 0.055f, 0.008f, 14), c, w, true);
+                break;
+            }
+            case PM_FabricType.Modal:     // softer, slightly wavy fiber + round cross-section
+            {
+                int n = 50;
+                var a = new Vector3[n]; var b = new Vector3[n];
+                for (int i = 0; i < n; i++)
+                {
+                    float x = -0.27f + 0.41f * i / (n - 1);
+                    float y = Mathf.Sin(x * 9f) * 0.015f;
+                    a[i] = new Vector3(x, y + 0.026f, 0); b[i] = new Vector3(x, y - 0.026f, 0);
+                }
+                Draw(parent, a, c, w, false); Draw(parent, b, c, w, false);
+                Draw(parent, Circle(0.05f, new Vector3(0.21f, 0f, 0f), 28), c, w, true);
+                Draw(parent, Circle(0.02f, new Vector3(0.21f, 0f, 0f), 16), c, w * 0.6f, true);
+                break;
+            }
+            case PM_FabricType.Lyocell:   // smooth fiber + leaf (eco process)
+            {
+                Draw(parent, Poly(-0.27f, 0.024f, 0.08f, 0.024f), c, w, false);
+                Draw(parent, Poly(-0.27f, -0.024f, 0.08f, -0.024f), c, w, false);
+                var leaf = new Vector3[30];
+                for (int i = 0; i < 15; i++)
+                {
+                    float u = i / 14f;
+                    float x = 0.12f + 0.14f * u, y = Mathf.Sin(u * Mathf.PI) * 0.045f;
+                    leaf[i] = new Vector3(x, y + u * 0.05f, 0);
+                    leaf[29 - i] = new Vector3(x, -y + u * 0.05f, 0);
+                }
+                Draw(parent, leaf, c, w, true);
+                Draw(parent, Poly(0.1f, -0.01f, 0.26f, 0.05f), c, w * 0.6f, false);
+                break;
+            }
+            case PM_FabricType.Acetate:   // fiber + clover (lobed) cross-section
+            {
+                Draw(parent, Poly(-0.27f, 0.028f, 0.12f, 0.028f), c, w, false);
+                Draw(parent, Poly(-0.27f, -0.028f, 0.12f, -0.028f), c, w, false);
+                Draw(parent, Poly(-0.25f, 0f, 0.1f, 0f), c, w * 0.5f, false);
+                Draw(parent, Lobes(new Vector3(0.2f, 0f, 0f), 0.045f, 0.022f, 4), c, w, true);
+                break;
+            }
+            case PM_FabricType.Polyamide: // nylon chain: zigzag with amide groups (C=O up, N-H down)
+            {
+                var z = new Vector3[9];
+                for (int i = 0; i < 9; i++) z[i] = new Vector3(-0.24f + i * 0.06f, (i % 2 == 0) ? -0.02f : 0.02f, 0);
+                Draw(parent, z, c, w, false);
+                for (int i = 1; i < 9; i += 2)
+                {
+                    bool up = (i / 2) % 2 == 0;
+                    Vector3 q = z[i];
+                    Vector3 end = q + new Vector3(0, up ? 0.06f : -0.1f, 0);
+                    Draw(parent, new[] { q, end }, c, w * 0.8f, false);
+                    Draw(parent, Circle(0.013f, end + new Vector3(0, up ? 0.013f : -0.013f, 0), 12), c, w * 0.8f, true);
+                }
+                break;
+            }
+            case PM_FabricType.Acrylic:   // crimped fiber + dog-bone cross-section
+            {
+                var p = new Vector3[14];
+                for (int i = 0; i < 14; i++) p[i] = new Vector3(-0.27f + i * 0.03f, (i % 2 == 0) ? -0.025f : 0.025f, 0);
+                Draw(parent, p, c, w * 1.2f, false);
+                Vector3 o = new Vector3(0.21f, 0f, 0f);
+                Draw(parent, Circle(0.026f, o + new Vector3(-0.03f, 0, 0), 16), c, w, true);
+                Draw(parent, Circle(0.026f, o + new Vector3(0.03f, 0, 0), 16), c, w, true);
+                break;
+            }
+            case PM_FabricType.Elastane:  // coil spring: stretches and comes back
+            {
+                int n = 120;
+                var p = new Vector3[n];
+                for (int i = 0; i < n; i++)
+                {
+                    float u = i / (float)(n - 1);
+                    float a = u * Mathf.PI * 2f * 7f;
+                    p[i] = new Vector3(-0.24f + 0.48f * u + Mathf.Cos(a) * 0.025f, Mathf.Sin(a) * 0.05f, 0);
+                }
+                Draw(parent, p, c, w, false);
+                Draw(parent, Poly(-0.27f, 0f, -0.24f, 0f), c, w, false);
+                Draw(parent, Poly(0.24f, 0f, 0.27f, 0f), c, w, false);
+                break;
+            }
         }
+    }
+
+    // Closed outline with bumps: r = radius + depth * cos(lobes * angle).
+    static Vector3[] Lobes(Vector3 center, float radius, float depth, int lobes)
+    {
+        int n = 72;
+        var p = new Vector3[n];
+        for (int i = 0; i < n; i++)
+        {
+            float a = i * Mathf.PI * 2f / n;
+            float r = radius + depth * Mathf.Cos(lobes * a);
+            p[i] = center + new Vector3(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0);
+        }
+        return p;
     }
 
     // ---------- background silhouettes (about 1 m) ----------

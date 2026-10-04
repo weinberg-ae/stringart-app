@@ -96,7 +96,7 @@ public class PM_FiberScreen : MonoBehaviour
     {
         var t = new GameObject(name, typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
         t.transform.SetParent(parent, false);
-        t.font = PM_Panel.Font();
+        PM_Panel.Prepare(t);
         t.fontSize = size;
         t.color = c;
         t.alignment = TextAlignmentOptions.Center;
