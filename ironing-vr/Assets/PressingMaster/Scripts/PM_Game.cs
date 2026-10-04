@@ -32,7 +32,7 @@ public class PM_Game : MonoBehaviour
 
     void Awake()
     {
-        if (FindFirstObjectByType<PM_Audio>() == null) gameObject.AddComponent<PM_Audio>();
+        if (FindAnyObjectByType<PM_Audio>() == null) gameObject.AddComponent<PM_Audio>();
     }
 
     void Start()

@@ -113,7 +113,7 @@ public class PM_Station : MonoBehaviour
 
     void PlaceTable()
     {
-        XROrigin origin = FindFirstObjectByType<XROrigin>();
+        XROrigin origin = FindAnyObjectByType<XROrigin>();
         Transform o = origin != null ? origin.transform : null;
         PlayerPos = o != null ? o.position : Vector3.zero;
         Vector3 f = o != null ? o.forward : Vector3.forward;
@@ -279,6 +279,14 @@ public class PM_Station : MonoBehaviour
 
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
         RenderSettings.ambientLight = new Color(0.16f, 0.18f, 0.24f);
+
+        // Invisible floor: the XR rig has gravity and would fall into the void without it.
+        if (PM_Util.FindInScene("Floor_Collider") == null)
+        {
+            var floor = new GameObject("PM_InvisibleFloor");
+            floor.transform.position = PlayerPos - Vector3.up * 0.05f;
+            floor.AddComponent<BoxCollider>().size = new Vector3(60f, 0.1f, 60f);
+        }
 
         // Neon ring on the floor where the player stands.
         var ring = new GameObject("PM_FloorRing");
