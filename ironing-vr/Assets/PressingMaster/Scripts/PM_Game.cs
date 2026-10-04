@@ -23,6 +23,7 @@ public class PM_Game : MonoBehaviour
     readonly List<PM_Hotspot> toolHs = new List<PM_Hotspot>();
     readonly List<PM_Hotspot> fabricHs = new List<PM_Hotspot>();
     PM_Hotspot openHs;
+    PM_Garment garment;
 
     State state;
     List<PM_Step> steps;
@@ -59,6 +60,9 @@ public class PM_Game : MonoBehaviour
         card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
         card.gameObject.SetActive(false);
         BuildHotspots();
+        // Tailor's mannequin standing next to the station (decoration).
+        PM_Garment.Show("mannequin", station.PlayerPos + station.Forward * 1.1f - station.Right * 2.0f, 1.6f,
+            station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
         ShowMenu();
 
         // Without a headset: put the camera at eye height looking at the table, mouse + WASD control.
@@ -300,12 +304,20 @@ public class PM_Game : MonoBehaviour
         lateral = Mathf.Clamp(lateral - 0.05f, -0.4f, 0.4f);
         Vector3 pos = new Vector3(station.BoardCenter.x, station.BoardTopY + 0.004f, station.BoardCenter.z) + station.Right * lateral;
         fabric = PM_Fabric.Create(PM_Content.Fabric(t), pos, station.BoardRotation, null, seed + 3);
+
+        // Garment made of this fabric, shown as a rotating exhibit left of the board (name hidden in the exam).
+        PM_FabricInfo info = PM_Content.Fabric(t);
+        Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.05f + station.Forward * 0.05f;
+        string label = state == State.Learning ? info.garment : "?";
+        garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, label, info.smoothness, true);
     }
 
     void RemoveFabric()
     {
         if (fabric != null) Destroy(fabric.gameObject);
         fabric = null;
+        if (garment != null) Destroy(garment.gameObject);
+        garment = null;
     }
 
     // Returns true while ironing happens this frame.

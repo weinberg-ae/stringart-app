@@ -38,7 +38,8 @@ public class PM_FabricInfo
     public float ironSeconds;   // time of continuous ironing on one spot to smooth it
     public string cue;          // exam: how it looks
     public string burn;         // exam: burn test result
-    public string fiberText, pressText, burnText;  // learning: texts of the three points of light
+    public string fiberText, pressText, burnText;
+    public string garment;      // name of the example garment model  // learning: texts of the three points of light
 }
 
 public class PM_HotspotInfo
@@ -406,6 +407,11 @@ public static class PM_Content
                 burn = "נמס ומטפטף, עשן שחור, חרוז קשה שלא מתפורר."
             };
             foreach (PM_FabricInfo fi in fabrics.Values) FabricTexts(fi);
+            fabrics[PM_FabricType.Cotton].garment = "דוגמה: מעיל ג'ינס — ג'ינס הוא אריג כותנה";
+            fabrics[PM_FabricType.Linen].garment = "דוגמה: בד פשתן";
+            fabrics[PM_FabricType.Wool].garment = "דוגמה: ז'קט צמר";
+            fabrics[PM_FabricType.Silk].garment = "דוגמה: שמלת משי";
+            fabrics[PM_FabricType.Polyester].garment = "דוגמה: שמלה מפוליאסטר";
         }
         return fabrics[t];
     }
