@@ -70,7 +70,6 @@ public class PM_Game : MonoBehaviour
         card.gameObject.SetActive(false);
         BuildHotspots();
         PM_Look.PostFX();
-        PM_Shapes.Atmosphere(station.PlayerPos);
         PM_Look.GridFloor(station.PlayerPos, station.Forward, station.Right);
         PM_Look.Dust(station.PlayerPos + station.Forward * 0.8f);
         if (restyleTable) station.Restyle();

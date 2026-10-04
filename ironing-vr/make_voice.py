@@ -7,6 +7,26 @@ except ImportError:
     print("edge-tts is not installed"); sys.exit(1)
 
 VOICE = "he-IL-HilaNeural"      # female. Male: "he-IL-AvriNeural"
+# Pronunciation fixes: words get vowel marks (nikud) ONLY for the voice. Add more words here if needed.
+# Each word also matches with prefixes ו ה ב ל מ ש כ (for example: הפשתן, בעמדה, והלחץ).
+PRONOUNCE = {
+    "פשתן": "פִּשְׁתָּן",
+    "תאית": "תָּאִית",
+    "משי": "מֶשִׁי",
+    "שרוולון": "שַׁרְווּלוֹן",
+    "עמדה": "עֶמְדָּה",
+    "עמדת": "עֶמְדַּת",
+    "עמדות": "עֶמְדּוֹת",
+    "לחץ": "לַחַץ",
+    "מנומטר": "מָנוֹמֶטֶר",
+    "מגהץ": "מַגְהֵץ",
+}
+
+def fix_pronunciation(text):
+    for word, voiced in PRONOUNCE.items():
+        text = re.sub(r"(?<![\u05D0-\u05EA])([והבלמשכ]{0,2})" + word + r"(?![\u05D0-\u05EA])", lambda m: m.group(1) + voiced, text)
+    return text
+
 VARIANTS = [("+0%", "+0Hz"), ("+6%", "+6Hz"), ("-3%", "-3Hz"), ("+3%", "+10Hz")]
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +45,7 @@ async def speak(sentence, rate, pitch):
 
 async def main():
     for i, (name, body) in enumerate(blocks):
-        sentences = [s.strip() for s in re.split(r"(?<=[.!?:])\s+", body.strip()) if s.strip()]
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?:])\s+", fix_pronunciation(body.strip())) if s.strip()]
         audio = b""
         for k, s in enumerate(sentences):
             rate, pitch = VARIANTS[k % len(VARIANTS)]
