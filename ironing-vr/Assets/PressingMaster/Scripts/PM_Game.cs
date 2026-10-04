@@ -5,7 +5,8 @@ using UnityEngine.InputSystem;
 
 // MAIN SCRIPT. Put it on one empty object in the scene (for example _Game_Manager) and press Play.
 // Keyboard (for testing without the headset): N = next, B = back, P = power, 1/2/3 = temperature,
-// Space (hold) = iron the fabric, Left Shift (hold) = steam, M = menu.
+// Space (hold) = iron the fabric, Left Shift (hold) = steam, M = menu, X = exam.
+// Without headset: hold right mouse button to look around, W A S D Q E to move.
 public class PM_Game : MonoBehaviour
 {
     enum State { Menu, Learning, ExamIntro, ExamFabric, ExamResult }
@@ -47,6 +48,15 @@ public class PM_Game : MonoBehaviour
         panel = PM_Panel.Create(null);
         panel.Place(station.PanelPos, station.PlayerPos + Vector3.up * 1.6f);
         ShowMenu();
+
+        // Without a headset: put the camera at eye height looking at the table, mouse + WASD control.
+        if (!UnityEngine.XR.XRSettings.isDeviceActive && Camera.main != null)
+        {
+            Transform cam = Camera.main.transform;
+            cam.position = station.PlayerPos + Vector3.up * 1.6f;
+            cam.rotation = Quaternion.LookRotation(station.BoardCenter + Vector3.up * 0.4f - cam.position);
+            cam.gameObject.AddComponent<PM_DesktopCamera>();
+        }
     }
 
     // ---------------- Menu ----------------
@@ -409,7 +419,7 @@ public class PM_Game : MonoBehaviour
         }
         if (KeyDown(Key.B)) PrevStep();
         if (KeyDown(Key.M)) ShowMenu();
-        if (KeyDown(Key.E)) StartExam();
+        if (KeyDown(Key.X)) StartExam();
         if (KeyDown(Key.P)) station.onPowerClicked();
         if (KeyDown(Key.Digit1)) OnModeClicked(1);
         if (KeyDown(Key.Digit2)) OnModeClicked(2);

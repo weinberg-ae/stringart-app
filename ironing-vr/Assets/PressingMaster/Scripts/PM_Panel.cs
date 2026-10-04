@@ -19,7 +19,19 @@ public class PM_Panel : MonoBehaviour
     {
         if (font != null) return font;
         Font f = Resources.Load<Font>("PM_Fonts/VarelaRound-Regular");
-        if (f != null) font = TMP_FontAsset.CreateFontAsset(f);
+        if (f != null)
+        {
+            font = TMP_FontAsset.CreateFontAsset(f);
+            // Put every letter into the atlas right away, otherwise Hebrew letters appear missing or overlapping.
+            if (font != null)
+            {
+                var chars = new System.Text.StringBuilder();
+                for (char c = 'א'; c <= 'ת'; c++) chars.Append(c);
+                for (char c = ' '; c <= '~'; c++) chars.Append(c);
+                chars.Append("•—–°×״׳");
+                font.TryAddCharacters(chars.ToString());
+            }
+        }
         if (font == null)
         {
             Debug.LogWarning("[PM] Шрифт с ивритом не найден в Assets/Resources/PM_Fonts — иврит может не отображаться.");
