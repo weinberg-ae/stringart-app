@@ -12,6 +12,8 @@ public class PM_Audio : MonoBehaviour
     AudioSource boiler;
     AudioSource music;
     readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
+    readonly float[] samples = new float[256];
+    public float VoiceLevel { get; private set; }   // 0..1, loudness of the narrator right now
 
     void Awake()
     {
@@ -83,6 +85,14 @@ public class PM_Audio : MonoBehaviour
 
     void Update()
     {
+        if (voice.isPlaying)
+        {
+            voice.GetOutputData(samples, 0);
+            float sum = 0f;
+            for (int i = 0; i < samples.Length; i++) sum += samples[i] * samples[i];
+            VoiceLevel = Mathf.Lerp(VoiceLevel, Mathf.Clamp01(Mathf.Sqrt(sum / samples.Length) * 6f), 0.4f);
+        }
+        else VoiceLevel = Mathf.Lerp(VoiceLevel, 0f, 0.2f);
         if (music != null && !voice.isPlaying && music.volume < 0.16f) music.volume = Mathf.MoveTowards(music.volume, 0.16f, Time.deltaTime * 0.05f);
     }
 }

@@ -75,6 +75,21 @@ public static class PM_Look
         p.color = c;
     }
 
+    // Small vertical light ring + sparks in front of a pressed button.
+    public static void ButtonPulse(Vector3 pos, Color c, Vector3 towardViewer)
+    {
+        var go = new GameObject("PM_ButtonPulse");
+        go.transform.position = pos + towardViewer * 0.01f;
+        go.transform.rotation = Quaternion.LookRotation(-towardViewer, Vector3.up);
+        var p = go.AddComponent<PM_Pulse>();
+        p.color = c;
+        p.maxRadius = 0.35f;
+        p.duration = 0.7f;
+        p.width = 0.012f;
+        p.vertical = true;
+        Burst(pos + towardViewer * 0.02f, c);
+    }
+
     // Neon grid on the floor that fades out with distance.
     public static void GridFloor(Vector3 center, Vector3 forward, Vector3 right)
     {
@@ -185,19 +200,21 @@ public static class PM_Look
 public class PM_Pulse : MonoBehaviour
 {
     public Color color = Color.cyan;
+    public float maxRadius = 7f, duration = 1.8f, width = 0.03f;
+    public bool vertical;
     LineRenderer lr;
     float t;
 
     void Start()
     {
-        lr = PM_Util.Line(transform, "Ring", PM_Util.Circle(1f, 96, Vector3.right, Vector3.forward, Vector3.zero), color, 0.03f, true);
+        lr = PM_Util.Line(transform, "Ring", PM_Util.Circle(1f, 96, Vector3.right, vertical ? Vector3.up : Vector3.forward, Vector3.zero), color, width, true);
     }
 
     void Update()
     {
-        t += Time.deltaTime / 1.8f;
-        float r = Mathf.Lerp(0.2f, 7f, t);
-        lr.transform.localScale = new Vector3(r, 1f, r);
+        t += Time.deltaTime / duration;
+        float r = Mathf.Lerp(0.02f, maxRadius, t);
+        lr.transform.localScale = vertical ? new Vector3(r, r, 1f) : new Vector3(r, 1f, r);
         Color c = color; c.a = (1f - t) * 0.9f;
         lr.startColor = c; lr.endColor = c;
         if (t >= 1f) Destroy(gameObject);

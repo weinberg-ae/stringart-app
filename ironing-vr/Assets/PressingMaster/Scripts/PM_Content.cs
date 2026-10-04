@@ -19,6 +19,7 @@ public class PM_Step
     public PM_Action action;
     public PM_FabricType fabric;
     public PM_HotspotGroup group = PM_HotspotGroup.None;
+    public int toolTask;   // 1 = collar on the point presser, 2 = dress bodice on the ham
 
     public PM_Step(string id, string title, string body, PM_Target target, PM_Action action, PM_FabricType fabric = PM_FabricType.Cotton)
     {
@@ -118,7 +119,7 @@ public static class PM_Content
             "געו בכל נקודות האור על העמדה כדי ללמוד על חלקיה.\n" +
             "בטיחות — חובה:\n" +
             "• לא מכוונים קיטור אל היד או אל הגוף.\n" +
-            "• המגהץ מונח רק על משטח ההנחה — לא על הבד.\n" +
+            "• המגהץ מונח רק על משטח ההנחה, בשכיבה — לא מעמידים אותו על העקב.\n" +
             "• לא מתחילים לגהץ לפני שהלחץ מגיע ל-3.5 בר.",
             PM_Target.None, PM_Action.Explore);
         explore.group = PM_HotspotGroup.Station;
@@ -139,7 +140,7 @@ public static class PM_Content
             PM_Target.TempButtons, PM_Action.PressTemp));
 
         var tools = new PM_Step("tools", "כלי עזר לגיהוץ",
-            "על משטח הגיהוץ ארבעה כלי עזר.\n" +
+            "על משטח הגיהוץ ארבעה כלי עזר: חמור (קבנצ'יק), מגהצון פינות, מטלית גיהוץ ושכבות דביקון.\n" +
             "געו בנקודות האור כדי ללמוד מתי ולמה משתמשים בכל אחד.",
             PM_Target.None, PM_Action.Explore);
         tools.group = PM_HotspotGroup.Tools;
@@ -165,6 +166,19 @@ public static class PM_Content
             st.group = PM_HotspotGroup.Fabric;
             s.Add(st);
         }
+
+        var collar = new PM_Step("collar_task", "משימה: צווארון על מגהצון פינות",
+            "צווארון של חולצת כותנה מונח על מגהצון הפינות.\n" +
+            "בחרו ••• והפעילו קיטור. גהצו מהקצוות פנימה, כדי שלא ייווצרו קפלים בפינות הצווארון.",
+            PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Cotton);
+        collar.toolTask = 1;
+        s.Add(collar);
+        var chest = new PM_Step("chest_task", "משימה: אזור החזה בשמלה על החמור",
+            "חלק החזה של שמלת משי מונח על החמור (קבנצ'יק) — הצורה המעוגלת שומרת על הנפח.\n" +
+            "משי: •• בלי קיטור, דרך מטלית. גהצו בתנועות קצרות לאורך הקימור.",
+            PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Silk);
+        chest.toolTask = 2;
+        s.Add(chest);
 
         s.Add(new PM_Step("learn_end", "סיום מסלול הלימוד",
             "כל הכבוד! הכרתם את העמדה, את כלי העזר ואת חמשת סוגי הסיבים.\n" +
@@ -212,6 +226,7 @@ public static class PM_Content
             PM_Target.Iron, PM_Anchor.IronFront));
         l.Add(new PM_HotspotInfo("rest", "משטח הנחה", "משטח ההנחה של המגהץ",
             "משטח עמיד לחום שעליו מניחים את המגהץ בין פעולה לפעולה.\n" +
+            "מגהץ מקצועי מניחים תמיד בשכיבה על המשטח — לא מעמידים אותו על העקב כמו מגהץ ביתי: הוא עלול ליפול ולגרום לכוויה.\n" +
             "לעולם לא משאירים מגהץ חם על הבד או על כיסוי הקרש — זו הסיבה העיקרית לכתמי חריכה ולשריפות.",
             PM_Target.Rest, PM_Anchor.Front));
         l.Add(new PM_HotspotInfo("boom", "זרוע הכבל", "זרוע תליית הכבל",

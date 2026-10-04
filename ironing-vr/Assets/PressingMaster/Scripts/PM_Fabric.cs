@@ -8,6 +8,7 @@ public class PM_Fabric : MonoBehaviour
 
     public PM_FabricInfo info;
     public float sizeX = 0.5f, sizeZ = 0.38f;   // meters
+    public float dome = 0f;                      // height of a hump (fabric lying on a tailor's ham)
 
     public float Progress { get; private set; }  // 0..1
     public float Damage { get; private set; }    // 0..1 (scorch / melt / spots)
@@ -25,12 +26,18 @@ public class PM_Fabric : MonoBehaviour
 
     public static PM_Fabric Create(PM_FabricInfo info, Vector3 center, Quaternion rot, Transform parent, int seed)
     {
+        return Create(info, center, rot, parent, seed, 0.5f, 0.38f, 0f);
+    }
+
+    public static PM_Fabric Create(PM_FabricInfo info, Vector3 center, Quaternion rot, Transform parent, int seed, float sx, float sz, float domeHeight)
+    {
         var go = new GameObject("PM_Fabric_" + info.type);
         go.transform.SetParent(parent, true);
         go.transform.position = center;
         go.transform.rotation = rot;
         var f = go.AddComponent<PM_Fabric>();
         f.info = info;
+        f.sizeX = sx; f.sizeZ = sz; f.dome = domeHeight;
         f.Build(seed);
         return f;
     }
@@ -47,7 +54,9 @@ public class PM_Fabric : MonoBehaviour
             for (int x = 0; x <= n; x++)
             {
                 float u = x / (float)n, w = z / (float)n;
-                v[z * (n + 1) + x] = new Vector3((u - 0.5f) * sizeX, 0, (w - 0.5f) * sizeZ);
+                float du = (u - 0.5f) * 2f, dw = (w - 0.5f) * 2f;
+                float y = dome * (1f - du * du) * (1f - dw * dw);
+                v[z * (n + 1) + x] = new Vector3((u - 0.5f) * sizeX, y, (w - 0.5f) * sizeZ);
                 uv[z * (n + 1) + x] = new Vector2(u, w);
             }
         int k = 0;

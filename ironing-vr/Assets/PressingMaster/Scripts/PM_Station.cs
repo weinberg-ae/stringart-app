@@ -51,6 +51,8 @@ public class PM_Station : MonoBehaviour
     readonly Material[] buttonMats = new Material[4];
     readonly Color[] buttonBaseEmission = new Color[4];
     readonly Material[] capMats = new Material[4];
+    readonly Vector3[] buttonCenters = new Vector3[4];
+    public Vector3 ButtonCenter(int m) { return buttonCenters[Mathf.Clamp(m, 0, 3)]; }
     Transform needle, powerKnob;
     Vector3 gaugeCenter, knobCenter;
     float needleAngle;
@@ -219,6 +221,7 @@ public class PM_Station : MonoBehaviour
                 buttonBaseEmission[m] = buttonMats[m].HasProperty("_EmissionColor") ? buttonMats[m].GetColor("_EmissionColor") : Color.black;
             }
             Bounds bb = PM_Util.WorldBounds(b);
+            buttonCenters[m] = bb.center;
             int mode = m;
             // Neon cap in front of the button: lights up in the color of its fiber group.
             var cap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);

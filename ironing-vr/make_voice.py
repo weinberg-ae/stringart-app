@@ -6,7 +6,14 @@ try:
 except ImportError:
     print("edge-tts is not installed"); sys.exit(1)
 
-VOICE = "he-IL-HilaNeural"      # female. Male: "he-IL-AvriNeural"
+# Two narrators: a materials expert (female) for fibers and fabrics, a station technician (male) for the rest.
+EXPERT = "he-IL-HilaNeural"
+TECHNICIAN = "he-IL-AvriNeural"
+EXPERT_PREFIXES = ("menu", "fibers", "hs_fiber_", "cotton", "linen", "wool", "silk", "polyester",
+                   "hs_cotton", "hs_linen", "hs_wool", "hs_silk", "hs_polyester", "chest_task", "learn_end")
+
+def voice_for(name):
+    return EXPERT if name.startswith(EXPERT_PREFIXES) else TECHNICIAN
 # Pronunciation fixes: words get vowel marks (nikud) ONLY for the voice. Add more words here if needed.
 # Each word also matches with prefixes ו ה ב ל מ ש כ (for example: הפשתן, בעמדה, והלחץ).
 PRONOUNCE = {
@@ -35,9 +42,9 @@ os.makedirs(out, exist_ok=True)
 text = open(os.path.join(here, "narration_he.txt"), encoding="utf-8-sig").read().replace("\r", "")
 blocks = [b.strip().split("\n", 1) for b in text.split("\n\n") if b.strip()]
 
-async def speak(sentence, rate, pitch):
+async def speak(sentence, rate, pitch, voice):
     data = b""
-    comm = edge_tts.Communicate(sentence, VOICE, rate=rate, pitch=pitch)
+    comm = edge_tts.Communicate(sentence, voice, rate=rate, pitch=pitch)
     async for chunk in comm.stream():
         if chunk["type"] == "audio":
             data += chunk["data"]
@@ -51,7 +58,7 @@ async def main():
             rate, pitch = VARIANTS[k % len(VARIANTS)]
             for attempt in range(3):
                 try:
-                    audio += await speak(s, rate, pitch)
+                    audio += await speak(s, rate, pitch, voice_for(name.strip()))
                     break
                 except Exception as e:
                     print("  retry", name, e)

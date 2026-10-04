@@ -66,6 +66,7 @@ public class PM_Game : MonoBehaviour
         panel = PM_Panel.Create(null);
         panel.Place(station.PanelPos, station.PlayerPos + Vector3.up * 1.6f);
         cardHighlight = PM_Highlight.Create("PM_CardHighlight");
+        PM_Narrator.Create(panel.transform, new Vector3(-0.6f, 0.22f, -0.02f));
         card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
         card.gameObject.SetActive(false);
         BuildHotspots();
@@ -244,13 +245,14 @@ public class PM_Game : MonoBehaviour
 
         highlight.Clear();
         station.RefreshButtons();
-        station.ShowTools(s.group == PM_HotspotGroup.Tools);
+        station.ShowTools(s.group == PM_HotspotGroup.Tools || s.toolTask > 0);
         ShowStationHotspots(true);
         CloseCard();
 
         if (s.target == PM_Target.Fabric)
         {
-            if (fabric == null || fabric.info.type != s.fabric) { SpawnFabric(s.fabric, stepIndex); AddFabricHotspots(); }
+            if (s.toolTask > 0) SpawnToolFabric(s.fabric, s.toolTask);
+            else if (fabric == null || fabric.info.type != s.fabric || fabric.dome > 0f || fabric.sizeZ < 0.2f) { SpawnFabric(s.fabric, stepIndex); AddFabricHotspots(); }
         }
         else RemoveFabric();
 
@@ -388,6 +390,22 @@ public class PM_Game : MonoBehaviour
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, label, info.smoothness, true);
     }
 
+    // Fabric lying on a pressing tool: 1 = shirt collar on the point presser, 2 = dress bodice on the ham.
+    void SpawnToolFabric(PM_FabricType t, int task)
+    {
+        RemoveFabric();
+        PM_FabricInfo info = PM_Content.Fabric(t);
+        List<Transform> tool = station.Targets(task == 1 ? PM_Target.PointPresser : PM_Target.Ham);
+        if (tool.Count == 0) { SpawnFabric(t, 7); return; }
+        Transform tr = tool[0];
+        if (task == 1)
+            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(0f, 0.142f, 0f)), station.BoardRotation, null, 41, 0.28f, 0.075f, 0.008f);
+        else
+            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(0f, 0.015f, 0f)), station.BoardRotation, null, 43, 0.27f, 0.17f, 0.06f);
+        Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.3f + station.Forward * 0.05f;
+        garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
+    }
+
     void RemoveFabric()
     {
         if (fabric != null) Destroy(fabric.gameObject);
@@ -473,6 +491,7 @@ public class PM_Game : MonoBehaviour
         if (!station.Powered) { panel.SetStatus(PM_Content.StNeedPower, PM_Util.Red); if (PM_Audio.I != null) PM_Audio.I.Play("error", 0.6f); return; }
         station.SetMode(m);
         modeClickedThisStep = true;
+        PM_Look.ButtonPulse(station.ButtonCenter(m), PM_Util.ModeColor(m), -station.Forward);
         panel.SetStatus(string.Format(PM_Content.StModeSet, PM_Content.ModeDots[m], PM_Content.ModeTemp[m]), PM_Util.ModeColor(m));
     }
 
