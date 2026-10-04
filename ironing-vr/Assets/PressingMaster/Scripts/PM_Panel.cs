@@ -10,6 +10,8 @@ public class PM_Panel : MonoBehaviour
     static TMP_FontAsset font;
 
     TextMeshProUGUI title, body, status, counter;
+    string rawBody;
+    Color accent = new Color(0.1f, 0.95f, 1f);
     CanvasGroup group;
     readonly List<Image> accentImages = new List<Image>();
     Image headerImage, sepImage, bgImage;
@@ -191,6 +193,8 @@ public class PM_Panel : MonoBehaviour
         if (title != null) title.color = Color.Lerp(c, Color.white, 0.25f);
         if (bgImage != null) bgImage.color = new Color(c.r * 0.15f, c.g * 0.15f, c.b * 0.15f, 0.7f);
         if (body != null) body.color = Color.Lerp(Color.white, c, 0.15f);
+        accent = c;
+        RenderBody();
         if (headerImage != null) headerImage.color = new Color(c.r, c.g, c.b, 0.25f);
     }
 
@@ -219,10 +223,18 @@ public class PM_Panel : MonoBehaviour
     public void SetContent(string titleText, string bodyText, string counterText)
     {
         title.text = PM_Hebrew.Visual(titleText, titleChars);
-        body.text = PM_Hebrew.Visual(bodyText, bodyChars);
+        rawBody = bodyText;
+        RenderBody();
         counter.text = counterText ?? "";
         appear = 0f;
         SetStatus("", Color.white);
+    }
+
+    // Body with highlighting: labels in the screen color, families / temperatures / safety words in their colors.
+    void RenderBody()
+    {
+        if (body == null || rawBody == null) return;
+        body.text = PM_Hebrew.Visual(rawBody, bodyChars, PM_Util.Hex(Color.Lerp(accent, Color.white, 0.35f)));
     }
 
     public void SetStatus(string text, Color c)

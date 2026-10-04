@@ -11,6 +11,24 @@ public static class PM_Util
     public static readonly Color Green = new Color(0.2f, 1f, 0.45f);
     public static readonly Color Violet = new Color(0.68f, 0.45f, 1f);
 
+    public static string Hex(Color c)
+    {
+        return "#" + Mathf.RoundToInt(Mathf.Clamp01(c.r) * 255f).ToString("X2") + Mathf.RoundToInt(Mathf.Clamp01(c.g) * 255f).ToString("X2") + Mathf.RoundToInt(Mathf.Clamp01(c.b) * 255f).ToString("X2");
+    }
+
+    // Fiber families: natural / man-made from cellulose / synthetic (same colors as the highlighted words).
+    public static readonly Color Natural = new Color(0.24f, 1f, 0.48f);
+    public static readonly Color Artificial = new Color(0.72f, 0.52f, 1f);
+    public static readonly Color Synthetic = new Color(0.1f, 0.95f, 1f);
+
+    public static Color FamilyColor(string family)
+    {
+        if (family == null) return Cyan;
+        if (family.StartsWith("טבעי")) return Natural;
+        if (family.StartsWith("מלאכותי")) return Artificial;
+        return Synthetic;
+    }
+
     public static Color ModeColor(int mode)
     {
         if (mode == 1) return Blue;

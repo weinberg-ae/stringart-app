@@ -65,10 +65,19 @@ public class PM_FiberScreen : MonoBehaviour
         title.text = PM_Hebrew.VisualLine(info.label);
         sub = Text(cgo.transform, "Sub", 26, acc);
         Pin(sub.rectTransform, 0, 14, 40);
-        sub.text = PM_Hebrew.VisualLine(groupText);
-        body = Text(cgo.transform, "Body", 27, Color.Lerp(Color.white, acc, 0.25f));
+        string dots = info.mode == 3 ? "•••" : info.mode == 2 ? "••" : "•";
+        sub.text = PM_Hebrew.Visual(groupText + "   " + dots, 60, PM_Util.Hex(acc));
+        body = Text(cgo.transform, "Body", 27, Color.Lerp(Color.white, acc, 0.15f));
         body.alignment = TextAlignmentOptions.Top;
-        body.text = PM_Hebrew.Visual(info.body, 36);
+        body.text = PM_Hebrew.Visual(info.body, 36, PM_Util.Hex(Color.Lerp(acc, Color.white, 0.3f)));
+
+        // Family stripe under the header: green = natural, violet = man-made from cellulose, cyan = synthetic.
+        var stripe = new GameObject("FamilyStripe", typeof(RectTransform)).AddComponent<Image>();
+        stripe.transform.SetParent(cgo.transform, false);
+        var sr = stripe.rectTransform;
+        sr.anchorMin = new Vector2(0, 1); sr.anchorMax = new Vector2(1, 1); sr.pivot = new Vector2(0.5f, 1);
+        sr.sizeDelta = new Vector2(-10, 10); sr.anchoredPosition = new Vector2(0, -80);
+        stripe.color = PM_Util.FamilyColor(groupText);
         body.gameObject.SetActive(false);
 
         symbol = new GameObject("Symbol").transform;
