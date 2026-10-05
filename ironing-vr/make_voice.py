@@ -17,7 +17,7 @@ def voice_for(name):
 # Pronunciation fixes: words get vowel marks (nikud) ONLY for the voice. Add more words here if needed.
 # Each word also matches with prefixes ו ה ב ל מ ש כ (for example: הפשתן, בעמדה, והלחץ).
 PRONOUNCE = {
-    "פשתן": "פִּשְׁתָּן",
+    "פשתן": "פישתן",
     "תאית": "תָּאִית",
     "משי": "מֶשִׁי",
     "שרוולון": "שַׁרְווּלוֹן",
@@ -27,6 +27,9 @@ PRONOUNCE = {
     "לחץ": "לַחַץ",
     "מנומטר": "מָנוֹמֶטֶר",
     "מגהץ": "מַגְהֵץ",
+    "פוליאסטר": "פולי אסטר",
+    "כבל": "כֶּבֶל",
+    "חמור": "חֲמוֹר",
 }
 
 def fix_pronunciation(text):

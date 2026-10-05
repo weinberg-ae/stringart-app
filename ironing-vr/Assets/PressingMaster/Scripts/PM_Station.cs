@@ -171,6 +171,41 @@ public class PM_Station : MonoBehaviour
         if (parts.Count == 0) { Debug.LogError("[PM] Детали утюга не найдены."); return; }
         Iron = PM_Iron.Assemble(parts.ToArray(), Table);
         targets[PM_Target.Iron] = new List<Transform> { Iron.transform };
+        BuildHose();
+    }
+
+    // The model's hose is a fixed mesh that stayed behind when the iron was lifted.
+    // Find it (a tall part touching the top of the iron), hide it and connect a flexible hose instead.
+    void BuildHose()
+    {
+        Bounds ib = PM_Util.WorldBounds(Iron.transform);
+        Bounds probe = ib;
+        probe.Expand(new Vector3(0.04f, 0.06f, 0.04f));
+        Renderer best = null;
+        foreach (MeshRenderer r in Table.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.transform.IsChildOf(Iron.transform)) continue;
+            string n = r.name;
+            if (n == BoardPart || n == SleevePart || n == RestPart || n.StartsWith("Box") || n.StartsWith("PM_")) continue;
+            Bounds b = r.bounds;
+            if (b.size.magnitude > 1.0f || b.size.y < 0.15f) continue;     // not the table body, not small parts
+            if (!b.Intersects(probe) || b.max.y < ib.max.y + 0.1f) continue; // must touch the iron and go up
+            if (best == null || b.max.y > best.bounds.max.y) best = r;
+        }
+        if (best == null) { Debug.Log("[PM] Шланг модели не найден — гибкий шланг идёт от стойки."); }
+        Bounds hb = best != null ? best.bounds : new Bounds(ib.center + Vector3.up * 0.4f - Forward * 0.1f, Vector3.one * 0.1f);
+        // Top end: the upper corner farthest from the iron. Bottom end: the point of the iron closest to the hose.
+        Vector3 anchor = hb.center, ironCenter = ib.center;
+        float far = -1f;
+        for (int i = 0; i < 4; i++)
+        {
+            Vector3 c = new Vector3((i & 1) == 0 ? hb.min.x : hb.max.x, hb.max.y, (i & 2) == 0 ? hb.min.z : hb.max.z);
+            float dd = new Vector2(c.x - ironCenter.x, c.z - ironCenter.z).sqrMagnitude;
+            if (dd > far) { far = dd; anchor = c; }
+        }
+        Vector3 end = ib.ClosestPoint(new Vector3(hb.center.x, hb.min.y, hb.center.z));
+        if (best != null) { best.enabled = false; Debug.Log("[PM] Шланг модели заменён гибким: " + best.name); }
+        PM_Hose.Create(Table, anchor, Iron.transform, end);
     }
 
     void BuildControls()

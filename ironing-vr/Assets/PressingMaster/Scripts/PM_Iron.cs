@@ -3,6 +3,7 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 // The professional iron: grab with Grip, steam with Trigger, returns to its rest when released.
+// It is a physical body while held (velocity tracking): it lies ON the board and the fabric, it does not pass through.
 public class PM_Iron : MonoBehaviour
 {
     public bool Held { get { return grab != null && grab.isSelected; } }
@@ -18,6 +19,7 @@ public class PM_Iron : MonoBehaviour
     public float SoleRadius { get; private set; }
 
     public System.Action onGrab;
+    public static Transform CurrentHolder { get; private set; }   // the hand (interactor) holding the iron
     public float heat;                     // 0..1 set by the station (temperature button)
     Material soleMat;
     float hapticTimer, secondPulse = -1f;
@@ -66,18 +68,28 @@ public class PM_Iron : MonoBehaviour
         SoleRadius = Mathf.Min(worldBounds.size.x, worldBounds.size.z) * 0.6f;
 
         var rb = gameObject.AddComponent<Rigidbody>();
-        rb.isKinematic = true;
+        rb.isKinematic = true;          // on the rest: kinematic; XRI makes it physical while held
         rb.useGravity = false;
+        rb.mass = 1.6f;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
         grab = gameObject.AddComponent<XRGrabInteractable>();
-        grab.movementType = XRBaseInteractable.MovementType.Instantaneous;
+        // Velocity tracking = real physics: the board and the fabric stop the iron (no passing through).
+        grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
         grab.throwOnDetach = false;
         grab.useDynamicAttach = true;
-        // A little lag behind the hand = the iron feels heavy.
         grab.smoothPosition = true;
-        grab.smoothPositionAmount = 9f;
+        grab.smoothPositionAmount = 12f;
         grab.smoothRotation = true;
-        grab.smoothRotationAmount = 7f;
+        grab.smoothRotationAmount = 10f;
+
+        // The player's body must not push the iron around.
+        foreach (CharacterController cc in Resources.FindObjectsOfTypeAll<CharacterController>())
+        {
+            if (!cc.gameObject.scene.IsValid()) continue;
+            foreach (Collider c in GetComponentsInChildren<Collider>(true)) Physics.IgnoreCollision(c, cc);
+        }
         grab.selectEntered.AddListener(OnGrab);
         grab.selectExited.AddListener(OnRelease);
         grab.activated.AddListener(a => TriggerDown = true);
@@ -144,6 +156,7 @@ public class PM_Iron : MonoBehaviour
     void OnGrab(SelectEnterEventArgs args)
     {
         holder = args.interactorObject.transform;
+        CurrentHolder = holder;
         returnT = -1f;
         PM_Clickable.Haptic(holder, 0.7f, 0.08f);   // "thunk" — first pulse
         secondPulse = Time.time + 0.12f;              // second, softer pulse
@@ -153,6 +166,7 @@ public class PM_Iron : MonoBehaviour
     void OnRelease(SelectExitEventArgs args)
     {
         holder = null;
+        CurrentHolder = null;
         TriggerDown = false;
         returnT = 0f;
         returnFromPos = transform.localPosition;

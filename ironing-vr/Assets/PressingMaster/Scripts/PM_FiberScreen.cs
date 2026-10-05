@@ -203,14 +203,15 @@ public class PM_FiberScreen : MonoBehaviour
         float glow = Visited ? 0.72f : 0.62f + 0.1f * Mathf.Sin(Time.time * 2f + phase);
         bg.color = new Color(acc.r * 0.16f, acc.g * 0.16f, acc.b * 0.16f, Expanded ? 0.9f : (hovered ? 0.85f : glow));
 
-        // The opened screen comes closer and to a comfortable height, in front of its neighbours.
+        // The opened screen comes close to the eyes — in front of the main window and of its neighbours.
         Camera cam = Camera.main;
         if (cam != null)
         {
-            Vector3 to = cam.transform.position - basePos;
-            to.y = 0;
-            Vector3 focus = basePos + (to.sqrMagnitude > 0.01f ? to.normalized * 0.6f : Vector3.zero);
-            focus.y = cam.transform.position.y + 0.8f;
+            Vector3 eye = cam.transform.position;
+            Vector3 dir = basePos - eye;
+            dir.y = 0;
+            if (dir.sqrMagnitude < 0.01f) dir = Vector3.forward;
+            Vector3 focus = eye + dir.normalized * 1.1f + Vector3.up * 0.12f;
             transform.position = Vector3.Lerp(basePos, focus, k);
         }
     }

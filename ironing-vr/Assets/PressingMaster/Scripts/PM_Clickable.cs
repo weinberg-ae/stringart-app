@@ -15,7 +15,7 @@ public class PM_Clickable : MonoBehaviour
     XRSimpleInteractable interactable;
     readonly HashSet<Transform> hovering = new HashSet<Transform>();
     bool leftWas, rightWas;
-    float lastClick;
+    static float lastClick = -1f;   // shared by ALL buttons: one press = one click, even if a new button appears under the ray
 
     public static PM_Clickable Add(GameObject go, Action click)
     {
@@ -31,6 +31,13 @@ public class PM_Clickable : MonoBehaviour
         interactable.selectEntered.AddListener(OnSelect);
         interactable.hoverEntered.AddListener(OnHoverEnter);
         interactable.hoverExited.AddListener(OnHoverExit);
+    }
+
+    void OnEnable()
+    {
+        // A button that appears while the trigger is already held must wait for a NEW press.
+        leftWas = Trigger(XRNode.LeftHand);
+        rightWas = Trigger(XRNode.RightHand);
     }
 
     void OnDisable()
@@ -54,8 +61,8 @@ public class PM_Clickable : MonoBehaviour
 
     public void Click()
     {
-        if (Time.time - lastClick < 0.35f) return;
-        lastClick = Time.time;
+        if (Time.unscaledTime - lastClick < 0.4f) return;
+        lastClick = Time.unscaledTime;
         if (PM_Audio.I != null) PM_Audio.I.Play("click", 0.6f);
         if (onClick != null) onClick();
     }
@@ -64,6 +71,10 @@ public class PM_Clickable : MonoBehaviour
     {
         bool l = Trigger(XRNode.LeftHand);
         bool r = Trigger(XRNode.RightHand);
+        // The hand that holds the iron uses its trigger for steam — it must not press buttons.
+        Transform ironHand = PM_Iron.CurrentHolder;
+        bool ironLeft = ironHand != null && IsLeft(ironHand);
+        bool ironRight = ironHand != null && !ironLeft;
         if (hovering.Count > 0)
         {
             bool leftHover = false, rightHover = false;
@@ -72,7 +83,7 @@ public class PM_Clickable : MonoBehaviour
                 if (t == null) continue;
                 if (IsLeft(t)) leftHover = true; else rightHover = true;
             }
-            if ((leftHover && l && !leftWas) || (rightHover && r && !rightWas)) Click();
+            if ((leftHover && l && !leftWas && !ironLeft) || (rightHover && r && !rightWas && !ironRight)) Click();
         }
         leftWas = l;
         rightWas = r;

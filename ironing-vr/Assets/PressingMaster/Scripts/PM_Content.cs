@@ -37,6 +37,7 @@ public class PM_FabricInfo
     public float smoothness;
     public PM_Weave weave;
     public float ironSeconds;   // time of continuous ironing on one spot to smooth it
+    public float dwellSeconds;  // holding the iron STILL on one spot longer than this scorches the fabric
     public string cue;          // exam: how it looks
     public string burn;         // exam: burn test result
     public string fiberText, pressText, burnText, lookText;
@@ -81,18 +82,19 @@ public static class PM_Content
     public const string BtnMenu = "תפריט";
     public const string BtnClose = "סגור";
     public const string BtnBack = "הקודם";
+    public const string BtnNewFabric = "בד חדש";
     public const string BtnTopics = "נושאים";
     public const string BtnAgain = "שוב";
 
-    // ---------- Topic menus ----------
-    public const string TopicsLearnTitle = "בחרו נושא ללמידה";
-    public const string TopicsLearnBody =
-        "מסלול מלא: כל הנושאים לפי הסדר.\n" +
-        "הכרת העמדה: הפעלה, לחץ, מגהץ, קיטור וטמפרטורה.\n" +
-        "כלי עזר: חמור (קבנצ'יק), מגהצון פינות, מטלית ודביקון.\n" +
-        "עולם הסיבים: 12 סיבים — מקור, תכונות וגיהוץ.\n" +
-        "גיהוץ בדים: כותנה, פשתן, צמר, משי ופוליאסטר.\n" +
-        "משימות מעשיות: צווארון וחזה של שמלה על כלי העזר.";
+    // ---------- Main menu: theory (right) | practice and exam (left) ----------
+    public const string MenuHeaderBody = "ברוכים הבאים! מימין — לימוד עיוני. משמאל — תרגול ומבחן.";
+    public const string TheoryTitle = "לימוד עיוני";
+    public const string TheoryBody = "הסברים וקריינות: העמדה, כלי העזר ועולם הסיבים. בחרו נושא — או את כל המסלול.";
+    public const string PracticeTitle = "תרגול ומבחן";
+    public const string PracticeBody = "תרגול: בחרו בד או משימה, ועברו ביניהם בחופשיות. מבחן: בלי עזרה, עם ציון.";
+    public const string BtnAvatar = "בחירת דמות";
+    public const string BtnFinish = "סיום";
+
     public static List<PM_Topic> LearnTopics()
     {
         return new List<PM_Topic>
@@ -101,19 +103,21 @@ public static class PM_Content
             new PM_Topic("הכרת העמדה", false, "learn_intro", "power", "explore_station", "iron", "purge", "temp"),
             new PM_Topic("כלי עזר", false, "tools"),
             new PM_Topic("עולם הסיבים", false, "fibers"),
-            new PM_Topic("גיהוץ בדים", true, "cotton", "linen", "wool", "silk", "polyester"),
-            new PM_Topic("משימות מעשיות", true, "collar_task", "chest_task"),
         };
     }
 
-    public const string TopicsExamTitle = "בחרו סוג מבחן";
-    public const string TopicsExamBody =
-        "מבחן גיהוץ: 3 בדים בלי שם — מזהים, בוחרים חום וקיטור, ומגהצים בזמן.\n" +
-        "חידון טמפרטורות: באיזה חום מגהצים כל סיב?\n" +
-        "חידון משפחות: טבעי, מלאכותי או סינתטי?";
+    // Practice: free choice of a fabric or a task; "הבא"/"הקודם" move freely between them.
+    public static readonly string[] PracticeSteps = { "cotton", "linen", "wool", "silk", "polyester", "collar_task", "chest_task" };
+    public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "חזה שמלה" };
     public const string BtnExamIron = "מבחן גיהוץ";
     public const string BtnQuizTemp = "חידון טמפרטורות";
     public const string BtnQuizFamily = "חידון משפחות";
+
+    // ---------- Avatar ----------
+    public const string AvatarTitle = "בחרו דמות";
+    public const string AvatarBody = "כך ייראו הידיים והגוף שלכם במשחק. אפשר להחליף בכל רגע מהתפריט.";
+    public static readonly string[] AvatarLabels = { "עור בהיר", "עור שזוף", "עור כהה", "הולוגרמה" };
+    public const string BtnContinue = "המשך";
 
     // ---------- Quizzes ----------
     public const string QuizTempTitle = "חידון טמפרטורות";
@@ -164,7 +168,10 @@ public static class PM_Content
     public const string StPressureOk = "הלחץ תקין — אפשר להתחיל לעבוד.";
     public const string StNoMode = "בחרו קודם טמפרטורה בלוח הבקרה.";
     public const string StTooCold = "חום נמוך מדי — הקמטים לא יוצאים. נדרש: {0}";
-    public const string StTooHotLearn = "חום גבוה מדי לבד הזה! בבד אמיתי זה היה נשרף. נדרש: {0}";
+    public const string StTooHotLearn = "חום גבוה מדי — הבד נחרך! נדרש: {0}";
+    public const string StDwellWarn = "אל תעצרו במקום אחד — הזיזו את המגהץ!";
+    public const string StDwellBurn = "המגהץ עמד במקום אחד יותר מדי — הבד נחרך!";
+    public const string StRuined = "הבד נפגע. לחצו על \"בד חדש\" ונסו שוב.";
     public const string StNeedSteam = "הוסיפו קיטור (הדק) — בלי לחות הקמטים יוצאים לאט.";
     public const string StNoSteam = "בלי קיטור! מים משאירים כתמים על {0}.";
     public const string StProgress = "התקדמות: {0}%";
@@ -530,7 +537,7 @@ public static class PM_Content
     // ---------- Exam ----------
     public const string ExamTitle = "מבחן";
     public const string ExamBody =
-        "תקבלו 3 בדים בלי שם. לכל בד — 60 שניות.\n" +
+        "תקבלו 3 בדים בלי שם. לכל בד — 40 שניות.\n" +
         "זהו את הבד לפי המראה ולפי תוצאת מבחן השריפה, בחרו טמפרטורה, החליטו על קיטור — וגהצו.\n" +
         "טעות בטמפרטורה עלולה לשרוף את הבד!\n" +
         "הפעילו את העמדה והמתינו ללחץ — ואז לחצו על \"הבא\".";
@@ -552,35 +559,35 @@ public static class PM_Content
             fabrics = new Dictionary<PM_FabricType, PM_FabricInfo>();
             fabrics[PM_FabricType.Cotton] = new PM_FabricInfo
             {
-                type = PM_FabricType.Cotton, name = "כותנה", mode = 3, steam = PM_Steam.Required,
+                dwellSeconds = 5f, type = PM_FabricType.Cotton, name = "כותנה", mode = 3, steam = PM_Steam.Required,
                 color = new Color(0.86f, 0.89f, 0.95f), smoothness = 0.15f, weave = PM_Weave.Plain, ironSeconds = 0.8f,
                 cue = "בד מט ורך, אריגה צפופה ואחידה.",
                 burn = "בוער מהר, ריח נייר שרוף, אפר אפור ורך."
             };
             fabrics[PM_FabricType.Linen] = new PM_FabricInfo
             {
-                type = PM_FabricType.Linen, name = "פשתן", mode = 3, steam = PM_Steam.Required,
+                dwellSeconds = 6f, type = PM_FabricType.Linen, name = "פשתן", mode = 3, steam = PM_Steam.Required,
                 color = new Color(0.80f, 0.74f, 0.62f), smoothness = 0.1f, weave = PM_Weave.Slub, ironSeconds = 1.3f,
                 cue = "בד מט וקשיח, חוטים עבים ולא אחידים, קמטים עמוקים.",
                 burn = "בוער מהר, ריח נייר שרוף, אפר אפור ורך."
             };
             fabrics[PM_FabricType.Wool] = new PM_FabricInfo
             {
-                type = PM_FabricType.Wool, name = "צמר", mode = 2, steam = PM_Steam.Required,
+                dwellSeconds = 3.5f, type = PM_FabricType.Wool, name = "צמר", mode = 2, steam = PM_Steam.Required,
                 color = new Color(0.22f, 0.25f, 0.33f), smoothness = 0.05f, weave = PM_Weave.Twill, ironSeconds = 1.0f,
                 cue = "בד עבה ורך, מעט שעיר, עם מבנה אלכסוני.",
                 burn = "בוער לאט וכבה מעצמו, ריח שיער שרוף, גוש שחור ופריך."
             };
             fabrics[PM_FabricType.Silk] = new PM_FabricInfo
             {
-                type = PM_FabricType.Silk, name = "משי", mode = 2, steam = PM_Steam.Forbidden,
+                dwellSeconds = 2.5f, type = PM_FabricType.Silk, name = "משי", mode = 2, steam = PM_Steam.Forbidden,
                 color = new Color(0.85f, 0.45f, 0.58f), smoothness = 0.75f, weave = PM_Weave.Satin, ironSeconds = 0.6f,
                 cue = "בד דק, חלק ומבריק מאוד.",
                 burn = "בוער לאט, ריח שיער שרוף עדין, כדורית שחורה רכה."
             };
             fabrics[PM_FabricType.Polyester] = new PM_FabricInfo
             {
-                type = PM_FabricType.Polyester, name = "פוליאסטר", mode = 1, steam = PM_Steam.Optional,
+                dwellSeconds = 2f, type = PM_FabricType.Polyester, name = "פוליאסטר", mode = 1, steam = PM_Steam.Optional,
                 color = new Color(0.25f, 0.55f, 0.85f), smoothness = 0.55f, weave = PM_Weave.Smooth, ironSeconds = 0.6f,
                 cue = "בד חלק, מבריק מעט, אחיד לגמרי.",
                 burn = "נמס ומטפטף, עשן שחור, חרוז קשה שלא מתפורר."

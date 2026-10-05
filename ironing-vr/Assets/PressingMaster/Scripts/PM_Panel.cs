@@ -258,8 +258,17 @@ public class PM_Panel : MonoBehaviour
     // Buttons in rows under the screen (perRow per row, right to left, rows going down).
     public void SetButtonGrid(int perRow, int primary, float w, params KeyValuePair<string, Action>[] items)
     {
-        foreach (GameObject b in buttons) Destroy(b);
-        buttons.Clear();
+        SetButtonGrid(perRow, primary, w, -HeightMeters * 0.5f - 0.07f, false, items);
+    }
+
+    // yTop = local height of the first row (inside the screen if > -H/2); append = keep the buttons already there.
+    public void SetButtonGrid(int perRow, int primary, float w, float yTop, bool append, params KeyValuePair<string, Action>[] items)
+    {
+        if (!append)
+        {
+            foreach (GameObject b in buttons) Destroy(b);
+            buttons.Clear();
+        }
         float gap = 0.04f;
         for (int i = 0; i < items.Length; i++)
         {
@@ -267,7 +276,7 @@ public class PM_Panel : MonoBehaviour
             int inRow = Mathf.Min(perRow, items.Length - row * perRow);
             float total = inRow * w + (inRow - 1) * gap;
             float x = total * 0.5f - w * 0.5f - col * (w + gap); // first item on the right
-            float y = -HeightMeters * 0.5f - 0.07f - row * 0.11f;
+            float y = yTop - row * 0.11f;
             buttons.Add(MakeButton(items[i].Key, items[i].Value, new Vector3(x, y, -0.03f), w, i == primary));
         }
     }

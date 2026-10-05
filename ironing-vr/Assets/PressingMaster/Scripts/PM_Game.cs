@@ -12,10 +12,11 @@ public class PM_Game : MonoBehaviour
     [Tooltip("Graphite + neon look for the table. Uncheck to keep the original blue model.")]
     public bool restyleTable = true;
 
-    enum State { Menu, TopicsLearn, TopicsExam, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
+    enum State { Avatar, Menu, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
 
     PM_Station station;
     PM_Panel panel;
+    PM_Panel practicePanel, menuHeader;   // main menu: theory = main panel on the right, practice on the left
     PM_Highlight highlight;
     PM_Fabric fabric;
 
@@ -41,6 +42,7 @@ public class PM_Game : MonoBehaviour
     bool fibersBasicDone;
     float doneTimer;
     float steamAirTime;
+    float dwell;     // seconds the iron stands still on the fabric
     bool modeClickedThisStep;
 
     // Exam
@@ -85,7 +87,8 @@ public class PM_Game : MonoBehaviour
         // Tailor's mannequin standing next to the station (decoration).
         PM_Garment.Show("mannequin", station.PlayerPos + station.Forward * 1.5f - station.Right * 2.5f, 1.6f,
             station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
-        ShowMenu();
+        PM_Avatar.Init();
+        ShowAvatarChoice();
 
         // Without a headset: put the camera at eye height looking at the table, mouse + WASD control.
         if (!UnityEngine.XR.XRSettings.isDeviceActive && Camera.main != null)
@@ -98,46 +101,60 @@ public class PM_Game : MonoBehaviour
     }
 
     // ---------------- Menu ----------------
+    // Two windows side by side: theory on the right (read first in Hebrew), practice and exam on the left.
     void ShowMenu()
     {
         state = State.Menu;
         ClearStepVisuals();
-        panel.SetContent(PM_Content.MenuTitle, PM_Content.MenuBody, "");
-        panel.SetAccent(PM_Util.Cyan);
-        panel.SetButtons(Btn(PM_Content.BtnLearn, ShowLearnTopics), Btn(PM_Content.BtnExam, ShowExamTopics));
-        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
-    }
+        MenuLayout(true);
 
-    // ---------------- Topic menus ----------------
-    void ShowLearnTopics()
-    {
-        state = State.TopicsLearn;
-        ClearStepVisuals();
-        panel.SetContent(PM_Content.TopicsLearnTitle, PM_Content.TopicsLearnBody, "");
+        panel.SetContent(PM_Content.TheoryTitle, PM_Content.TheoryBody, "");
         panel.SetAccent(PM_Util.Cyan);
-        var items = new List<KeyValuePair<string, Action>>();
+        var theory = new List<KeyValuePair<string, Action>>();
         foreach (PM_Topic t in PM_Content.LearnTopics())
         {
             PM_Topic topic = t;
-            items.Add(Btn(topic.label, () => StartTopic(topic)));
+            theory.Add(Btn(topic.label, () => StartTopic(topic)));
         }
-        items.Add(Btn(PM_Content.BtnMenu, ShowMenu));
-        panel.SetButtonGrid(3, 0, 0.3f, items.ToArray());
-        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("topics_learn");
-    }
+        panel.SetButtonGrid(2, 0, 0.4f, 0.02f, false, theory.ToArray());
+        panel.SetButtonGrid(1, -1, 0.4f, -0.24f, true, Btn(PM_Content.BtnAvatar, ShowAvatarChoice));
 
-    void ShowExamTopics()
-    {
-        state = State.TopicsExam;
-        ClearStepVisuals();
-        panel.SetContent(PM_Content.TopicsExamTitle, PM_Content.TopicsExamBody, "");
-        panel.SetAccent(PM_Util.Cyan);
-        panel.SetButtonGrid(3, 0, 0.3f,
+        practicePanel.SetContent(PM_Content.PracticeTitle, PM_Content.PracticeBody, "");
+        practicePanel.SetAccent(PM_Util.Green);
+        var prac = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < PM_Content.PracticeLabels.Length; i++)
+        {
+            int index = i;
+            prac.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index)));
+        }
+        practicePanel.SetButtonGrid(4, -1, 0.21f, 0.02f, false, prac.ToArray());
+        practicePanel.SetButtonGrid(3, -1, 0.29f, -0.24f, true,
             Btn(PM_Content.BtnExamIron, StartExam),
             Btn(PM_Content.BtnQuizTemp, () => StartQuiz(0)),
-            Btn(PM_Content.BtnQuizFamily, () => StartQuiz(1)),
-            Btn(PM_Content.BtnMenu, ShowMenu));
-        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("topics_exam");
+            Btn(PM_Content.BtnQuizFamily, () => StartQuiz(1)));
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
+    }
+
+    // Menu: main panel moves right, the practice panel and the title appear. Otherwise one panel in the middle.
+    void MenuLayout(bool menu)
+    {
+        Vector3 head = station.PlayerPos + Vector3.up * 1.6f;
+        if (practicePanel == null)
+        {
+            practicePanel = PM_Panel.Create(null, "PM_PracticePanel", 1000, 700, 52, 34, 50, false);
+            menuHeader = PM_Panel.Create(null, "PM_MenuHeader", 1400, 190, 60, 32, 80, false);
+            menuHeader.SetContent(PM_Content.MenuTitle, PM_Content.MenuHeaderBody, "");
+            menuHeader.SetAccent(PM_Util.Cyan);
+        }
+        practicePanel.gameObject.SetActive(menu);
+        menuHeader.gameObject.SetActive(menu);
+        if (menu)
+        {
+            panel.Place(station.PanelPos + station.Right * 0.53f, head);
+            practicePanel.Place(station.PanelPos - station.Right * 0.53f, head);
+            menuHeader.Place(station.PanelPos + Vector3.up * 0.5f, head);
+        }
+        else panel.Place(station.PanelPos, head);
     }
 
     void StartTopic(PM_Topic t)
@@ -149,8 +166,42 @@ public class PM_Game : MonoBehaviour
         else foreach (string id in t.steps) foreach (PM_Step st in all) if (st.id == id) steps.Add(st);
         if (steps.Count == 0) return;
         if (t.needsPower && !station.Powered) station.SetPower(true);
+        MenuLayout(false);
         state = State.Learning;
         EnterStep(0);
+    }
+
+    void StartPractice(int index)
+    {
+        List<PM_Step> all = PM_Content.LearningSteps();
+        fullPath = false;
+        steps = new List<PM_Step>();
+        foreach (string id in PM_Content.PracticeSteps) foreach (PM_Step st in all) if (st.id == id) steps.Add(st);
+        if (steps.Count == 0) return;
+        if (!station.Powered) station.SetPower(true);
+        MenuLayout(false);
+        state = State.Learning;
+        EnterStep(Mathf.Clamp(index, 0, steps.Count - 1));
+    }
+
+    // ---------------- Avatar ----------------
+    void ShowAvatarChoice()
+    {
+        state = State.Avatar;
+        ClearStepVisuals();
+        MenuLayout(false);
+        panel.SetContent(PM_Content.AvatarTitle, PM_Content.AvatarBody, "");
+        panel.SetAccent(PM_Util.Violet);
+        var items = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < PM_Content.AvatarLabels.Length; i++)
+        {
+            int style = i;
+            items.Add(Btn(PM_Content.AvatarLabels[i], () => PM_Avatar.SetStyle(style)));
+        }
+        panel.SetButtonGrid(4, -1, 0.22f, -0.12f, false, items.ToArray());
+        panel.SetButtonGrid(1, 0, 0.3f, -0.42f, true, Btn(PM_Content.BtnContinue, ShowMenu));
+        PM_Avatar.ShowPreview(true, panel.transform.position - panel.transform.right * 0.72f, station.PlayerPos + Vector3.up * 1.6f);
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar");
     }
 
     // ---------------- Quizzes ----------------
@@ -237,7 +288,7 @@ public class PM_Game : MonoBehaviour
             string.Format(PM_Content.QuizResultBody, quizScore, n) + "\n\n" + PM_Content.Ranks[rank], quizScore + "/" + n);
         panel.SetAccent(rank >= 2 ? PM_Util.Green : PM_Util.Cyan);
         int kind = quizKind;
-        panel.SetButtons(Btn(PM_Content.BtnAgain, () => StartQuiz(kind)), Btn(PM_Content.BtnTopics, ShowExamTopics), Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtons(Btn(PM_Content.BtnAgain, () => StartQuiz(kind)), Btn(PM_Content.BtnMenu, ShowMenu));
         if (PM_Audio.I != null) PM_Audio.I.Play(rank >= 2 ? "ding" : "error", 0.8f);
     }
 
@@ -359,6 +410,8 @@ public class PM_Game : MonoBehaviour
 
     void ClearStepVisuals()
     {
+        PM_Avatar.ShowPreview(false, Vector3.zero, Vector3.zero);
+        MenuLayout(false);
         highlight.Clear();
         station.RefreshButtons();
         station.ShowTools(false);
@@ -379,6 +432,7 @@ public class PM_Game : MonoBehaviour
         PM_Step s = steps[stepIndex];
         stepDone = false;
         fibersBasicDone = false;
+        dwell = 0f;
         doneTimer = 0f;
         steamAirTime = 0f;
         modeClickedThisStep = false;
@@ -404,17 +458,17 @@ public class PM_Game : MonoBehaviour
         if (s.target == PM_Target.Fabric) accent = PM_Util.ModeColor(PM_Content.Fabric(s.fabric).mode);
         else if (s.group == PM_HotspotGroup.Tools) accent = PM_Util.Violet;
         panel.SetAccent(accent);
-        // Navigation (right to left): menu, repeat, back, next. Forward is on the left, as Hebrew reads.
+        // Navigation (right to left): menu, repeat, [new fabric], back, next. Forward is on the left, as Hebrew reads.
         bool first = stepIndex == 0, last = stepIndex == steps.Count - 1;
         var nav = new List<KeyValuePair<string, Action>>();
         nav.Add(Btn(PM_Content.BtnMenu, ShowMenu));
         nav.Add(Btn(PM_Content.BtnRepeat, RepeatVoice));
+        if (s.action == PM_Action.IronFabric) nav.Add(Btn(PM_Content.BtnNewFabric, NewFabric));
         if (!first) nav.Add(Btn(PM_Content.BtnBack, PrevStep));
-        else if (!last) nav.Add(Btn(PM_Content.BtnTopics, ShowLearnTopics));
         if (!last) nav.Add(Btn(PM_Content.BtnNext, NextStep));
-        else if (fullPath) nav.Add(Btn(PM_Content.BtnExam, ShowExamTopics));
-        else nav.Add(Btn(PM_Content.BtnTopics, ShowLearnTopics));
-        panel.SetButtons(nav.Count - 1, nav.ToArray());
+        else if (fullPath) nav.Add(Btn(PM_Content.BtnExamIron, StartExam));
+        else nav.Add(Btn(PM_Content.BtnFinish, ShowMenu));
+        panel.SetButtonGrid(5, nav.Count - 1, nav.Count > 4 ? 0.18f : 0.22f, nav.ToArray());
 
         if (s.action == PM_Action.Power && station.Powered) Complete(PM_Content.StPressureOk);
         RepeatVoice();
@@ -438,8 +492,20 @@ public class PM_Game : MonoBehaviour
         if (PM_Audio.I == null) return;
         if (state == State.Learning) PM_Audio.I.PlayVoice(steps[stepIndex].id);
         else if (state == State.Menu) PM_Audio.I.PlayVoice("menu");
-        else if (state == State.TopicsLearn) PM_Audio.I.PlayVoice("topics_learn");
-        else if (state == State.TopicsExam) PM_Audio.I.PlayVoice("topics_exam");
+        else if (state == State.Avatar) PM_Audio.I.PlayVoice("avatar");
+    }
+
+    // A fresh piece of the same fabric (after burning it, or to practise again).
+    void NewFabric()
+    {
+        if (state != State.Learning) return;
+        PM_Step s = steps[stepIndex];
+        if (s.target != PM_Target.Fabric) return;
+        stepDone = false;
+        dwell = 0f;
+        if (s.toolTask > 0) SpawnToolFabric(s.fabric, s.toolTask);
+        else { SpawnFabric(s.fabric, stepIndex + UnityEngine.Random.Range(1, 99)); AddFabricHotspots(); }
+        panel.SetStatus("", Color.white);
     }
 
     void NextStep()
@@ -471,7 +537,8 @@ public class PM_Game : MonoBehaviour
         if (stepDone)
         {
             doneTimer += dt;
-            if (s.action != PM_Action.Next && doneTimer > 2.5f && stepIndex < steps.Count - 1) EnterStep(stepIndex + 1);
+            // Ironing tasks wait for "הבא" (free choice); other steps move on by themselves.
+            if (s.action != PM_Action.Next && s.action != PM_Action.IronFabric && doneTimer > 2.5f && stepIndex < steps.Count - 1) EnterStep(stepIndex + 1);
             return;
         }
         PM_Iron iron = station.Iron;
@@ -585,7 +652,7 @@ public class PM_Game : MonoBehaviour
         bool mouseIroning = Time.time - desktopTime < 0.15f;
         bool simulated = KeyHeld(Key.Space) || mouseIroning;
         bool touching = simulated || (iron != null && iron.Touching == fabric);
-        if (!touching) return false;
+        if (!touching) { dwell = 0f; return false; }
 
         bool steaming = (iron != null && iron.Steaming) || (simulated && KeyHeld(Key.LeftShift) && station.PressureOk);
         Vector2 uv;
@@ -603,9 +670,13 @@ public class PM_Game : MonoBehaviour
         int mode = station.Mode;
         if (mode == 0) { panel.SetStatus(PM_Content.StNoMode, PM_Util.Yellow); return true; }
 
+        // Learning: a ruined fabric must be replaced ("בד חדש").
+        if (!exam && fabric.Damage >= 0.25f) { panel.SetStatus(PM_Content.StRuined, PM_Util.Red); return true; }
+
         float rate = 1f, scorch = 0f, spots = 0f;
         string msg = null;
         Color msgColor = PM_Util.Yellow;
+        bool poly = info.type == PM_FabricType.Polyester;
         if (mode < info.mode)
         {
             rate = 0f;
@@ -613,22 +684,35 @@ public class PM_Game : MonoBehaviour
         }
         else if (mode > info.mode)
         {
-            if (exam)
-            {
-                scorch = (mode - info.mode) * (info.type == PM_FabricType.Polyester ? 1.6f : 0.9f);
-                msg = info.type == PM_FabricType.Polyester ? PM_Content.StMelted : PM_Content.StBurned;
-                msgColor = PM_Util.Red;
-                if (PM_Audio.I != null && UnityEngine.Random.value < dt * 2f) PM_Audio.I.Play("sizzle", 0.6f);
-                if (iron != null) iron.Buzz(0.8f, 0.1f);
-            }
-            else
-            {
-                rate = 0f;
-                msg = string.Format(PM_Content.StTooHotLearn, PM_Content.ModeLabel(info.mode));
-                msgColor = PM_Util.Red;
-            }
+            // Too hot burns in the exam AND in learning — that's the lesson.
+            rate = exam ? 1f : 0f;
+            scorch = (mode - info.mode) * (poly ? 1.6f : 0.9f);
+            msg = exam ? (poly ? PM_Content.StMelted : PM_Content.StBurned) : string.Format(PM_Content.StTooHotLearn, PM_Content.ModeLabel(info.mode));
+            msgColor = PM_Util.Red;
         }
-        if (rate > 0f || exam)
+
+        // Holding the iron still on one spot: first a warning, then a scorch mark (sensitive fabrics sooner).
+        bool still = !simulated || mouseIroning;
+        if (still && iron != null && iron.Speed < 0.04f && mode >= info.mode) dwell += dt;
+        else dwell = Mathf.Max(0f, dwell - dt * 3f);
+        if (mode >= info.mode && dwell > info.dwellSeconds)
+        {
+            scorch += 0.8f + (dwell - info.dwellSeconds) * 0.6f * (poly ? 1.6f : 1f);
+            msg = PM_Content.StDwellBurn;
+            msgColor = PM_Util.Red;
+        }
+        else if (mode >= info.mode && dwell > info.dwellSeconds * 0.6f && msg == null)
+        {
+            msg = PM_Content.StDwellWarn;
+            if (iron != null) iron.Buzz(0.35f, 0.05f);
+        }
+        if (scorch > 0f)
+        {
+            if (PM_Audio.I != null && UnityEngine.Random.value < dt * 2f) PM_Audio.I.Play("sizzle", 0.6f);
+            if (iron != null) iron.Buzz(0.8f, 0.1f);
+        }
+
+        if (rate > 0f || exam || scorch > 0f)
         {
             if (info.steam == PM_Steam.Required && !steaming)
             {
@@ -637,9 +721,18 @@ public class PM_Game : MonoBehaviour
             }
             else if (info.steam == PM_Steam.Forbidden && steaming)
             {
-                if (exam) { spots = 1f; msg = PM_Content.StSpots; msgColor = PM_Util.Red; }
-                else { rate = 0f; msg = string.Format(PM_Content.StNoSteam, info.name); msgColor = PM_Util.Red; }
+                // Water spots on silk — in the exam and in learning.
+                spots = 1f;
+                rate = exam ? rate : 0f;
+                msg = exam ? PM_Content.StSpots : string.Format(PM_Content.StNoSteam, info.name);
+                msgColor = PM_Util.Red;
             }
+        }
+        else if (info.steam == PM_Steam.Forbidden && steaming)
+        {
+            spots = 1f;
+            msg = string.Format(PM_Content.StNoSteam, info.name);
+            msgColor = PM_Util.Red;
         }
 
         fabric.Iron(uv, radius, dt, rate, scorch, spots, mode / 3f);
@@ -684,7 +777,7 @@ public class PM_Game : MonoBehaviour
             PM_FabricType tmp = examList[i]; examList[i] = examList[j]; examList[j] = tmp;
         }
         panel.SetContent(PM_Content.ExamTitle, PM_Content.ExamBody, "");
-        panel.SetButtons(1, Btn(PM_Content.BtnTopics, ShowExamTopics), Btn(PM_Content.BtnNext, () => StartExamFabric(0)), Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtons(1, Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnNext, () => StartExamFabric(0)));
         highlight.Show(station.Targets(PM_Target.Power), PM_Util.Cyan, true);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("exam_intro");
     }
@@ -695,7 +788,7 @@ public class PM_Game : MonoBehaviour
         station.RefreshButtons();
         state = State.ExamFabric;
         examIndex = i;
-        examTime = 60f;
+        examTime = 40f;
         examFinishedFabric = false;
         station.SetMode(0);
         PM_FabricInfo info = PM_Content.Fabric(examList[i]);
@@ -765,7 +858,7 @@ public class PM_Game : MonoBehaviour
         RemoveFabric();
         string body = string.Join("\n", examLines.ToArray()) + "\n\n" + PM_Content.Ranks[Mathf.Clamp(examScore, 0, 3)];
         panel.SetContent(PM_Content.ExamResultTitle, body, examScore + "/3");
-        panel.SetButtons(Btn(PM_Content.BtnAgain, StartExam), Btn(PM_Content.BtnTopics, ShowExamTopics), Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtons(Btn(PM_Content.BtnAgain, StartExam), Btn(PM_Content.BtnMenu, ShowMenu));
         if (PM_Audio.I != null) PM_Audio.I.Play(examScore >= 2 ? "ding" : "error", 0.8f);
     }
 
@@ -804,8 +897,8 @@ public class PM_Game : MonoBehaviour
         if (KeyDown(Key.N))
         {
             if (state == State.Learning) NextStep();
-            else if (state == State.Menu) ShowLearnTopics();
-            else if (state == State.TopicsLearn) StartLearning();
+            else if (state == State.Menu) StartLearning();
+            else if (state == State.Avatar) ShowMenu();
             else if (state == State.ExamIntro) StartExamFabric(0);
             else if (state == State.Quiz) NextQuiz();
         }
