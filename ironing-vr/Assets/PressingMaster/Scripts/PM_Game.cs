@@ -12,7 +12,7 @@ public class PM_Game : MonoBehaviour
     [Tooltip("Graphite + neon look for the table. Uncheck to keep the original blue model.")]
     public bool restyleTable = true;
 
-    enum State { Menu, Learning, ExamIntro, ExamFabric, ExamResult }
+    enum State { Menu, TopicsLearn, TopicsExam, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
 
     PM_Station station;
     PM_Panel panel;
@@ -35,6 +35,7 @@ public class PM_Game : MonoBehaviour
 
     State state;
     List<PM_Step> steps;
+    bool fullPath;   // the whole learning path (not a single topic)
     int stepIndex;
     bool stepDone;
     bool fibersBasicDone;
@@ -48,6 +49,12 @@ public class PM_Game : MonoBehaviour
     int examIndex, examScore;
     float examTime;
     bool examFinishedFabric;
+
+    // Quizzes
+    int quizKind;    // 0 = temperatures, 1 = fiber families
+    readonly List<PM_HotspotInfo> quizItems = new List<PM_HotspotInfo>();
+    int quizIndex, quizScore;
+    bool quizAnswered;
 
     void Awake()
     {
@@ -97,8 +104,141 @@ public class PM_Game : MonoBehaviour
         ClearStepVisuals();
         panel.SetContent(PM_Content.MenuTitle, PM_Content.MenuBody, "");
         panel.SetAccent(PM_Util.Cyan);
-        panel.SetButtons(Btn(PM_Content.BtnLearn, StartLearning), Btn(PM_Content.BtnExam, StartExam));
+        panel.SetButtons(Btn(PM_Content.BtnLearn, ShowLearnTopics), Btn(PM_Content.BtnExam, ShowExamTopics));
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
+    }
+
+    // ---------------- Topic menus ----------------
+    void ShowLearnTopics()
+    {
+        state = State.TopicsLearn;
+        ClearStepVisuals();
+        panel.SetContent(PM_Content.TopicsLearnTitle, PM_Content.TopicsLearnBody, "");
+        panel.SetAccent(PM_Util.Cyan);
+        var items = new List<KeyValuePair<string, Action>>();
+        foreach (PM_Topic t in PM_Content.LearnTopics())
+        {
+            PM_Topic topic = t;
+            items.Add(Btn(topic.label, () => StartTopic(topic)));
+        }
+        items.Add(Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtonGrid(3, 0, 0.3f, items.ToArray());
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("topics_learn");
+    }
+
+    void ShowExamTopics()
+    {
+        state = State.TopicsExam;
+        ClearStepVisuals();
+        panel.SetContent(PM_Content.TopicsExamTitle, PM_Content.TopicsExamBody, "");
+        panel.SetAccent(PM_Util.Cyan);
+        panel.SetButtonGrid(3, 0, 0.3f,
+            Btn(PM_Content.BtnExamIron, StartExam),
+            Btn(PM_Content.BtnQuizTemp, () => StartQuiz(0)),
+            Btn(PM_Content.BtnQuizFamily, () => StartQuiz(1)),
+            Btn(PM_Content.BtnMenu, ShowMenu));
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("topics_exam");
+    }
+
+    void StartTopic(PM_Topic t)
+    {
+        List<PM_Step> all = PM_Content.LearningSteps();
+        fullPath = t.steps == null;
+        steps = new List<PM_Step>();
+        if (fullPath) steps.AddRange(all);
+        else foreach (string id in t.steps) foreach (PM_Step st in all) if (st.id == id) steps.Add(st);
+        if (steps.Count == 0) return;
+        if (t.needsPower && !station.Powered) station.SetPower(true);
+        state = State.Learning;
+        EnterStep(0);
+    }
+
+    // ---------------- Quizzes ----------------
+    void StartQuiz(int kind)
+    {
+        state = State.Quiz;
+        ClearStepVisuals();
+        quizKind = kind;
+        quizItems.Clear();
+        quizItems.AddRange(PM_Content.FiberHotspots());
+        for (int i = quizItems.Count - 1; i > 0; i--)
+        {
+            int j = UnityEngine.Random.Range(0, i + 1);
+            PM_HotspotInfo tmp = quizItems[i]; quizItems[i] = quizItems[j]; quizItems[j] = tmp;
+        }
+        if (quizItems.Count > 8) quizItems.RemoveRange(8, quizItems.Count - 8);
+        quizIndex = 0;
+        quizScore = 0;
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice(kind == 0 ? "quiz_temp" : "quiz_family");
+        ShowQuizQuestion();
+    }
+
+    static int FamilyIndex(string family)
+    {
+        if (family != null && family.StartsWith("טבעי")) return 0;
+        if (family != null && family.StartsWith("מלאכותי")) return 1;
+        return 2;
+    }
+
+    string QuizQuestion(PM_HotspotInfo f)
+    {
+        return string.Format(quizKind == 0 ? PM_Content.QuizTempQ : PM_Content.QuizFamilyQ, f.name);
+    }
+
+    void ShowQuizQuestion()
+    {
+        PM_HotspotInfo f = quizItems[quizIndex];
+        quizAnswered = false;
+        panel.SetContent(quizKind == 0 ? PM_Content.QuizTempTitle : PM_Content.QuizFamilyTitle,
+            QuizQuestion(f) + (quizKind == 0 ? "\n\n" + PM_Content.QuizTempHint : ""), (quizIndex + 1) + "/" + quizItems.Count);
+        panel.SetAccent(PM_Util.Cyan);
+        string[] o = quizKind == 0 ? PM_Content.QuizTempOptions : PM_Content.QuizFamilyOptions;
+        panel.SetButtons(-1, Btn(o[0], () => AnswerQuiz(0)), Btn(o[1], () => AnswerQuiz(1)), Btn(o[2], () => AnswerQuiz(2)),
+            Btn(PM_Content.BtnMenu, ShowMenu));
+    }
+
+    void AnswerQuiz(int choice)
+    {
+        if (state != State.Quiz || quizAnswered) return;
+        quizAnswered = true;
+        PM_HotspotInfo f = quizItems[quizIndex];
+        int correct = quizKind == 0 ? Mathf.Clamp(f.mode - 1, 0, 2) : FamilyIndex(f.fiberGroup);
+        string[] o = quizKind == 0 ? PM_Content.QuizTempOptions : PM_Content.QuizFamilyOptions;
+        bool right = choice == correct;
+        if (right) quizScore++;
+
+        // Show the explanation line of this fiber ("גיהוץ:" for temperatures, "מקור:" for families).
+        string key = quizKind == 0 ? "גיהוץ:" : "מקור:";
+        string explain = "";
+        foreach (string line in f.body.Split('\n')) if (line.StartsWith(key)) explain = line;
+        panel.SetContent(quizKind == 0 ? PM_Content.QuizTempTitle : PM_Content.QuizFamilyTitle,
+            QuizQuestion(f) + "\n\n" + f.name + "\n" + explain, (quizIndex + 1) + "/" + quizItems.Count);
+        panel.SetAccent(quizKind == 0 ? PM_Util.ModeColor(f.mode) : PM_Util.FamilyColor(f.fiberGroup));
+        panel.SetStatus(right ? PM_Content.QuizRight : string.Format(PM_Content.QuizWrong, o[correct]), right ? PM_Util.Green : PM_Util.Red);
+        if (PM_Audio.I != null) PM_Audio.I.Play(right ? "ding" : "error", 0.7f);
+        if (right) PM_Look.ButtonPulse(panel.transform.position - panel.transform.up * 0.3f, PM_Util.Green, -panel.transform.forward);
+        panel.SetButtons(Btn(PM_Content.BtnNext, NextQuiz), Btn(PM_Content.BtnMenu, ShowMenu));
+    }
+
+    void NextQuiz()
+    {
+        if (state != State.Quiz || !quizAnswered) return;
+        quizIndex++;
+        if (quizIndex < quizItems.Count) ShowQuizQuestion();
+        else ShowQuizResult();
+    }
+
+    void ShowQuizResult()
+    {
+        state = State.QuizResult;
+        int n = quizItems.Count;
+        int rank = quizScore >= n ? 3 : quizScore >= n * 3 / 4 ? 2 : quizScore >= n / 2 ? 1 : 0;
+        panel.SetContent(PM_Content.QuizResultTitle,
+            string.Format(PM_Content.QuizResultBody, quizScore, n) + "\n\n" + PM_Content.Ranks[rank], quizScore + "/" + n);
+        panel.SetAccent(rank >= 2 ? PM_Util.Green : PM_Util.Cyan);
+        int kind = quizKind;
+        panel.SetButtons(Btn(PM_Content.BtnAgain, () => StartQuiz(kind)), Btn(PM_Content.BtnTopics, ShowExamTopics), Btn(PM_Content.BtnMenu, ShowMenu));
+        if (PM_Audio.I != null) PM_Audio.I.Play(rank >= 2 ? "ding" : "error", 0.8f);
     }
 
     // ---------------- Points of light ----------------
@@ -230,9 +370,7 @@ public class PM_Game : MonoBehaviour
     // ---------------- Learning ----------------
     void StartLearning()
     {
-        state = State.Learning;
-        steps = PM_Content.LearningSteps();
-        EnterStep(0);
+        StartTopic(PM_Content.LearnTopics()[0]);   // whole path
     }
 
     void EnterStep(int i)
@@ -266,10 +404,17 @@ public class PM_Game : MonoBehaviour
         if (s.target == PM_Target.Fabric) accent = PM_Util.ModeColor(PM_Content.Fabric(s.fabric).mode);
         else if (s.group == PM_HotspotGroup.Tools) accent = PM_Util.Violet;
         panel.SetAccent(accent);
-        if (stepIndex == steps.Count - 1)
-            panel.SetButtons(Btn(PM_Content.BtnExam, StartExam), Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnRepeat, RepeatVoice));
-        else
-            panel.SetButtons(Btn(PM_Content.BtnNext, NextStep), Btn(PM_Content.BtnRepeat, RepeatVoice), Btn(PM_Content.BtnMenu, ShowMenu));
+        // Navigation (right to left): menu, repeat, back, next. Forward is on the left, as Hebrew reads.
+        bool first = stepIndex == 0, last = stepIndex == steps.Count - 1;
+        var nav = new List<KeyValuePair<string, Action>>();
+        nav.Add(Btn(PM_Content.BtnMenu, ShowMenu));
+        nav.Add(Btn(PM_Content.BtnRepeat, RepeatVoice));
+        if (!first) nav.Add(Btn(PM_Content.BtnBack, PrevStep));
+        else if (!last) nav.Add(Btn(PM_Content.BtnTopics, ShowLearnTopics));
+        if (!last) nav.Add(Btn(PM_Content.BtnNext, NextStep));
+        else if (fullPath) nav.Add(Btn(PM_Content.BtnExam, ShowExamTopics));
+        else nav.Add(Btn(PM_Content.BtnTopics, ShowLearnTopics));
+        panel.SetButtons(nav.Count - 1, nav.ToArray());
 
         if (s.action == PM_Action.Power && station.Powered) Complete(PM_Content.StPressureOk);
         RepeatVoice();
@@ -293,6 +438,8 @@ public class PM_Game : MonoBehaviour
         if (PM_Audio.I == null) return;
         if (state == State.Learning) PM_Audio.I.PlayVoice(steps[stepIndex].id);
         else if (state == State.Menu) PM_Audio.I.PlayVoice("menu");
+        else if (state == State.TopicsLearn) PM_Audio.I.PlayVoice("topics_learn");
+        else if (state == State.TopicsExam) PM_Audio.I.PlayVoice("topics_exam");
     }
 
     void NextStep()
@@ -504,6 +651,13 @@ public class PM_Game : MonoBehaviour
 
     void OnModeClicked(int m)
     {
+        // Temperature quiz: the station buttons answer the question.
+        if (state == State.Quiz && quizKind == 0)
+        {
+            PM_Look.ButtonPulse(station.ButtonCenter(m), PM_Util.ModeColor(m), -station.Forward);
+            AnswerQuiz(m - 1);
+            return;
+        }
         if (!station.Powered) { panel.SetStatus(PM_Content.StNeedPower, PM_Util.Red); if (PM_Audio.I != null) PM_Audio.I.Play("error", 0.6f); return; }
         station.SetMode(m);
         modeClickedThisStep = true;
@@ -530,7 +684,7 @@ public class PM_Game : MonoBehaviour
             PM_FabricType tmp = examList[i]; examList[i] = examList[j]; examList[j] = tmp;
         }
         panel.SetContent(PM_Content.ExamTitle, PM_Content.ExamBody, "");
-        panel.SetButtons(Btn(PM_Content.BtnNext, () => StartExamFabric(0)), Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtons(1, Btn(PM_Content.BtnTopics, ShowExamTopics), Btn(PM_Content.BtnNext, () => StartExamFabric(0)), Btn(PM_Content.BtnMenu, ShowMenu));
         highlight.Show(station.Targets(PM_Target.Power), PM_Util.Cyan, true);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("exam_intro");
     }
@@ -611,7 +765,7 @@ public class PM_Game : MonoBehaviour
         RemoveFabric();
         string body = string.Join("\n", examLines.ToArray()) + "\n\n" + PM_Content.Ranks[Mathf.Clamp(examScore, 0, 3)];
         panel.SetContent(PM_Content.ExamResultTitle, body, examScore + "/3");
-        panel.SetButtons(Btn(PM_Content.BtnExam, StartExam), Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtons(Btn(PM_Content.BtnAgain, StartExam), Btn(PM_Content.BtnTopics, ShowExamTopics), Btn(PM_Content.BtnMenu, ShowMenu));
         if (PM_Audio.I != null) PM_Audio.I.Play(examScore >= 2 ? "ding" : "error", 0.8f);
     }
 
@@ -650,15 +804,20 @@ public class PM_Game : MonoBehaviour
         if (KeyDown(Key.N))
         {
             if (state == State.Learning) NextStep();
-            else if (state == State.Menu) StartLearning();
+            else if (state == State.Menu) ShowLearnTopics();
+            else if (state == State.TopicsLearn) StartLearning();
             else if (state == State.ExamIntro) StartExamFabric(0);
+            else if (state == State.Quiz) NextQuiz();
         }
         if (KeyDown(Key.B)) PrevStep();
         if (KeyDown(Key.M)) ShowMenu();
         if (KeyDown(Key.X)) StartExam();
         if (KeyDown(Key.P)) station.onPowerClicked();
-        if (KeyDown(Key.Digit1)) OnModeClicked(1);
-        if (KeyDown(Key.Digit2)) OnModeClicked(2);
-        if (KeyDown(Key.Digit3)) OnModeClicked(3);
+        for (int d = 1; d <= 3; d++)
+        {
+            if (!KeyDown(d == 1 ? Key.Digit1 : d == 2 ? Key.Digit2 : Key.Digit3)) continue;
+            if (state == State.Quiz) AnswerQuiz(d - 1);
+            else OnModeClicked(d);
+        }
     }
 }

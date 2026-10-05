@@ -43,6 +43,15 @@ public class PM_FabricInfo
     public string garment;      // name of the example garment model  // learning: texts of the three points of light
 }
 
+public class PM_Topic
+{
+    public string label;
+    public string[] steps;    // ids of learning steps; null = the whole path
+    public bool needsPower;   // the station is switched on automatically when the topic starts
+
+    public PM_Topic(string label, bool needsPower, params string[] steps) { this.label = label; this.needsPower = needsPower; this.steps = steps; }
+}
+
 public class PM_HotspotInfo
 {
     public string id, label, title, body;
@@ -54,7 +63,8 @@ public class PM_HotspotInfo
     public PM_FabricType fiber;
     public string fiberGroup;                             // family line under the fiber name
     public int mode;                                      // iron temperature 1..3 (fiber screens)
-    public bool extraFiber;                               // upper row: fibers that are only explained, not ironed
+    public bool extraFiber;
+    public string name;                                   // plain fiber name (for quizzes)                               // upper row: fibers that are only explained, not ironed
 
     public PM_HotspotInfo(string id, string label, string title, string body, PM_Target target, PM_Anchor anchor)
     {
@@ -70,6 +80,73 @@ public static class PM_Content
     public const string BtnExam = "מבחן";
     public const string BtnMenu = "תפריט";
     public const string BtnClose = "סגור";
+    public const string BtnBack = "הקודם";
+    public const string BtnTopics = "נושאים";
+    public const string BtnAgain = "שוב";
+
+    // ---------- Topic menus ----------
+    public const string TopicsLearnTitle = "בחרו נושא ללמידה";
+    public const string TopicsLearnBody =
+        "מסלול מלא: כל הנושאים לפי הסדר.\n" +
+        "הכרת העמדה: הפעלה, לחץ, מגהץ, קיטור וטמפרטורה.\n" +
+        "כלי עזר: חמור (קבנצ'יק), מגהצון פינות, מטלית ודביקון.\n" +
+        "עולם הסיבים: 12 סיבים — מקור, תכונות וגיהוץ.\n" +
+        "גיהוץ בדים: כותנה, פשתן, צמר, משי ופוליאסטר.\n" +
+        "משימות מעשיות: צווארון וחזה של שמלה על כלי העזר.";
+    public static List<PM_Topic> LearnTopics()
+    {
+        return new List<PM_Topic>
+        {
+            new PM_Topic("מסלול מלא", false, null),
+            new PM_Topic("הכרת העמדה", false, "learn_intro", "power", "explore_station", "iron", "purge", "temp"),
+            new PM_Topic("כלי עזר", false, "tools"),
+            new PM_Topic("עולם הסיבים", false, "fibers"),
+            new PM_Topic("גיהוץ בדים", true, "cotton", "linen", "wool", "silk", "polyester"),
+            new PM_Topic("משימות מעשיות", true, "collar_task", "chest_task"),
+        };
+    }
+
+    public const string TopicsExamTitle = "בחרו סוג מבחן";
+    public const string TopicsExamBody =
+        "מבחן גיהוץ: 3 בדים בלי שם — מזהים, בוחרים חום וקיטור, ומגהצים בזמן.\n" +
+        "חידון טמפרטורות: באיזה חום מגהצים כל סיב?\n" +
+        "חידון משפחות: טבעי, מלאכותי או סינתטי?";
+    public const string BtnExamIron = "מבחן גיהוץ";
+    public const string BtnQuizTemp = "חידון טמפרטורות";
+    public const string BtnQuizFamily = "חידון משפחות";
+
+    // ---------- Quizzes ----------
+    public const string QuizTempTitle = "חידון טמפרטורות";
+    public const string QuizFamilyTitle = "חידון משפחות סיבים";
+    public const string QuizTempQ = "באיזה חום מגהצים {0}?";
+    public const string QuizFamilyQ = "לאיזו משפחה שייך הסיב {0}?";
+    public static readonly string[] QuizTempOptions = { "• נמוך", "•• בינוני", "••• גבוה" };
+    public static readonly string[] QuizFamilyOptions = { "טבעי", "מלאכותי", "סינתטי" };
+    public const string QuizTempHint = "ענו בכפתורים שמתחת למסך — או בכפתורי הטמפרטורה בעמדה.";
+    public const string QuizRight = "נכון!";
+    public const string QuizWrong = "לא נכון. התשובה: {0}";
+    public const string QuizResultTitle = "תוצאות החידון";
+    public const string QuizResultBody = "תשובות נכונות: {0} מתוך {1}.";
+
+    // Three captions under the "from source to fiber" picture of each fiber (right to left).
+    public static string[] FiberPicLabels(PM_FabricType t)
+    {
+        switch (t)
+        {
+            case PM_FabricType.Cotton: return new[] { "צמח הכותנה", "סיבים", "חוט" };
+            case PM_FabricType.Linen: return new[] { "צמח הפשתן — מהגבעול מפיקים את הסיבים" };
+            case PM_FabricType.Wool: return new[] { "כבשה", "גיזת צמר", "פקעת צמר" };
+            case PM_FabricType.Silk: return new[] { "תולעת משי על עלה תות", "פקעת (גולם)", "חוט משי" };
+            case PM_FabricType.Polyester: return new[] { "נפט", "בקבוקים (גם ממוחזרים)", "חוט פוליאסטר" };
+            case PM_FabricType.Viscose: return new[] { "עץ", "המסה כימית", "חוט ויסקוזה" };
+            case PM_FabricType.Modal: return new[] { "עץ אשור", "המסה כימית", "בד רך" };
+            case PM_FabricType.Lyocell: return new[] { "אקליפטוס", "ממס ממוחזר", "חוט ליוסל" };
+            case PM_FabricType.Acetate: return new[] { "עץ", "חומצה אצטית", "בד מבריק" };
+            case PM_FabricType.Polyamide: return new[] { "נפט", "תהליך כימי", "גרביונים" };
+            case PM_FabricType.Acrylic: return new[] { "נפט", "תהליך כימי", "\"צמר\" סינתטי" };
+            default: return new[] { "נפט", "נמתח וחוזר", "טייץ, בגדי ספורט" };
+        }
+    }
 
     public static readonly string[] ModeDots = { "", "•", "••", "•••" };
     public static readonly string[] ModeTemp = { "", "110°C", "150°C", "200°C" };
@@ -77,8 +154,8 @@ public static class PM_Content
     public const string MenuTitle = "עמדת גיהוץ מקצועית";
     public const string MenuBody =
         "ברוכים הבאים לסימולטור עמדת הגיהוץ המקצועית.\n" +
-        "מסלול לימוד — היכרות צעד אחר צעד עם העמדה, כלי העזר וחמשת סוגי הבדים, עם הסברים וקריינות.\n" +
-        "מבחן — זיהוי בדים וגיהוץ בזמן, בלי עזרה.\n" +
+        "מסלול לימוד: העמדה, כלי העזר, עולם הסיבים וגיהוץ בדים — בחרו נושא או את כל המסלול.\n" +
+        "מבחן: מבחן גיהוץ בזמן, או חידונים על הסיבים.\n" +
         "בחרו מסלול: כוונו את היד או את הקרן אל הכפתור ולחצו על ההדק.";
 
     // ---------- Status messages ----------
@@ -307,6 +384,7 @@ public static class PM_Content
             h.isFiber = true;
             h.fiber = t;
             h.mode = f.mode;
+            h.name = f.name;
             h.fiberGroup = t == PM_FabricType.Cotton || t == PM_FabricType.Linen ? "טבעי · צמחי · תאית"
                          : t == PM_FabricType.Polyester ? "סינתטי · פולימר מנפט" : "טבעי · מן החי · חלבון";
             l.Add(h);
@@ -358,6 +436,7 @@ public static class PM_Content
         h.fiber = t;
         h.fiberGroup = family;
         h.mode = mode;
+        h.name = name;
         h.extraFiber = true;
         return h;
     }

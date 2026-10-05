@@ -3,7 +3,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // A floating holographic screen for one fiber: glowing symbol + name.
-// Click = the screen grows and shows the explanation (with narration); click again = collapse.
+// Click = the screen comes closer, grows and shows a "from source to fiber" picture + the explanation
+// (with narration); click again = back to its place.
+// Pictures: Assets/Resources/PM_FiberPics/<fiber>.png — replace a file with a real photo (same name) if you like.
 public class PM_FiberScreen : MonoBehaviour
 {
     public PM_HotspotInfo info;
@@ -11,7 +13,8 @@ public class PM_FiberScreen : MonoBehaviour
     public bool Expanded { get; private set; }
     public System.Action<PM_FiberScreen> onClick;
 
-    const float W = 0.46f, H = 0.5f, WE = 0.7f, HE = 0.86f;   // collapsed / expanded size (meters)
+    const float W = 0.46f, H = 0.5f, WE = 0.9f, HE = 0.95f;   // collapsed / expanded size (meters)
+    const float PicMaxH = 300f;                                // picture height on the expanded screen (px)
 
     RectTransform canvasRt;
     Image bg, header;
@@ -22,12 +25,17 @@ public class PM_FiberScreen : MonoBehaviour
     float phase;
     bool hovered;
     Color acc;
+    Vector3 basePos;
+    RawImage pic;
+    float picAspect = 2f;
+    TextMeshProUGUI[] picLabels = new TextMeshProUGUI[0];
 
     public static PM_FiberScreen Create(PM_HotspotInfo info, string groupText, Vector3 pos)
     {
         var go = new GameObject("PM_Fiber_" + info.fiber);
         go.transform.position = pos;
         var s = go.AddComponent<PM_FiberScreen>();
+        s.basePos = pos;
         s.info = info;
         s.Build(groupText);
         return s;
@@ -79,6 +87,29 @@ public class PM_FiberScreen : MonoBehaviour
         sr.sizeDelta = new Vector2(-10, 10); sr.anchoredPosition = new Vector2(0, -80);
         stripe.color = PM_Util.FamilyColor(groupText);
         body.gameObject.SetActive(false);
+
+        // "From source to fiber" picture (shown only on the expanded screen).
+        string key = info.fiber.ToString().ToLower();
+        Texture2D tex = Resources.Load<Texture2D>("PM_FiberPics/" + key);
+        if (tex == null && info.fiber == PM_FabricType.Linen) tex = Resources.Load<Texture2D>("PM_Garments/linen_plant");
+        if (tex != null)
+        {
+            pic = new GameObject("Picture", typeof(RectTransform)).AddComponent<RawImage>();
+            pic.transform.SetParent(cgo.transform, false);
+            pic.texture = tex;
+            pic.raycastTarget = false;
+            picAspect = tex.height > 0 ? tex.width / (float)tex.height : 2f;
+            string[] labels = PM_Content.FiberPicLabels(info.fiber);
+            picLabels = new TextMeshProUGUI[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                picLabels[i] = Text(cgo.transform, "PicLabel", 24, Color.Lerp(acc, Color.white, 0.5f));
+                picLabels[i].enableAutoSizing = true;
+                picLabels[i].fontSizeMin = 16;
+                picLabels[i].fontSizeMax = 24;
+                picLabels[i].text = PM_Hebrew.VisualLine(labels[i]);
+            }
+        }
 
         symbol = new GameObject("Symbol").transform;
         symbol.SetParent(transform, false);
@@ -135,14 +166,53 @@ public class PM_FiberScreen : MonoBehaviour
         float w = Mathf.Lerp(W, WE, k), h = Mathf.Lerp(H, HE, k);
         canvasRt.sizeDelta = new Vector2(w * 1000f, h * 1000f);
         box.size = new Vector3(w, h, 0.04f);
-        // Collapsed: big symbol in the middle. Expanded: small symbol under the title, text below.
+
+        // Picture under the title, captions under the picture.
+        float picH = 0f;
+        if (pic != null)
+        {
+            float picW = w * 1000f - 60f;
+            picH = picW / picAspect;
+            if (picH > PicMaxH) { picH = PicMaxH; picW = picH * picAspect; }
+            var pr = pic.rectTransform;
+            pr.anchorMin = new Vector2(0.5f, 1); pr.anchorMax = new Vector2(0.5f, 1); pr.pivot = new Vector2(0.5f, 1);
+            pr.sizeDelta = new Vector2(picW, picH);
+            pr.anchoredPosition = new Vector2(0, -100);
+            float a = k * k;
+            pic.color = new Color(1, 1, 1, a);
+            pic.gameObject.SetActive(a > 0.01f);
+            for (int i = 0; i < picLabels.Length; i++)
+            {
+                var lr = picLabels[i].rectTransform;
+                float x = picLabels.Length == 1 ? 0f : picW * (0.33f - 0.33f * i);   // right, middle, left
+                float lw = picLabels.Length == 1 ? picW : picW * 0.34f;
+                lr.anchorMin = new Vector2(0.5f, 1); lr.anchorMax = new Vector2(0.5f, 1); lr.pivot = new Vector2(0.5f, 1);
+                lr.sizeDelta = new Vector2(lw, 34);
+                lr.anchoredPosition = new Vector2(x, -100 - picH - 4);
+                picLabels[i].gameObject.SetActive(a > 0.01f);
+                Color c = picLabels[i].color; c.a = a; picLabels[i].color = c;
+            }
+        }
+
+        // Collapsed: big symbol in the middle. Expanded: the picture replaces it (or a small symbol under the title).
         symbol.localPosition = new Vector3(0, Mathf.Lerp(-0.01f, h * 0.5f - 0.15f, k), -0.01f);
-        symbol.localScale = Vector3.one * Mathf.Lerp(0.75f, 0.45f, k);
+        symbol.localScale = Vector3.one * Mathf.Lerp(0.75f, pic != null ? 0.001f : 0.45f, k);
         var br = body.rectTransform;
         br.anchorMin = Vector2.zero; br.anchorMax = Vector2.one;
-        br.offsetMin = new Vector2(25, 60); br.offsetMax = new Vector2(-25, -230);
+        br.offsetMin = new Vector2(25, 60); br.offsetMax = new Vector2(-25, pic != null ? -(100 + picH + 50) : -230);
         float glow = Visited ? 0.72f : 0.62f + 0.1f * Mathf.Sin(Time.time * 2f + phase);
-        bg.color = new Color(acc.r * 0.16f, acc.g * 0.16f, acc.b * 0.16f, hovered ? 0.85f : glow);
+        bg.color = new Color(acc.r * 0.16f, acc.g * 0.16f, acc.b * 0.16f, Expanded ? 0.9f : (hovered ? 0.85f : glow));
+
+        // The opened screen comes closer and to a comfortable height, in front of its neighbours.
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            Vector3 to = cam.transform.position - basePos;
+            to.y = 0;
+            Vector3 focus = basePos + (to.sqrMagnitude > 0.01f ? to.normalized * 0.6f : Vector3.zero);
+            focus.y = cam.transform.position.y + 0.8f;
+            transform.position = Vector3.Lerp(basePos, focus, k);
+        }
     }
 
     void Update()

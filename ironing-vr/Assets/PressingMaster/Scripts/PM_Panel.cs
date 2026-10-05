@@ -246,14 +246,29 @@ public class PM_Panel : MonoBehaviour
     // Buttons are laid out right-to-left under the screen. Each entry: label + action.
     public void SetButtons(params KeyValuePair<string, Action>[] items)
     {
+        SetButtons(0, items);
+    }
+
+    // primary = index of the green (main) button.
+    public void SetButtons(int primary, params KeyValuePair<string, Action>[] items)
+    {
+        SetButtonGrid(4, primary, 0.22f, items);
+    }
+
+    // Buttons in rows under the screen (perRow per row, right to left, rows going down).
+    public void SetButtonGrid(int perRow, int primary, float w, params KeyValuePair<string, Action>[] items)
+    {
         foreach (GameObject b in buttons) Destroy(b);
         buttons.Clear();
-        float w = 0.22f, gap = 0.04f;
-        float total = items.Length * w + (items.Length - 1) * gap;
+        float gap = 0.04f;
         for (int i = 0; i < items.Length; i++)
         {
-            float x = total * 0.5f - w * 0.5f - i * (w + gap); // first item on the right
-            buttons.Add(MakeButton(items[i].Key, items[i].Value, new Vector3(x, -HeightMeters * 0.5f - 0.07f, -0.03f), w, i == 0));
+            int row = i / perRow, col = i % perRow;
+            int inRow = Mathf.Min(perRow, items.Length - row * perRow);
+            float total = inRow * w + (inRow - 1) * gap;
+            float x = total * 0.5f - w * 0.5f - col * (w + gap); // first item on the right
+            float y = -HeightMeters * 0.5f - 0.07f - row * 0.11f;
+            buttons.Add(MakeButton(items[i].Key, items[i].Value, new Vector3(x, y, -0.03f), w, i == primary));
         }
     }
 
@@ -284,6 +299,9 @@ public class PM_Panel : MonoBehaviour
         rt.localScale = Vector3.one * 0.001f;
         var t = MakeText(canvasGo.transform, "Text", 0, 8, w * 1000, 65, 38, Color.white);
         t.alignment = TextAlignmentOptions.Center;
+        t.enableAutoSizing = true;   // long labels shrink instead of overflowing the button
+        t.fontSizeMin = 22;
+        t.fontSizeMax = 38;
         t.text = PM_Hebrew.VisualLine(label);
 
         var click = PM_Clickable.Add(root, action);
