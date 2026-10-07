@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.XR.CoreUtils;
 
 // MAIN SCRIPT. Put it on one empty object in the scene (for example _Game_Manager) and press Play.
 // Keyboard (for testing without the headset): N = next, B = back, P = power, 1/2/3 = temperature,
@@ -32,9 +33,12 @@ public class PM_Game : MonoBehaviour
     float desktopTime = -1f;
     PM_Hotspot openHs;
     PM_Garment garment;
+    PM_Garment form;                 // dress form
+    Vector3 formHome, formTask;
     LineRenderer cardLink;
 
     State state;
+    bool recentered;   // the room is aligned to the player's real position once tracking starts
     List<PM_Step> steps;
     bool fullPath;   // the whole learning path (not a single topic)
     int stepIndex;
@@ -79,14 +83,23 @@ public class PM_Game : MonoBehaviour
         PM_Narrator.Create(panel.transform, new Vector3(-0.6f, 0.22f, -0.02f));
         card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
         card.gameObject.SetActive(false);
+        // Dress form (tailor's mannequin) front-left of the player; it comes closer for the steaming task.
+        formHome = station.PlayerPos + station.Forward * 1.3f - station.Right * 1.35f;
+        formTask = station.PlayerPos + station.Forward * 0.4f - station.Right * 0.75f;
+        form = PM_Garment.Show("mannequin", formHome, 1.6f, station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
+        if (form != null)
+        {
+            form.spinSpeed = 0f;
+            station.SetTarget(PM_Target.DressForm, new List<Transform> { form.transform });
+        }
         BuildHotspots();
         PM_Look.PostFX();
         PM_Look.GridFloor(station.PlayerPos, station.Forward, station.Right);
         PM_Look.Dust(station.PlayerPos + station.Forward * 0.8f);
         if (restyleTable) station.Restyle();
-        // Tailor's mannequin standing next to the station (decoration).
-        PM_Garment.Show("mannequin", station.PlayerPos + station.Forward * 1.5f - station.Right * 2.5f, 1.6f,
-            station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
+        // Studio mirror on the right: the player sees the avatar (body, apron, head).
+        Vector3 mpos = station.PlayerPos + station.Right * 1.7f + station.Forward * 0.1f;
+        PM_Mirror.Create(mpos, station.PlayerPos - mpos);
         PM_Avatar.Init();
         ShowAvatarChoice();
 
@@ -117,7 +130,7 @@ public class PM_Game : MonoBehaviour
             theory.Add(Btn(topic.label, () => StartTopic(topic)));
         }
         panel.SetButtonGrid(2, 0, 0.4f, 0.02f, false, theory.ToArray());
-        panel.SetButtonGrid(1, -1, 0.4f, -0.24f, true, Btn(PM_Content.BtnAvatar, ShowAvatarChoice));
+        panel.SetButtonGrid(2, -1, 0.4f, -0.24f, true, Btn(PM_Content.BtnAvatar, ShowAvatarChoice), Btn(PM_Content.BtnRecenter, RecenterNow));
 
         practicePanel.SetContent(PM_Content.PracticeTitle, PM_Content.PracticeBody, "");
         practicePanel.SetAccent(PM_Util.Green);
@@ -165,7 +178,7 @@ public class PM_Game : MonoBehaviour
         if (fullPath) steps.AddRange(all);
         else foreach (string id in t.steps) foreach (PM_Step st in all) if (st.id == id) steps.Add(st);
         if (steps.Count == 0) return;
-        if (t.needsPower && !station.Powered) station.SetPower(true);
+        if (t.needsPower) station.MakeReady();
         MenuLayout(false);
         state = State.Learning;
         EnterStep(0);
@@ -178,10 +191,32 @@ public class PM_Game : MonoBehaviour
         steps = new List<PM_Step>();
         foreach (string id in PM_Content.PracticeSteps) foreach (PM_Step st in all) if (st.id == id) steps.Add(st);
         if (steps.Count == 0) return;
-        if (!station.Powered) station.SetPower(true);
+        station.MakeReady();   // practice starts with a hot station (no waiting)
         MenuLayout(false);
         state = State.Learning;
         EnterStep(Mathf.Clamp(index, 0, steps.Count - 1));
+    }
+
+    // ---------------- Recenter ----------------
+    // Wherever the player stands in the real room, the virtual room moves so that the player is in the floor
+    // circle in front of the board, facing it. (The station never ends up outside the play area.)
+    bool Recenter()
+    {
+        XROrigin origin = FindAnyObjectByType<XROrigin>();
+        if (origin == null || origin.Camera == null) return false;
+        Transform cam = origin.Camera.transform;
+        if (cam.localPosition.sqrMagnitude < 0.0001f) return false;   // tracking not started yet
+        Vector3 f = cam.forward; f.y = 0;
+        if (f.sqrMagnitude > 0.001f) origin.RotateAroundCameraUsingOriginUp(Vector3.SignedAngle(f.normalized, station.Forward, Vector3.up));
+        origin.MoveCameraToWorldLocation(new Vector3(station.PlayerPos.x, cam.position.y, station.PlayerPos.z));
+        Debug.Log("[PM] Позиция игрока выровнена по станции.");
+        return true;
+    }
+
+    void RecenterNow()
+    {
+        Recenter();
+        PM_Look.PulseRing(station.PlayerPos + Vector3.up * 0.01f, PM_Util.Cyan);
     }
 
     // ---------------- Avatar ----------------
@@ -189,19 +224,58 @@ public class PM_Game : MonoBehaviour
     {
         state = State.Avatar;
         ClearStepVisuals();
-        MenuLayout(false);
         panel.SetContent(PM_Content.AvatarTitle, PM_Content.AvatarBody, "");
         panel.SetAccent(PM_Util.Violet);
-        var items = new List<KeyValuePair<string, Action>>();
-        for (int i = 0; i < PM_Content.AvatarLabels.Length; i++)
+        var hands = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 4; i++)
         {
-            int style = i;
-            items.Add(Btn(PM_Content.AvatarLabels[i], () => PM_Avatar.SetStyle(style)));
+            int k = i;
+            hands.Add(Btn(PM_Content.HandLabels[i], () => { if (k == 2) ShowChildWarning(); else { PM_Avatar.ChooseHands(k); AvatarPreview(1); } }));
         }
-        panel.SetButtonGrid(4, -1, 0.22f, -0.12f, false, items.ToArray());
-        panel.SetButtonGrid(1, 0, 0.3f, -0.42f, true, Btn(PM_Content.BtnContinue, ShowMenu));
-        PM_Avatar.ShowPreview(true, panel.transform.position - panel.transform.right * 0.72f, station.PlayerPos + Vector3.up * 1.6f);
+        var tones = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 4; i++) { int k = i; tones.Add(Btn(PM_Content.ToneLabels[i], () => PM_Avatar.ChooseTone(k))); }
+        var tattoos = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 4; i++) { int k = i; tattoos.Add(Btn(PM_Content.TattooLabels[i], () => PM_Avatar.ChooseTattoo(k))); }
+        panel.SetButtonGrid(4, -1, 0.22f, 0.04f, false, hands.ToArray());
+        panel.SetButtonGrid(4, -1, 0.22f, -0.07f, true, tones.ToArray());
+        panel.SetButtonGrid(4, -1, 0.22f, -0.18f, true, tattoos.ToArray());
+        panel.SetButtonGrid(1, 0, 0.3f, -0.42f, true, Btn(PM_Content.BtnContinue, ShowBodyChoice));
+        AvatarPreview(1);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar");
+    }
+
+    // Choosing a child: a safety rule of the sewing room — children do not operate an ironing station.
+    void ShowChildWarning()
+    {
+        state = State.Avatar;
+        panel.SetContent(PM_Content.ChildTitle, PM_Content.ChildBody, "");
+        panel.SetAccent(PM_Util.Red);
+        panel.SetButtons(Btn(PM_Content.BtnHands, ShowAvatarChoice));
+        AvatarPreview(1, 2);
+        PM_Look.PulseRing(station.PlayerPos + Vector3.up * 0.01f, PM_Util.Red);
+        if (PM_Audio.I != null) { PM_Audio.I.Play("error", 0.8f); PM_Audio.I.PlayVoice("child_warning"); }
+    }
+
+    void ShowBodyChoice()
+    {
+        state = State.Avatar;
+        ClearStepVisuals();
+        panel.SetContent(PM_Content.BodyTitle, PM_Content.BodyBody, "");
+        panel.SetAccent(PM_Util.Violet);
+        panel.SetButtonGrid(2, -1, 0.3f, 0.0f, false,
+            Btn(PM_Content.BodyLabels[0], () => PM_Avatar.ChooseBody(0)), Btn(PM_Content.BodyLabels[1], () => PM_Avatar.ChooseBody(1)));
+        var outfits = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 4; i++) { int k = i; outfits.Add(Btn(PM_Content.OutfitLabels[i], () => PM_Avatar.ChooseOutfit(k))); }
+        panel.SetButtonGrid(4, -1, 0.22f, -0.13f, true, outfits.ToArray());
+        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnHands, ShowAvatarChoice), Btn(PM_Content.BtnContinue, ShowMenu));
+        AvatarPreview(2);
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar_body");
+    }
+
+    void AvatarPreview(int mode, int handOverride = -1)
+    {
+        Vector3 pos = panel.transform.position - panel.transform.right * 0.78f + (mode == 2 ? Vector3.down * 0.4f : Vector3.zero);
+        PM_Avatar.ShowPreview(mode, pos, station.PlayerPos + Vector3.up * 1.6f, handOverride);
     }
 
     // ---------------- Quizzes ----------------
@@ -410,7 +484,7 @@ public class PM_Game : MonoBehaviour
 
     void ClearStepVisuals()
     {
-        PM_Avatar.ShowPreview(false, Vector3.zero, Vector3.zero);
+        PM_Avatar.ShowPreview(0, Vector3.zero, Vector3.zero);
         MenuLayout(false);
         highlight.Clear();
         station.RefreshButtons();
@@ -449,6 +523,8 @@ public class PM_Game : MonoBehaviour
             else if (fabric == null || fabric.info.type != s.fabric || fabric.dome > 0f || fabric.sizeZ < 0.2f) { SpawnFabric(s.fabric, stepIndex); AddFabricHotspots(); }
         }
         else RemoveFabric();
+        if (form != null) form.transform.position = s.action == PM_Action.SteamOnForm ? formTask : formHome;
+        if (s.action == PM_Action.SteamOnForm) SpawnFormFabric(s.fabric);
 
         if (s.target != PM_Target.None && s.target != PM_Target.Fabric)
             highlight.Show(station.Targets(s.target), PM_Util.Cyan, true);
@@ -463,7 +539,7 @@ public class PM_Game : MonoBehaviour
         var nav = new List<KeyValuePair<string, Action>>();
         nav.Add(Btn(PM_Content.BtnMenu, ShowMenu));
         nav.Add(Btn(PM_Content.BtnRepeat, RepeatVoice));
-        if (s.action == PM_Action.IronFabric) nav.Add(Btn(PM_Content.BtnNewFabric, NewFabric));
+        if (s.action == PM_Action.IronFabric || s.action == PM_Action.SteamOnForm) nav.Add(Btn(PM_Content.BtnNewFabric, NewFabric));
         if (!first) nav.Add(Btn(PM_Content.BtnBack, PrevStep));
         if (!last) nav.Add(Btn(PM_Content.BtnNext, NextStep));
         else if (fullPath) nav.Add(Btn(PM_Content.BtnExamIron, StartExam));
@@ -500,9 +576,10 @@ public class PM_Game : MonoBehaviour
     {
         if (state != State.Learning) return;
         PM_Step s = steps[stepIndex];
-        if (s.target != PM_Target.Fabric) return;
         stepDone = false;
         dwell = 0f;
+        if (s.action == PM_Action.SteamOnForm) { SpawnFormFabric(s.fabric); panel.SetStatus("", Color.white); return; }
+        if (s.target != PM_Target.Fabric) return;
         if (s.toolTask > 0) SpawnToolFabric(s.fabric, s.toolTask);
         else { SpawnFabric(s.fabric, stepIndex + UnityEngine.Random.Range(1, 99)); AddFabricHotspots(); }
         panel.SetStatus("", Color.white);
@@ -538,12 +615,26 @@ public class PM_Game : MonoBehaviour
         {
             doneTimer += dt;
             // Ironing tasks wait for "הבא" (free choice); other steps move on by themselves.
-            if (s.action != PM_Action.Next && s.action != PM_Action.IronFabric && doneTimer > 2.5f && stepIndex < steps.Count - 1) EnterStep(stepIndex + 1);
+            if (s.action != PM_Action.Next && s.action != PM_Action.IronFabric && s.action != PM_Action.SteamOnForm && doneTimer > 2.5f && stepIndex < steps.Count - 1) EnterStep(stepIndex + 1);
             return;
         }
         PM_Iron iron = station.Iron;
         switch (s.action)
         {
+            case PM_Action.SteamOnForm:
+                if (HandleSpit(dt)) break;
+                ProcessFormSteam(dt);
+                if (fabric != null && fabric.Done) { Celebrate(); Complete(PM_Content.StDone); }
+                break;
+            case PM_Action.FillWater:
+            {
+                PM_WaterTank t = station.Tank;
+                if (t == null) { Complete(PM_Content.StWaterOk); break; }
+                if (t.Overfilled) panel.SetStatus(PM_Content.StWaterHigh, PM_Util.Red);
+                else if (t.Low) panel.SetStatus(PM_Content.StWaterLow, PM_Util.Yellow);
+                else Complete(PM_Content.StWaterOk);
+                break;
+            }
             case PM_Action.Power:
                 if (station.Powered) Complete(PM_Content.StPressureLow);
                 break;
@@ -556,6 +647,7 @@ public class PM_Game : MonoBehaviour
                 if (iron != null && iron.Held) Complete(PM_Content.StGrabbed);
                 break;
             case PM_Action.SteamInAir:
+                if (HandleSpit(dt)) break;
                 if (!station.PressureOk) { panel.SetStatus(station.Powered ? PM_Content.StPressureLow : PM_Content.StNeedPower, PM_Util.Yellow); break; }
                 bool steaming = (iron != null && iron.Steaming && iron.Touching == null) || KeyHeld(Key.LeftShift);
                 if (steaming) steamAirTime += dt;
@@ -597,6 +689,8 @@ public class PM_Game : MonoBehaviour
                 break;
             }
             case PM_Action.IronFabric:
+                if (HandleSpit(dt)) break;
+                if (station.Tank != null && station.Tank.Empty && station.Iron != null && station.Iron.TriggerDown) { panel.SetStatus(PM_Content.StNoWater, PM_Util.Yellow); break; }
                 if (!ProcessIroning(dt, false))
                     panel.SetStatus(string.Format(PM_Content.StExplored, CountVisited(fabricHs), fabricHs.Count), PM_Util.Cyan);
                 if (fabric != null && fabric.Done) { Celebrate(); Complete(PM_Content.StDone); }
@@ -636,12 +730,68 @@ public class PM_Game : MonoBehaviour
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
     }
 
+    // Wrinkled shirt front on the dress form, standing upright and facing the player.
+    void SpawnFormFabric(PM_FabricType t)
+    {
+        RemoveFabric();
+        if (form == null) return;
+        Vector3 toPlayer = station.PlayerPos - formTask; toPlayer.y = 0; toPlayer.Normalize();
+        Vector3 c = formTask + Vector3.up * 1.12f + toPlayer * 0.12f;
+        // The fabric's normal (local Y) faces the player, its length (local Z) goes up.
+        fabric = PM_Fabric.Create(PM_Content.Fabric(t), c, Quaternion.LookRotation(Vector3.up, toPlayer), null, 57, 0.34f, 0.5f, 0.07f);
+    }
+
+    // Vertical steaming: steam from 1–6 cm smooths the garment; touching it does nothing (and is wrong).
+    void ProcessFormSteam(float dt)
+    {
+        if (fabric == null) return;
+        PM_Iron iron = station.Iron;
+        bool mouse = Time.time - desktopTime < 0.15f;
+        if (mouse)
+        {
+            if (KeyHeld(Key.LeftShift)) fabric.Iron(desktopUV, 0.08f, dt, 1.2f, 0f, 0f, 0.4f);
+            panel.SetStatus(KeyHeld(Key.LeftShift) ? string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)) : PM_Content.StFormSteam, PM_Util.Cyan);
+            return;
+        }
+        if (iron == null || !iron.Held) return;
+        Vector3 dir = iron.DownWorld;
+        RaycastHit hit = default(RaycastHit);
+        bool found = false;
+        foreach (RaycastHit h in Physics.RaycastAll(iron.SoleWorld - dir * 0.02f, dir, 0.25f))
+            if (h.collider.GetComponent<PM_Fabric>() == fabric) { hit = h; found = true; break; }
+        if (!found) return;
+        float gap = hit.distance - 0.02f;
+        if (gap < 0.008f) { panel.SetStatus(PM_Content.StFormPress, PM_Util.Yellow); iron.Buzz(0.2f, 0.05f); return; }
+        if (gap > 0.08f) { panel.SetStatus(PM_Content.StFormFar, PM_Util.Yellow); return; }
+        if (!iron.Steaming) { panel.SetStatus(PM_Content.StFormSteam, PM_Util.Yellow); return; }
+        fabric.Iron(hit.textureCoord, 0.08f, dt, 1.2f, 0f, 0f, 0.35f);
+        panel.SetStatus(string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)), PM_Util.Cyan);
+    }
+
     void RemoveFabric()
     {
         if (fabric != null) Destroy(fabric.gameObject);
         fabric = null;
         if (garment != null) Destroy(garment.gameObject);
         garment = null;
+    }
+
+    // Water / limescale spat by the iron lands on the fabric under it. Returns true while spitting.
+    bool HandleSpit(float dt)
+    {
+        PM_Iron iron = station.Iron;
+        if (iron == null || !iron.spitting) return false;
+        PM_WaterTank t = station.Tank;
+        panel.SetStatus(t != null && t.Overfilled ? PM_Content.StSpitOverfill : PM_Content.StSpitNotReady, PM_Util.Red);
+        if (fabric == null) return true;
+        RaycastHit[] hits = Physics.RaycastAll(iron.SoleWorld + Vector3.up * 0.02f, Vector3.down, 0.4f);
+        foreach (RaycastHit h in hits)
+        {
+            if (h.collider.GetComponent<PM_Fabric>() != fabric) continue;
+            if (UnityEngine.Random.value < dt * 12f) fabric.Splash(h.textureCoord, 0.06f, 3, t != null ? t.Limescale * 0.5f : 0.15f);
+            break;
+        }
+        return true;
     }
 
     // Returns true while ironing happens this frame.
@@ -667,8 +817,11 @@ public class PM_Game : MonoBehaviour
 
         PM_FabricInfo info = fabric.info;
         if (!station.Powered) { panel.SetStatus(PM_Content.StNeedPower, PM_Util.Red); return true; }
-        int mode = station.Mode;
-        if (mode == 0) { panel.SetStatus(PM_Content.StNoMode, PM_Util.Yellow); return true; }
+        if (station.Mode == 0) { panel.SetStatus(PM_Content.StNoMode, PM_Util.Yellow); return true; }
+        // The real soleplate temperature counts, not only the button: a cold iron does not smooth,
+        // and after switching to a lower setting the iron is still too hot for a while.
+        int mode = station.EffectiveMode;
+        if (mode == 0) { panel.SetStatus(string.Format(PM_Content.StHeating, Mathf.RoundToInt(station.IronTemp)), PM_Util.Yellow); return true; }
 
         // Learning: a ruined fabric must be replaced ("בד חדש").
         if (!exam && fabric.Damage >= 0.25f) { panel.SetStatus(PM_Content.StRuined, PM_Util.Red); return true; }
@@ -763,6 +916,7 @@ public class PM_Game : MonoBehaviour
     {
         state = State.ExamIntro;
         ClearStepVisuals();
+        station.MakeReady();
         examList.Clear();
         examLines.Clear();
         examScore = 0;
@@ -778,7 +932,6 @@ public class PM_Game : MonoBehaviour
         }
         panel.SetContent(PM_Content.ExamTitle, PM_Content.ExamBody, "");
         panel.SetButtons(1, Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnNext, () => StartExamFabric(0)));
-        highlight.Show(station.Targets(PM_Target.Power), PM_Util.Cyan, true);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("exam_intro");
     }
 
@@ -812,7 +965,7 @@ public class PM_Game : MonoBehaviour
             return;
         }
         examTime -= dt;
-        bool ironing = ProcessIroning(dt, true);
+        bool ironing = HandleSpit(dt) || ProcessIroning(dt, true);
         if (!ironing) panel.SetStatus(string.Format(PM_Content.StTime, Mathf.CeilToInt(Mathf.Max(0f, examTime))), PM_Util.Cyan);
 
         PM_FabricInfo info = fabric.info;
@@ -866,6 +1019,7 @@ public class PM_Game : MonoBehaviour
     void Update()
     {
         float dt = Time.deltaTime;
+        if (!recentered && Time.timeSinceLevelLoad > 1f && UnityEngine.XR.XRSettings.isDeviceActive) recentered = Recenter();
         HandleKeyboard();
         if (openHs != null && cardLink != null && card.gameObject.activeSelf)
         {
@@ -904,6 +1058,7 @@ public class PM_Game : MonoBehaviour
         }
         if (KeyDown(Key.B)) PrevStep();
         if (KeyDown(Key.M)) ShowMenu();
+        if (KeyDown(Key.R)) RecenterNow();
         if (KeyDown(Key.X)) StartExam();
         if (KeyDown(Key.P)) station.onPowerClicked();
         for (int d = 1; d <= 3; d++)

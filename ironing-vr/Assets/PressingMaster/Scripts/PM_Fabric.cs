@@ -16,7 +16,7 @@ public class PM_Fabric : MonoBehaviour
 
     Texture2D albedoTex, normalTex;
     Color32[] baseAlbedo, albedo, wrinkleNormal, normal;
-    float[] smooth, scorch, spots, heat;
+    float[] smooth, scorch, spots, lime, heat;
     Texture2D heatTex;
     Color32[] heatPx;
     bool heatActive;
@@ -110,6 +110,7 @@ public class PM_Fabric : MonoBehaviour
         smooth = new float[count];
         scorch = new float[count];
         spots = new float[count];
+        lime = new float[count];
         heat = new float[count];
         heatPx = new Color32[count];
 
@@ -246,10 +247,38 @@ public class PM_Fabric : MonoBehaviour
         if (scorchRate > 0f || spotRate > 0f) Damage = Mathf.Clamp01(Damage + (scorchRate + spotRate * 0.5f) * dt * 0.5f);
     }
 
+    // Water (and limescale) spat by an iron that is not ready: wet spots, some of them brown.
+    public void Splash(Vector2 uv, float radiusMeters, int drops, float limeChance)
+    {
+        int rx = Mathf.Max(2, Mathf.RoundToInt(radiusMeters / sizeX * Res));
+        int ry = Mathf.Max(2, Mathf.RoundToInt(radiusMeters / sizeZ * Res));
+        for (int k = 0; k < drops; k++)
+        {
+            float a = Random.value * Mathf.PI * 2f, r = Mathf.Sqrt(Random.value);
+            int cx = Mathf.RoundToInt(uv.x * (Res - 1) + Mathf.Cos(a) * r * rx);
+            int cy = Mathf.RoundToInt(uv.y * (Res - 1) + Mathf.Sin(a) * r * ry);
+            bool brown = Random.value < limeChance;
+            int dr = Random.Range(1, 4);
+            for (int y = cy - dr; y <= cy + dr; y++)
+                for (int x = cx - dr; x <= cx + dr; x++)
+                {
+                    if (x < 0 || y < 0 || x >= Res || y >= Res) continue;
+                    if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > dr * dr) continue;
+                    int i = y * Res + x;
+                    spots[i] = 1f;
+                    if (brown) lime[i] = 1f;
+                    albedo[i] = Damaged(i);
+                }
+        }
+        dirtyA = true;
+        Damage = Mathf.Clamp01(Damage + drops * (0.004f + limeChance * 0.006f));
+    }
+
     Color32 Damaged(int i)
     {
         Color c = baseAlbedo[i];
         if (spots[i] > 0f) c = Color.Lerp(c, c * 0.7f, 0.6f);
+        if (lime[i] > 0f) c = Color.Lerp(c, new Color(0.55f, 0.38f, 0.18f), 0.75f * lime[i]);
         float s = scorch[i];
         if (s > 0f)
         {

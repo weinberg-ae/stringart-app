@@ -10,6 +10,7 @@ public class PM_Iron : MonoBehaviour
     public bool TriggerDown { get; private set; }
     public bool Steaming { get; private set; }
     public bool steamAllowed;
+    public bool spitting;                  // set by the station: wet steam with water drops (and limescale)
     public bool simulateSteam;             // keyboard test (Left Shift) without the headset              // set by the game (power on + pressure ok)
 
     // Contact with fabric (updated every frame).
@@ -35,7 +36,8 @@ public class PM_Iron : MonoBehaviour
     Vector3 returnFromPos;
     Quaternion returnFromRot;
     Vector3 lastSole;
-    ParticleSystem steam;
+    ParticleSystem steam, spit;
+    bool spitOn;
     AudioSource steamAudio;
 
     // Builds the iron from model parts. Must be called while the iron lies on its rest.
@@ -145,6 +147,37 @@ public class PM_Iron : MonoBehaviour
         m.mainTexture = PM_Util.SoftDot(64);
         pr.material = m;
 
+        // Water drops (some brown = limescale) when the station is not ready or the tank is overfilled.
+        var sgo = new GameObject("PM_Spit");
+        sgo.transform.SetParent(transform, false);
+        sgo.transform.localPosition = localSole;
+        sgo.transform.rotation = Quaternion.LookRotation(Vector3.down);
+        spit = sgo.AddComponent<ParticleSystem>();
+        spit.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var sm = spit.main;
+        sm.loop = true;
+        sm.playOnAwake = false;
+        sm.startLifetime = 0.9f;
+        sm.startSpeed = new ParticleSystem.MinMaxCurve(0.2f, 0.7f);
+        sm.startSize = new ParticleSystem.MinMaxCurve(0.006f, 0.014f);
+        var dg = new Gradient();
+        Color w = new Color(0.75f, 0.9f, 1f, 0.9f), b = new Color(0.5f, 0.33f, 0.14f, 1f);
+        dg.SetKeys(new[] { new GradientColorKey(w, 0f), new GradientColorKey(w, 0.84f), new GradientColorKey(b, 0.86f), new GradientColorKey(b, 1f) },
+                   new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+        sm.startColor = new ParticleSystem.MinMaxGradient(dg) { mode = ParticleSystemGradientMode.RandomColor };
+        sm.gravityModifier = 1f;
+        sm.simulationSpace = ParticleSystemSimulationSpace.World;
+        var sem = spit.emission;
+        sem.rateOverTime = 70f;
+        var ssh = spit.shape;
+        ssh.shapeType = ParticleSystemShapeType.Cone;
+        ssh.angle = 25f;
+        ssh.radius = 0.03f;
+        var spr = sgo.GetComponent<ParticleSystemRenderer>();
+        var spm = PM_Util.TransparentMaterial(Color.white);
+        spm.mainTexture = PM_Util.SoftDot(16);
+        spr.material = spm;
+
         steamAudio = go.AddComponent<AudioSource>();
         steamAudio.loop = true;
         steamAudio.playOnAwake = false;
@@ -223,6 +256,11 @@ public class PM_Iron : MonoBehaviour
             if (returnT >= 1f) returnT = -1f;
         }
 
+        if (spitting != spitOn)
+        {
+            spitOn = spitting;
+            if (spitting) { spit.Play(); Buzz(0.5f, 0.08f); } else spit.Stop();
+        }
         bool shouldSteam = ((Held && TriggerDown) || simulateSteam) && steamAllowed;
         if (shouldSteam != Steaming)
         {

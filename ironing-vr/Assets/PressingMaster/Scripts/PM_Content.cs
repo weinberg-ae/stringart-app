@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // All game texts (Hebrew) and fabric data. Edit texts here.
-public enum PM_Target { None, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest }
-public enum PM_Action { Next, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
+public enum PM_Target { None, Water, DressForm, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest }
+public enum PM_Action { Next, FillWater, SteamOnForm, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
 public enum PM_HotspotGroup { None, Station, Tools, Fabric, Fibers }
 public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft }
 public enum PM_FabricType { Cotton, Linen, Wool, Silk, Polyester, Viscose, Modal, Lyocell, Acetate, Polyamide, Acrylic, Elastane }
@@ -82,6 +82,9 @@ public static class PM_Content
     public const string BtnMenu = "תפריט";
     public const string BtnClose = "סגור";
     public const string BtnBack = "הקודם";
+    public const string TankTitle = "מיכל מים";
+    public const string BtnFill = "מילוי";
+    public const string BtnDrain = "ניקוז";
     public const string BtnNewFabric = "בד חדש";
     public const string BtnTopics = "נושאים";
     public const string BtnAgain = "שוב";
@@ -93,6 +96,7 @@ public static class PM_Content
     public const string PracticeTitle = "תרגול ומבחן";
     public const string PracticeBody = "תרגול: בחרו בד או משימה, ועברו ביניהם בחופשיות. מבחן: בלי עזרה, עם ציון.";
     public const string BtnAvatar = "בחירת דמות";
+    public const string BtnRecenter = "מרכוז מקום";
     public const string BtnFinish = "סיום";
 
     public static List<PM_Topic> LearnTopics()
@@ -100,23 +104,35 @@ public static class PM_Content
         return new List<PM_Topic>
         {
             new PM_Topic("מסלול מלא", false, null),
-            new PM_Topic("הכרת העמדה", false, "learn_intro", "power", "explore_station", "iron", "purge", "temp"),
+            new PM_Topic("הכרת העמדה", false, "learn_intro", "water", "power", "explore_station", "iron", "purge", "temp"),
             new PM_Topic("כלי עזר", false, "tools"),
             new PM_Topic("עולם הסיבים", false, "fibers"),
         };
     }
 
     // Practice: free choice of a fabric or a task; "הבא"/"הקודם" move freely between them.
-    public static readonly string[] PracticeSteps = { "cotton", "linen", "wool", "silk", "polyester", "collar_task", "chest_task" };
-    public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "חזה שמלה" };
+    public static readonly string[] PracticeSteps = { "cotton", "linen", "wool", "silk", "polyester", "collar_task", "chest_task", "form_task" };
+    public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "חזה שמלה", "אידוי על בובה" };
     public const string BtnExamIron = "מבחן גיהוץ";
     public const string BtnQuizTemp = "חידון טמפרטורות";
     public const string BtnQuizFamily = "חידון משפחות";
 
     // ---------- Avatar ----------
-    public const string AvatarTitle = "בחרו דמות";
-    public const string AvatarBody = "כך ייראו הידיים והגוף שלכם במשחק. אפשר להחליף בכל רגע מהתפריט.";
-    public static readonly string[] AvatarLabels = { "עור בהיר", "עור שזוף", "עור כהה", "הולוגרמה" };
+    public const string AvatarTitle = "בחרו ידיים";
+    public const string AvatarBody = "ידיים של מי? בחרו גם צבע עור וקעקוע. במשקפת הידיים יופיעו במקום השלטים.";
+    public static readonly string[] HandLabels = { "גבר", "אישה", "ילד/ה", "הולוגרמה" };
+    public static readonly string[] ToneLabels = { "בהיר", "בינוני", "שזוף", "כהה" };
+    public static readonly string[] TattooLabels = { "בלי קעקוע", "מחט וחוט", "פרח", "גיאומטרי" };
+    public const string ChildTitle = "עצירה — כלל בטיחות!";
+    public const string ChildBody =
+        "בחדר התפירה ילדים אינם מפעילים עמדת גיהוץ.\n" +
+        "המגהץ והקיטור חמים מאוד, ויש חשמל ולחץ — סכנת כוויה.\n" +
+        "גיהוץ — רק למבוגרים. בחרו ידיים של מבוגר כדי להמשיך.";
+    public const string BodyTitle = "בחרו גוף ובגדי עבודה";
+    public const string BodyBody = "הסתכלו למטה — ותראו את הגוף והסינר. במראה שליד העמדה תראו את עצמכם.";
+    public static readonly string[] BodyLabels = { "גוף גבר", "גוף אישה" };
+    public static readonly string[] OutfitLabels = { "שחור", "לבן", "בורדו", "ג'ינס" };
+    public const string BtnHands = "ידיים";
     public const string BtnContinue = "המשך";
 
     // ---------- Quizzes ----------
@@ -169,6 +185,16 @@ public static class PM_Content
     public const string StNoMode = "בחרו קודם טמפרטורה בלוח הבקרה.";
     public const string StTooCold = "חום נמוך מדי — הקמטים לא יוצאים. נדרש: {0}";
     public const string StTooHotLearn = "חום גבוה מדי — הבד נחרך! נדרש: {0}";
+    public const string StSpitNotReady = "המגהץ פולט מים ואבנית! העמדה עוד לא מוכנה — חכו ללחץ 3.5 בר ולנורית קבועה.";
+    public const string StSpitOverfill = "מיכל המים מלא מעל MAX — המגהץ פולט מים! נקזו מעט מים.";
+    public const string StNoWater = "אין מספיק מים במיכל — מלאו עד בין MIN ל-MAX.";
+    public const string StHeating = "המגהץ מתחמם: {0}°C. חכו שהנורית תפסיק להבהב.";
+    public const string StWaterOk = "מפלס המים תקין — בין MIN ל-MAX.";
+    public const string StWaterLow = "מלאו מים: לחצו על \"מילוי\" עד שהמים בין MIN ל-MAX.";
+    public const string StWaterHigh = "יותר מדי! המים מעל MAX — לחצו על \"ניקוז\".";
+    public const string StFormPress = "על הבובה לא נוגעים — מרחיקים את המגהץ 2–3 ס\"מ ומאדים.";
+    public const string StFormSteam = "לחצו על ההדק — מאדים בקיטור, ממרחק קטן.";
+    public const string StFormFar = "קרבו את המגהץ: 2–3 ס\"מ מהבד.";
     public const string StDwellWarn = "אל תעצרו במקום אחד — הזיזו את המגהץ!";
     public const string StDwellBurn = "המגהץ עמד במקום אחד יותר מדי — הבד נחרך!";
     public const string StRuined = "הבד נפגע. לחצו על \"בד חדש\" ונסו שוב.";
@@ -199,8 +225,17 @@ public static class PM_Content
             "כדי להמשיך — לחצו על \"הבא\".",
             PM_Target.None, PM_Action.Next));
 
+        s.Add(new PM_Step("water", "מילוי מים",
+            "לפני ההפעלה ממלאים מים במיכל: בין הקו MIN לקו MAX.\n" +
+            "• מילוי יתר (מעל MAX) — המגהץ יפלוט מים על הבגד.\n" +
+            "• עדיף מים מזוקקים: מי ברז משאירים אבנית, שיוצאת מהמגהץ ככתמים חומים.\n" +
+            "לחצו על \"מילוי\" ליד המיכל מימין לעמדה.",
+            PM_Target.Water, PM_Action.FillWater));
+
         s.Add(new PM_Step("power", "הפעלת העמדה",
-            "סובבו את המתג הראשי המואר בצד ימין של לוח הבקרה.",
+            "סובבו את המתג הראשי המואר בצד ימין של לוח הבקרה.\n" +
+            "העמדה מתחממת: במציאות 2 עד 5 דקות, כאן — כחצי דקה.\n" +
+            "עד שהלחץ מגיע ל-3.5 בר והנורית מפסיקה להבהב — המגהץ פולט מים, ולפעמים גם אבנית!",
             PM_Target.Power, PM_Action.Power));
 
         var explore = new PM_Step("explore_station", "הכירו את העמדה",
@@ -270,6 +305,14 @@ public static class PM_Content
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Silk);
         chest.toolTask = 2;
         s.Add(chest);
+        var form = new PM_Step("form_task", "משימה: אידוי חולצה על בובת תפירה",
+            "על בובת התפירה לבושה חולצת כותנה מקומטת. מאדים אותה בלי קרש:\n" +
+            "• מחזיקים את המגהץ זקוף, 2–3 ס\"מ מהבד, ולוחצים על ההדק.\n" +
+            "• לא נוגעים ולא לוחצים — רק קיטור.\n" +
+            "• מתאים לרענון חולצות, שמלות וז'קטים מוכנים.\n" +
+            "• בטיחות: לא מכוונים קיטור אל היד או אל הגוף!",
+            PM_Target.DressForm, PM_Action.SteamOnForm, PM_FabricType.Cotton);
+        s.Add(form);
 
         s.Add(new PM_Step("learn_end", "סיום מסלול הלימוד",
             "כל הכבוד! הכרתם את העמדה, את כלי העזר ואת חמשת סוגי הסיבים.\n" +
@@ -293,6 +336,18 @@ public static class PM_Content
             "מפעיל את דוד הקיטור ואת חימום המגהץ.\n" +
             "בסיום העבודה: מכבים את המתג ומחכים שהעמדה תתקרר לפני ניקוי או הזזה.",
             PM_Target.Power, PM_Anchor.Front));
+        l.Add(new PM_HotspotInfo("tank", "מיכל מים", "מיכל המים",
+            "ממלאים בין MIN ל-MAX. מעל MAX — המגהץ פולט מים על הבגד.\n" +
+            "מתחת ל-MIN — אין קיטור, והדוד עלול להתחמם בלי מים.\n" +
+            "מומלץ מים מזוקקים או מטוהרים: מי ברז יוצרים אבנית בדוד, והיא יוצאת ככתמים חומים על הבד.\n" +
+            "מנקים אבנית מהדוד לפי הוראות היצרן (ניקוז ושטיפה).",
+            PM_Target.Water, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("form", "בובת תפירה", "בובת תפירה",
+            "משמשת למדידה, להתאמה ולבדיקת נפילת הבד על הגוף.\n" +
+            "אפשר גם לאדות עליה בגדים מוכנים: המגהץ זקוף, קיטור מ-2–3 ס\"מ, בלי לגעת ובלי ללחוץ.\n" +
+            "כך מרעננים חולצות, שמלות וז'קטים — בלי ליצור קפלים חדשים.\n" +
+            "את המשימה תמצאו בתרגול: \"אידוי על בובה\".",
+            PM_Target.DressForm, PM_Anchor.Top));
         l.Add(new PM_HotspotInfo("gauge", "מד לחץ", "מד לחץ הקיטור (מנומטר)",
             "המים בדוד מתחממים והלחץ עולה. לחץ עבודה תקין: 3.5–4 בר.\n" +
             "לא מתחילים לגהץ לפני שהמחוג מגיע לטווח: לחץ נמוך נותן קיטור רטוב, שמשאיר כתמי מים על הבד.\n" +
@@ -540,7 +595,7 @@ public static class PM_Content
         "תקבלו 3 בדים בלי שם. לכל בד — 40 שניות.\n" +
         "זהו את הבד לפי המראה ולפי תוצאת מבחן השריפה, בחרו טמפרטורה, החליטו על קיטור — וגהצו.\n" +
         "טעות בטמפרטורה עלולה לשרוף את הבד!\n" +
-        "הפעילו את העמדה והמתינו ללחץ — ואז לחצו על \"הבא\".";
+        "העמדה כבר חמה ומוכנה — לחצו על \"הבא\" כדי להתחיל.";
     public const string ExamFabricTitle = "בד מספר {0}";
     public const string ExamFabricBody = "מראה: {0}\nמבחן שריפה: {1}\nבחרו טמפרטורה וקיטור — וגהצו.";
     public const string ExamResultTitle = "תוצאות המבחן";

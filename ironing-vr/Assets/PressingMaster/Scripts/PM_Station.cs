@@ -34,6 +34,15 @@ public class PM_Station : MonoBehaviour
     public float Pressure { get; private set; }
     public int Mode { get; private set; }
     public bool PressureOk { get { return Powered && Pressure >= ReadyPressure; } }
+    public PM_WaterTank Tank { get; private set; }
+    public float IronTemp { get; private set; } = 20f;   // °C of the soleplate (it heats up slowly)
+    public float TargetTemp { get { return Powered && Mode > 0 ? (Mode == 1 ? 110f : Mode == 2 ? 150f : 200f) : 20f; } }
+    public bool fastHeat;   // practice: the iron reaches a new temperature quickly
+    // Temperature level the soleplate really has now (0 = still cold), not just the selected button.
+    public int EffectiveMode { get { return IronTemp >= 185f ? 3 : IronTemp >= 135f ? 2 : IronTemp >= 95f ? 1 : 0; } }
+    public bool IronReady { get { return Powered && Mode > 0 && Mathf.Abs(IronTemp - TargetTemp) < 8f; } }
+    // Steam that comes out wet: the station is not ready yet, or the tank is overfilled.
+    public bool WillSpit { get { return !PressureOk || (Mode > 0 && IronTemp < TargetTemp - 25f) || (Tank != null && Tank.Overfilled); } }
 
     public Action onPowerClicked;
     public Action<int> onModeClicked;
@@ -58,6 +67,8 @@ public class PM_Station : MonoBehaviour
     float needleAngle;
     Transform tools;
 
+    public void SetTarget(PM_Target t, List<Transform> parts) { targets[t] = parts; }
+
     public List<Transform> Targets(PM_Target t)
     {
         List<Transform> l;
@@ -78,6 +89,9 @@ public class PM_Station : MonoBehaviour
         BuildControls();
         BuildLights();
         BuildTools();
+        // Water tank (sight glass + fill / drain) at the right side of the station.
+        Tank = PM_WaterTank.Create(PlayerPos + Right * 0.8f + Forward * 0.5f + Vector3.up * 1.15f, PlayerPos + Vector3.up * 1.6f);
+        targets[PM_Target.Water] = new List<Transform> { Tank.transform.GetChild(0) };
         Debug.Log("[PM] Станция готова.");
         return true;
     }
@@ -487,6 +501,16 @@ public class PM_Station : MonoBehaviour
     }
 
     // ---------- Runtime state ----------
+    // Practice / exam shortcuts: the station is already hot (no waiting).
+    public void MakeReady()
+    {
+        if (!Powered) SetPower(true);
+        Pressure = WorkPressure;
+        if (Tank != null && (Tank.Low || Tank.Overfilled)) Tank.Level = 0.6f;
+        IronTemp = TargetTemp;
+        fastHeat = true;
+    }
+
     public void SetPower(bool on)
     {
         if (Powered == on) return;
@@ -498,7 +522,7 @@ public class PM_Station : MonoBehaviour
             if (on) PM_Look.PulseRing(new Vector3(BoardCenter.x, PlayerPos.y + 0.01f, BoardCenter.z), PM_Util.Cyan);
             PM_Audio.I.SetBoiler(on);
         }
-        if (!on) { Pressure = 0f; SetMode(0); }
+        if (!on) { Pressure = 0f; SetMode(0); fastHeat = false; }
         RefreshButtons();
     }
 
@@ -538,14 +562,24 @@ public class PM_Station : MonoBehaviour
         {
             if (capMats[m] == null) continue;
             Color c = PM_Util.ModeColor(m);
-            float k = !Powered ? 0.05f : (Mode == m ? 3.5f + Mathf.Sin(Time.time * 6f) * 1f : 0.6f);
+            // Selected button: blinks while the iron heats up, steady light when it is ready.
+            float k = !Powered ? 0.05f : (Mode == m ? (IronReady ? 3.5f : 0.4f + 3.2f * Mathf.Abs(Mathf.Sin(Time.time * 4f))) : 0.6f);
             capMats[m].SetColor("_EmissionColor", c * k);
             capMats[m].SetColor("_BaseColor", c * (Powered ? 0.35f : 0.08f));
         }
-        if (Powered) Pressure = Mathf.MoveTowards(Pressure, WorkPressure, Time.deltaTime * 0.45f);
+        // Real stations need 2–5 minutes; here it is shortened to about 45 seconds.
+        if (Powered) Pressure = Mathf.MoveTowards(Pressure, WorkPressure, Time.deltaTime * 0.08f);
         else Pressure = Mathf.MoveTowards(Pressure, 0f, Time.deltaTime * 1.5f);
         float wobble = Powered && Pressure >= WorkPressure - 0.01f ? Mathf.Sin(Time.time * 7f) * 0.04f : 0f;
         SetNeedle(Pressure + wobble);
-        if (Iron != null) { Iron.steamAllowed = PressureOk; Iron.heat = Powered ? Mode / 3f : 0f; }
+        float rate = fastHeat ? 30f : (TargetTemp > IronTemp ? 8f : 4f);
+        IronTemp = Mathf.MoveTowards(IronTemp, TargetTemp, Time.deltaTime * rate);
+        if (Iron != null)
+        {
+            Iron.steamAllowed = Powered && Tank != null && !Tank.Empty;
+            Iron.spitting = Iron.Steaming && WillSpit;
+            Iron.heat = Mathf.Clamp01((IronTemp - 20f) / 180f);
+            if (Iron.Steaming && Tank != null) Tank.Use(Time.deltaTime * 0.006f);
+        }
     }
 }
