@@ -41,7 +41,8 @@ public class PM_FabricInfo
     public string cue;          // exam: how it looks
     public string burn;         // exam: burn test result
     public string fiberText, pressText, burnText, lookText;
-    public string garment;      // name of the example garment model  // learning: texts of the three points of light
+    public string garment;      // name of the example garment model
+    public PM_FabricInfo Clone() { return (PM_FabricInfo)MemberwiseClone(); }  // learning: texts of the three points of light
 }
 
 public class PM_Topic
@@ -131,7 +132,8 @@ public static class PM_Content
     public const string BodyTitle = "בחרו גוף ובגדי עבודה";
     public const string BodyBody = "הסתכלו למטה — ותראו את הגוף והסינר. במראה שליד העמדה תראו את עצמכם.";
     public static readonly string[] BodyLabels = { "גוף גבר", "גוף אישה" };
-    public static readonly string[] OutfitLabels = { "שחור", "לבן", "בורדו", "ג'ינס" };
+    public static readonly string[] OutfitLabels = { "שחור", "ג'ינס", "משבצות", "בורדו" };
+    public static readonly string[] ShoeLabels = { "סניקרס", "מגפיים", "קלאסיות" };
     public const string BtnHands = "ידיים";
     public const string BtnContinue = "המשך";
 
@@ -305,8 +307,8 @@ public static class PM_Content
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Silk);
         chest.toolTask = 2;
         s.Add(chest);
-        var form = new PM_Step("form_task", "משימה: אידוי חולצה על בובת תפירה",
-            "על בובת התפירה לבושה חולצת כותנה מקומטת. מאדים אותה בלי קרש:\n" +
+        var form = new PM_Step("form_task", "משימה: אידוי שמלה על בובת תפירה",
+            "על בובת התפירה לבושה שמלת כותנה מקומטת. מאדים אותה בלי קרש:\n" +
             "• מחזיקים את המגהץ זקוף, 2–3 ס\"מ מהבד, ולוחצים על ההדק.\n" +
             "• לא נוגעים ולא לוחצים — רק קיטור.\n" +
             "• מתאים לרענון חולצות, שמלות וז'קטים מוכנים.\n" +

@@ -68,6 +68,9 @@ public class PM_Station : MonoBehaviour
     Vector3 gaugeCenter, knobCenter;
     float needleAngle;
     Transform tools;
+    Bounds shelf; bool hasShelf;
+    public Transform SleevePivot { get; private set; }
+    float sleeveAngle, sleeveTarget, sleeveSwing = 75f;
 
     public void SetTarget(PM_Target t, List<Transform> parts) { targets[t] = parts; }
 
@@ -90,9 +93,10 @@ public class PM_Station : MonoBehaviour
         BuildIron();
         BuildControls();
         BuildLights();
+        BuildSleeve();
         BuildTools();
         // Water tank (sight glass + fill / drain) at the right side of the station.
-        Tank = PM_WaterTank.Create(PlayerPos + Right * 0.8f + Forward * 0.5f + Vector3.up * 1.15f, PlayerPos + Vector3.up * 1.6f);
+        Tank = PM_WaterTank.Create(PlayerPos + Right * 1.05f + Forward * 0.8f + Vector3.up * 1.15f, PlayerPos + Vector3.up * 1.6f);
         targets[PM_Target.Water] = new List<Transform> { Tank.transform.GetChild(0) };
         Debug.Log("[PM] Станция готова.");
         return true;
@@ -380,6 +384,17 @@ public class PM_Station : MonoBehaviour
     // ---------- Neon training tools (no 3D models needed) ----------
     void BuildTools()
     {
+        // Lower shelf: a large thin horizontal part 0.25–0.8 m under the board.
+        float bestArea = 0f;
+        foreach (MeshRenderer r in Table.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            Bounds b = r.bounds;
+            if (b.size.y > 0.05f || r.name.StartsWith("Box")) continue;
+            float drop = BoardTopY - b.max.y;
+            if (drop < 0.25f || drop > 0.8f) continue;
+            float area = b.size.x * b.size.z;
+            if (area > 0.08f && area > bestArea) { bestArea = area; shelf = b; hasShelf = true; }
+        }
         tools = new GameObject("PM_Tools").transform;
         tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
         tools.rotation = BoardRotation;
@@ -488,9 +503,79 @@ public class PM_Station : MonoBehaviour
         PM_Look.RestyleStation(Table, keep, board, PM_Util.WorldBounds(board), Forward, Right);
     }
 
+    // Tools in use stand on the board (and the sleeve board swings away to make room);
+    // otherwise they wait on the lower shelf of the station.
     public void ShowTools(bool on)
     {
-        if (tools != null) tools.gameObject.SetActive(on);
+        if (tools == null) return;
+        if (on)
+        {
+            tools.gameObject.SetActive(true);
+            tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
+            tools.localScale = Vector3.one;
+            SwingSleeve(true);
+        }
+        else if (hasShelf)
+        {
+            tools.gameObject.SetActive(true);
+            tools.position = new Vector3(shelf.center.x, shelf.max.y + 0.002f, shelf.center.z);
+            tools.localScale = Vector3.one * 0.72f;
+        }
+        else tools.gameObject.SetActive(false);
+    }
+
+    public void SwingSleeve(bool away) { sleeveTarget = away ? sleeveSwing : 0f; }
+    public void ToggleSleeve() { SwingSleeve(sleeveTarget == 0f); }
+
+    // The sleeve board stands on a swing arm: find the board + its arm, and rotate them around the arm's end.
+    void BuildSleeve()
+    {
+        Transform sleeve = PM_Util.FindDeep(Table, SleevePart);
+        if (sleeve == null) return;
+        Bounds sb = PM_Util.WorldBounds(sleeve);
+        Bounds probe = sb; probe.Expand(0.05f);
+        var group = new List<Transform> { sleeve };
+        Bounds armB = new Bounds(); bool hasArm = false;
+        foreach (MeshRenderer r in Table.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            Transform t = r.transform;
+            if (t == sleeve || t.IsChildOf(sleeve) || (Iron != null && t.IsChildOf(Iron.transform))) continue;
+            string n = r.name;
+            if (n == BoardPart || n == RestPart || n.StartsWith("Box") || n.StartsWith("PM_")) continue;
+            Bounds b = r.bounds;
+            if (b.size.magnitude > 1.2f || !b.Intersects(probe)) continue;
+            group.Add(t);
+            if (!hasArm) { armB = b; hasArm = true; } else armB.Encapsulate(b);
+        }
+        // Pivot: the end of the arm farthest from the sleeve board (where it is mounted).
+        Vector3 pivot = sb.center;
+        Bounds pb = hasArm ? armB : sb;
+        float far = -1f;
+        for (int i = 0; i < 4; i++)
+        {
+            Vector3 c = new Vector3((i & 1) == 0 ? pb.min.x : pb.max.x, pb.center.y, (i & 2) == 0 ? pb.min.z : pb.max.z);
+            float d = new Vector2(c.x - sb.center.x, c.z - sb.center.z).sqrMagnitude;
+            if (d > far) { far = d; pivot = Vector3.Lerp(c, pb.center, 0.1f); }
+        }
+        SleevePivot = new GameObject("SleeveSwing").transform;
+        SleevePivot.SetParent(Table, true);
+        SleevePivot.position = new Vector3(pivot.x, sb.center.y, pivot.z);
+        SleevePivot.rotation = Table.rotation;
+        foreach (Transform t in group) t.SetParent(SleevePivot, true);
+        // Swing to the side that takes the sleeve board away from the main board.
+        Vector3 toS = sb.center - SleevePivot.position; toS.y = 0;
+        Vector3 toB = BoardCenter - SleevePivot.position; toB.y = 0;
+        float plus = Vector3.Distance(Quaternion.Euler(0, 75f, 0) * toS, toB), minus = Vector3.Distance(Quaternion.Euler(0, -75f, 0) * toS, toB);
+        sleeveSwing = plus > minus ? 75f : -75f;
+        // Glowing knob at the free end: click = swing the sleeve board away / back.
+        var knob = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        knob.name = "PM_SleeveKnob";
+        knob.transform.SetParent(SleevePivot, false);
+        knob.transform.position = SleevePivot.position + toS * 1.0f + Vector3.up * (sb.extents.y + 0.03f);
+        knob.transform.localScale = Vector3.one * 0.045f;
+        knob.GetComponent<Renderer>().material = PM_Util.NeonMaterial(PM_Util.Violet, 1.5f);
+        PM_Clickable.Add(knob, ToggleSleeve);
+        Debug.Log("[PM] Шарнир шарвулона: " + group.Count + " деталей.");
     }
 
     // Where a point of light should float for the given parts.
@@ -587,6 +672,12 @@ public class PM_Station : MonoBehaviour
             float k = !Powered ? 0.05f : (Mode == m ? (IronReady ? 3.5f : 0.4f + 3.2f * Mathf.Abs(Mathf.Sin(Time.time * 4f))) : 0.6f);
             capMats[m].SetColor("_EmissionColor", c * k);
             capMats[m].SetColor("_BaseColor", c * (Powered ? 0.35f : 0.08f));
+        }
+        if (SleevePivot != null && !Mathf.Approximately(sleeveAngle, sleeveTarget))
+        {
+            float prev = sleeveAngle;
+            sleeveAngle = Mathf.MoveTowards(sleeveAngle, sleeveTarget, Time.deltaTime * 90f);
+            SleevePivot.Rotate(0, sleeveAngle - prev, 0, Space.World);
         }
         // Temperature numbers: the selected one is bigger; on selection it flashes white and pops.
         for (int m = 1; m <= 3; m++)

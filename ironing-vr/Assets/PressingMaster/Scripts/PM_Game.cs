@@ -85,7 +85,7 @@ public class PM_Game : MonoBehaviour
         card.gameObject.SetActive(false);
         // Dress form (tailor's mannequin) front-left of the player; it comes closer for the steaming task.
         formHome = station.PlayerPos + station.Forward * 1.3f - station.Right * 1.35f;
-        formTask = station.PlayerPos + station.Forward * 0.4f - station.Right * 0.75f;
+        formTask = station.PlayerPos + station.Forward * 0.5f - station.Right * 1.05f;
         form = PM_Garment.Show("mannequin", formHome, 1.6f, station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
         if (form != null)
         {
@@ -266,7 +266,10 @@ public class PM_Game : MonoBehaviour
             Btn(PM_Content.BodyLabels[0], () => PM_Avatar.ChooseBody(0)), Btn(PM_Content.BodyLabels[1], () => PM_Avatar.ChooseBody(1)));
         var outfits = new List<KeyValuePair<string, Action>>();
         for (int i = 0; i < 4; i++) { int k = i; outfits.Add(Btn(PM_Content.OutfitLabels[i], () => PM_Avatar.ChooseOutfit(k))); }
-        panel.SetButtonGrid(4, -1, 0.22f, -0.13f, true, outfits.ToArray());
+        panel.SetButtonGrid(4, -1, 0.22f, -0.11f, true, outfits.ToArray());
+        var shoes = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 3; i++) { int k = i; shoes.Add(Btn(PM_Content.ShoeLabels[i], () => PM_Avatar.ChooseShoes(k))); }
+        panel.SetButtonGrid(3, -1, 0.26f, -0.22f, true, shoes.ToArray());
         panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnHands, ShowAvatarChoice), Btn(PM_Content.BtnContinue, ShowMenu));
         AvatarPreview(2);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar_body");
@@ -374,7 +377,8 @@ public class PM_Game : MonoBehaviour
             List<Transform> parts = station.Targets(info.target);
             if (parts.Count == 0) { Debug.LogWarning("[PM] Нет деталей для точки " + info.id); continue; }
             Vector3 pos = station.AnchorPoint(info.anchor, parts);
-            Transform parent = info.target == PM_Target.Iron && station.Iron != null ? station.Iron.transform : station.Table;
+            Transform parent = info.target == PM_Target.Iron && station.Iron != null ? station.Iron.transform
+                             : info.target == PM_Target.SleeveBoard && station.SleevePivot != null ? station.SleevePivot : station.Table;
             stationHs.Add(MakeHotspot(info, pos, parent, parts));
         }
         foreach (PM_HotspotInfo info in PM_Content.ToolHotspots())
@@ -730,15 +734,84 @@ public class PM_Game : MonoBehaviour
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
     }
 
-    // Wrinkled shirt front on the dress form, standing upright and facing the player.
+    // A wrinkled cotton dress worn by the dress form: fitted to the form's torso, flared skirt below.
     void SpawnFormFabric(PM_FabricType t)
     {
         RemoveFabric();
         if (form == null) return;
-        Vector3 toPlayer = station.PlayerPos - formTask; toPlayer.y = 0; toPlayer.Normalize();
-        Vector3 c = formTask + Vector3.up * 1.12f + toPlayer * 0.12f;
-        // The fabric's normal (local Y) faces the player, its length (local Z) goes up.
-        fabric = PM_Fabric.Create(PM_Content.Fabric(t), c, Quaternion.LookRotation(Vector3.up, toPlayer), null, 57, 0.34f, 0.5f, 0.07f);
+        Vector3 fwd = station.PlayerPos - formTask; fwd.y = 0; fwd.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, fwd);
+        // Measure the form: half width (along right) and half depth (along fwd) in 24 height bands.
+        const int Bands = 24;
+        var rx = new float[Bands]; var rz = new float[Bands];
+        Bounds fb = PM_Util.WorldBounds(form.transform);
+        Vector3 axis = fb.center;
+        bool measured = false;
+        foreach (MeshFilter mf in form.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null || !mf.sharedMesh.isReadable) continue;
+            measured = true;
+            Vector3[] vs = mf.sharedMesh.vertices;
+            Transform tr = mf.transform;
+            for (int i = 0; i < vs.Length; i++)
+            {
+                Vector3 p = tr.TransformPoint(vs[i]);
+                int bi = Mathf.Clamp(Mathf.FloorToInt((p.y - fb.min.y) / fb.size.y * Bands), 0, Bands - 1);
+                Vector3 d = p - axis;
+                rx[bi] = Mathf.Max(rx[bi], Mathf.Abs(Vector3.Dot(d, right)));
+                rz[bi] = Mathf.Max(rz[bi], Mathf.Abs(Vector3.Dot(d, fwd)));
+            }
+        }
+        if (!measured)   // mesh not readable: use the outer size of the form for the upper half
+            for (int i = Bands / 2; i < Bands; i++) { rx[i] = fb.extents.x * 0.8f; rz[i] = fb.extents.z * 0.8f; }
+        // Torso = the upper bands that are wide (the pole and the stand are thin).
+        int top = Bands - 1, bottom = Bands - 1;
+        while (top > 0 && rx[top] < 0.07f) top--;
+        bottom = top;
+        while (bottom > 0 && rx[bottom - 1] > 0.07f) bottom--;
+        float band = fb.size.y / Bands;
+        // The form's mesh is coarse: smooth the radii (max of neighbours, then average) so the dress has no rings.
+        rx = SmoothProfile(rx); rz = SmoothProfile(rz);
+        float yTop = fb.min.y + (top + 0.6f) * band, yTorso = fb.min.y + bottom * band;
+        if (top - bottom < 3) { yTop = fb.min.y + fb.size.y * 0.92f; yTorso = fb.min.y + fb.size.y * 0.55f; }
+        float yHem = Mathf.Max(fb.min.y + 0.1f, yTorso - 0.38f);
+        float rxT = Mathf.Max(0.09f, rx[Mathf.Max(bottom, 0)]), rzT = Mathf.Max(0.07f, rz[Mathf.Max(bottom, 0)]);
+        System.Func<float, float, Vector3> shape = (u, w) =>
+        {
+            float y = Mathf.Lerp(yHem, yTop, w);
+            float ax, az;
+            if (y >= yTorso)
+            {
+                int bi = Mathf.Clamp(Mathf.FloorToInt((y - fb.min.y) / band), 0, Bands - 1);
+                ax = Mathf.Max(rx[bi], 0.06f) * 1.06f + 0.012f;
+                az = Mathf.Max(rz[bi], 0.05f) * 1.06f + 0.012f;
+                // Narrow shoulders at the very top (the neckline stays open).
+                float k = Mathf.InverseLerp(yTop - 0.05f, yTop, y);
+                ax = Mathf.Lerp(ax, ax * 0.75f, k); az = Mathf.Lerp(az, az * 0.7f, k);
+            }
+            else
+            {
+                float f = (yTorso - y) / Mathf.Max(0.01f, yTorso - yHem);   // skirt flares out
+                ax = (rxT * 1.06f + 0.012f) + f * 0.13f;
+                az = (rzT * 1.06f + 0.012f) + f * 0.11f;
+            }
+            float a = u * Mathf.PI * 2f;
+            Vector3 world = new Vector3(axis.x, y, axis.z) + right * (Mathf.Cos(a) * ax) + fwd * (Mathf.Sin(a) * az);
+            return world - new Vector3(axis.x, 0f, axis.z);
+        };
+        PM_FabricInfo info = PM_Content.Fabric(t).Clone();
+        info.color = new Color(0.55f, 0.72f, 0.92f);   // light blue summer dress
+        float circ = Mathf.PI * (rxT + rzT) * 1.2f;
+        fabric = PM_Fabric.CreateShaped(info, new Vector3(axis.x, 0f, axis.z), shape, circ, yTop - yHem, 57);
+    }
+
+    static float[] SmoothProfile(float[] a)
+    {
+        int n = a.Length;
+        var m = new float[n]; var r = new float[n];
+        for (int i = 0; i < n; i++) m[i] = Mathf.Max(a[Mathf.Max(0, i - 1)], Mathf.Max(a[i], a[Mathf.Min(n - 1, i + 1)]));
+        for (int i = 0; i < n; i++) r[i] = (m[Mathf.Max(0, i - 1)] + m[i] + m[Mathf.Min(n - 1, i + 1)]) / 3f;
+        return r;
     }
 
     // Vertical steaming: steam from 1–6 cm smooths the garment; touching it does nothing (and is wrong).

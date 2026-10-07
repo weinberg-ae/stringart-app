@@ -19,15 +19,22 @@ public static class PM_Avatar
 
     static readonly Color[] Tones = { new Color(0.96f, 0.80f, 0.69f), new Color(0.87f, 0.67f, 0.53f), new Color(0.70f, 0.50f, 0.36f), new Color(0.42f, 0.28f, 0.20f) };
     static readonly string[] TattooNames = { null, "tattoo_needle", "tattoo_flower", "tattoo_geo" };
-    static readonly Color[,] Outfits =
+    // Outfits: shirt texture + tint, trousers texture + tint (textures: Resources/PM_Avatar/tex_*.png)
+    static readonly string[] ShirtTex = { "tex_knit", "tex_knit", "tex_plaid", "tex_knit" };
+    static readonly string[] PantsTex = { "tex_chino", "tex_denim", "tex_chino", "tex_denim" };
+    static readonly Color[] ShirtTint = { new Color(0.24f, 0.24f, 0.27f), new Color(0.96f, 0.96f, 0.97f), Color.white, new Color(0.55f, 0.1f, 0.18f) };
+    static readonly Color[] PantsTint = { new Color(0.22f, 0.22f, 0.24f), Color.white, new Color(0.2f, 0.2f, 0.22f), Color.white };
+    // Shoes: upper, sole, accent (laces / stripe / buckle)
+    static readonly string[] ShoeKeys = { "shoes_sneaker", "shoes_boot", "shoes_classic" };
+    static readonly Color[,] ShoeCols =
     {
-        { new Color(0.10f, 0.10f, 0.12f), new Color(0.16f, 0.17f, 0.20f) },
-        { new Color(0.92f, 0.92f, 0.94f), new Color(0.20f, 0.22f, 0.30f) },
-        { new Color(0.45f, 0.08f, 0.15f), new Color(0.12f, 0.12f, 0.14f) },
-        { new Color(0.35f, 0.50f, 0.70f), new Color(0.18f, 0.28f, 0.48f) },
+        { new Color(0.95f, 0.95f, 0.96f), new Color(0.85f, 0.86f, 0.88f), new Color(0.1f, 0.95f, 1f) },
+        { new Color(0.45f, 0.27f, 0.14f), new Color(0.12f, 0.1f, 0.09f), new Color(0.78f, 0.62f, 0.4f) },
+        { new Color(0.07f, 0.07f, 0.08f), new Color(0.22f, 0.13f, 0.07f), new Color(0.8f, 0.8f, 0.82f) },
     };
+    public static int Shoes { get; private set; }
 
-    static Material skin, nail, shirt, pants, shoes, apron, hair, eyes, holo;
+    static Material skin, nail, shirt, pants, shoes, apron, hair, eyes, holo, sleeve, shoeUpper, shoeSole, shoeAccent;
     static PM_Hand leftHand, rightHand;
     static PM_Body body;
     static Transform preview;
@@ -40,7 +47,12 @@ public static class PM_Avatar
         shirt = Lit(Color.gray, 0.2f);
         pants = Lit(Color.gray, 0.15f);
         shoes = Lit(new Color(0.05f, 0.05f, 0.06f), 0.55f);
+        sleeve = Lit(Color.gray, 0.2f);
+        shoeUpper = Lit(Color.white, 0.45f);
+        shoeSole = Lit(Color.gray, 0.2f);
+        shoeAccent = Lit(Color.white, 0.5f);
         apron = Lit(new Color(0.07f, 0.24f, 0.29f), 0.3f);
+        Tex(apron, "tex_canvas", 1f);
         hair = Lit(new Color(0.25f, 0.16f, 0.09f), 0.35f);
         eyes = Lit(new Color(0.07f, 0.07f, 0.09f), 0.9f);
         holo = PM_Util.TransparentMaterial(new Color(0.3f, 0.95f, 1f, 0.35f));
@@ -50,6 +62,7 @@ public static class PM_Avatar
         Hologram = PlayerPrefs.GetInt("PM_Holo", 0) == 1;
         BodyType = Mathf.Clamp(PlayerPrefs.GetInt("PM_Body", 0), 0, 1);
         Outfit = Mathf.Clamp(PlayerPrefs.GetInt("PM_Outfit", 0), 0, 3);
+        Shoes = Mathf.Clamp(PlayerPrefs.GetInt("PM_Shoes", 0), 0, 2);
         ApplyMaterials();
         rig = new GameObject("PM_AvatarRig").AddComponent<PM_AvatarRig>();
     }
@@ -65,6 +78,15 @@ public static class PM_Avatar
 
     static void SetColor(Material m, Color c) { m.SetColor("_BaseColor", c); m.SetColor("_Color", c); }
 
+    static void Tex(Material m, string name, float tiling)
+    {
+        Texture2D t = Resources.Load<Texture2D>("PM_Avatar/" + name);
+        if (t == null) return;
+        t.wrapMode = TextureWrapMode.Repeat;
+        m.SetTexture("_BaseMap", t); m.SetTexture("_MainTex", t);
+        m.SetTextureScale("_BaseMap", new Vector2(tiling, tiling)); m.SetTextureScale("_MainTex", new Vector2(tiling, tiling));
+    }
+
     static void ApplyMaterials()
     {
         Color tone = Tones[Tone];
@@ -75,12 +97,21 @@ public static class PM_Avatar
         skin.SetTexture("_MainTex", tex != null ? tex : Texture2D.whiteTexture);
         if (HandType == 1) { SetColor(nail, new Color(0.72f, 0.08f, 0.24f)); nail.SetFloat("_Smoothness", 0.9f); }
         else { SetColor(nail, Color.Lerp(tone, new Color(1f, 0.82f, 0.82f), 0.45f)); nail.SetFloat("_Smoothness", 0.6f); }
-        SetColor(shirt, Outfits[Outfit, 0]);
-        SetColor(pants, Outfits[Outfit, 1]);
+        SetColor(shirt, ShirtTint[Outfit]); Tex(shirt, ShirtTex[Outfit], 1f);
+        SetColor(sleeve, ShirtTint[Outfit]); Tex(sleeve, ShirtTex[Outfit], 2.5f);   // arm tubes: unit UVs, so tile more
+        SetColor(pants, PantsTint[Outfit]); Tex(pants, PantsTex[Outfit], 1f);
+        SetColor(shoeUpper, ShoeCols[Shoes, 0]); SetColor(shoeSole, ShoeCols[Shoes, 1]); SetColor(shoeAccent, ShoeCols[Shoes, 2]);
+        Tex(shoeUpper, Shoes == 0 ? "tex_canvas" : "tex_leather", 2f);
+        shoeUpper.SetFloat("_Smoothness", Shoes == 2 ? 0.85f : 0.4f);
+        if (Shoes == 0) { shoeAccent.EnableKeyword("_EMISSION"); shoeAccent.SetColor("_EmissionColor", PM_Util.Cyan * 0.8f); }
+        else { shoeAccent.DisableKeyword("_EMISSION"); shoeAccent.SetColor("_EmissionColor", Color.black); }
+        shoeAccent.SetFloat("_Metallic", Shoes == 2 ? 0.8f : 0f);
     }
 
     public static Material[] HandMaterials() { return Hologram ? new[] { holo, holo } : new[] { skin, nail }; }
-    public static Material ShirtMaterial() { return Hologram ? holo : shirt; }
+    public static Material ShirtMaterial() { return Hologram ? holo : sleeve; }
+    public static Material[] ShoeMaterials() { return Hologram ? new[] { holo, holo, holo } : new[] { shoeUpper, shoeSole, shoeAccent }; }
+    public static string ShoeKey() { return ShoeKeys[Shoes]; }
     // Body submeshes: 0 skin, 1 shirt, 2 pants, 3 shoes, 4 apron, 5 hair, 6 eyes
     public static Material[] BodyMaterials()
     {
@@ -101,11 +132,12 @@ public static class PM_Avatar
     public static void ChooseTattoo(int t) { Tattoo = Mathf.Clamp(t, 0, 3); Save(); }
     public static void ChooseBody(int b) { BodyType = Mathf.Clamp(b, 0, 1); Save(); }
     public static void ChooseOutfit(int o) { Outfit = Mathf.Clamp(o, 0, 3); Save(); }
+    public static void ChooseShoes(int o) { Shoes = Mathf.Clamp(o, 0, 2); Save(); }
 
     static void Save()
     {
         PlayerPrefs.SetInt("PM_Hand", HandType); PlayerPrefs.SetInt("PM_Tone", Tone); PlayerPrefs.SetInt("PM_Tattoo", Tattoo);
-        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit);
+        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes);
         ApplyMaterials();
         if (rig != null) rig.Rebuild();
         RefreshPreview();
@@ -417,6 +449,8 @@ public class PM_Body : MonoBehaviour
         Material[] mats = PM_Avatar.BodyMaterials();
         if (b != null) Part(parent, "Body", b, mats, 0);
         if (h != null) Part(parent, "Head", h, mats, headVisible ? 0 : PM_Avatar.MirrorLayer);
+        Mesh sh2 = Load(PM_Avatar.ShoeKey(), out float ___, out Vector3 ____);
+        if (sh2 != null) Part(parent, "Shoes", sh2, PM_Avatar.ShoeMaterials(), 0);
         return eye;
     }
 
@@ -449,7 +483,7 @@ public class PM_Body : MonoBehaviour
         TextAsset ta = Resources.Load<TextAsset>("PM_Avatar/" + name);
         if (ta == null) { Debug.LogWarning("[PM] Нет файла аватара: " + name); return null; }
         var r = new System.IO.BinaryReader(new System.IO.MemoryStream(ta.bytes));
-        r.ReadInt32();
+        bool hasUV = r.ReadInt32() == 0x504D4D32;   // version 2 files carry texture coordinates
         int vc = r.ReadInt32(), ns = r.ReadInt32();
         eye = r.ReadSingle();
         shoulder = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
@@ -458,9 +492,12 @@ public class PM_Body : MonoBehaviour
         var v = new Vector3[vc]; var n = new Vector3[vc];
         for (int i = 0; i < vc; i++) v[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
         for (int i = 0; i < vc; i++) n[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+        Vector2[] uv = null;
+        if (hasUV) { uv = new Vector2[vc]; for (int i = 0; i < vc; i++) uv[i] = new Vector2(r.ReadSingle(), r.ReadSingle()); }
         m = new Mesh { name = name };
         if (vc > 65000) m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         m.vertices = v; m.normals = n;
+        if (uv != null) m.uv = uv;
         var white = new Color32[vc];
         for (int i = 0; i < vc; i++) white[i] = new Color32(255, 255, 255, 255);
         m.colors32 = white;

@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using Unity.XR.CoreUtils;
 
 // The professional iron: grab with Grip, steam with Trigger, returns to its rest when released.
 // It is a physical body while held (velocity tracking): it lies ON the board and the fabric, it does not pass through.
@@ -21,9 +23,13 @@ public class PM_Iron : MonoBehaviour
 
     public System.Action onGrab;
     public static Transform CurrentHolder { get; private set; }   // the hand (interactor) holding the iron
+    public static PM_Iron Instance { get; private set; }
+    public static bool HandNear { get; private set; }             // a hand is close: points of light step aside
     public float heat;                     // 0..1 set by the station (temperature button)
     Material soleMat;
     float hapticTimer, secondPulse = -1f;
+    readonly bool[] gripWas = new bool[2];
+    Transform[] controllers;
     float desktopUntil = -1f;
     bool desktopHolding;
 
@@ -92,6 +98,7 @@ public class PM_Iron : MonoBehaviour
             if (!cc.gameObject.scene.IsValid()) continue;
             foreach (Collider c in GetComponentsInChildren<Collider>(true)) Physics.IgnoreCollision(c, cc);
         }
+        grab.interactionLayers = -1;   // any hand / any interactor may take the iron
         grab.selectEntered.AddListener(OnGrab);
         grab.selectExited.AddListener(OnRelease);
         grab.activated.AddListener(a => TriggerDown = true);
@@ -219,8 +226,71 @@ public class PM_Iron : MonoBehaviour
     public Vector3 SoleWorld { get { return transform.TransformPoint(localSole); } }
     public Vector3 DownWorld { get { return transform.TransformDirection(localDown); } }
 
+    // Backup grab: Grip pressed with the hand close to the iron takes it, even if the hand's own
+    // detection missed it (the console tells which interactor was used).
+    void ManualGrab()
+    {
+        Instance = this;
+        HandNear = false;
+        if (!UnityEngine.XR.XRSettings.isDeviceActive) return;
+        if (controllers == null || controllers[0] == null || controllers[1] == null) controllers = FindControllers();
+        if (controllers == null) return;
+        Bounds b = PM_Util.WorldBounds(transform);
+        foreach (Transform c in controllers)
+            if (c != null && Vector3.Distance(b.ClosestPoint(c.position), c.position) < 0.25f) HandNear = true;
+        if (Held) return;
+        for (int i = 0; i < 2; i++)
+        {
+            var dev = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(i == 0 ? UnityEngine.XR.XRNode.LeftHand : UnityEngine.XR.XRNode.RightHand);
+            float g = 0f;
+            bool down = dev.isValid && dev.TryGetFeatureValue(UnityEngine.XR.CommonUsages.grip, out g) && g > 0.6f;
+            bool pressed = down && !gripWas[i];
+            gripWas[i] = down;
+            if (!pressed || controllers[i] == null) continue;
+            float dist = Vector3.Distance(b.ClosestPoint(controllers[i].position), controllers[i].position);
+            if (dist > 0.14f) continue;
+            XRBaseInteractor best = null;
+            int bestScore = -1;
+            foreach (XRBaseInteractor it in controllers[i].GetComponentsInChildren<XRBaseInteractor>(false))
+            {
+                if (!it.isActiveAndEnabled) continue;
+                string n = it.GetType().Name + " " + it.name;
+                if (n.Contains("Teleport") || n.Contains("Poke") || n.Contains("Socket")) continue;
+                int score = n.Contains("NearFar") || n.Contains("Direct") ? 2 : n.Contains("Ray") ? 1 : 0;
+                if (score > bestScore) { bestScore = score; best = it; }
+            }
+            if (best == null || grab.interactionManager == null)
+            {
+                Debug.LogWarning("[PM] Grip рядом с утюгом, но в руке нет подходящего Interactor — утюг не взят.");
+                continue;
+            }
+            Debug.Log("[PM] Утюг взят рукой через " + best.GetType().Name + " (" + best.name + ")");
+            grab.interactionManager.SelectEnter((UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor)best, (UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)grab);
+        }
+    }
+
+    static Transform[] FindControllers()
+    {
+        XROrigin origin = FindAnyObjectByType<XROrigin>();
+        if (origin == null || origin.CameraFloorOffsetObject == null) return null;
+        Transform offset = origin.CameraFloorOffsetObject.transform;
+        var res = new Transform[2];
+        for (int k = 0; k < offset.childCount; k++)
+        {
+            Transform c = offset.GetChild(k);
+            if (!c.gameObject.activeInHierarchy) continue;
+            string n = c.name.ToLower();
+            if (!n.Contains("controller") && !n.Contains("hand")) continue;
+            int side = n.Contains("left") ? 0 : n.Contains("right") ? 1 : -1;
+            if (side < 0) continue;
+            if (res[side] == null || c.name.Length < res[side].name.Length) res[side] = c;
+        }
+        return res;
+    }
+
     void Update()
     {
+        ManualGrab();
         // Hot soleplate glow (orange -> white-hot with temperature).
         if (soleMat != null)
         {

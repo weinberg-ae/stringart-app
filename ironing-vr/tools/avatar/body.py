@@ -10,15 +10,18 @@ def groups_body(woman):
     s = 0.95 if woman else 1.0
     def Y(y): return y * s
     sh = 0.165 if woman else 0.19
-    def shoes(p):
-        return np.minimum(ellipsoid(p, (-0.1, Y(0.045), 0.04), (0.05, 0.045, 0.13)), ellipsoid(p, (0.1, Y(0.045), 0.04), (0.05, 0.045, 0.13)))
     def pants(p):
+        # Natural legs: full thigh, narrower knee, calf muscle at the back, slim ankle; trousers end at the shoe.
         d = 9.0
-        for x in (-0.1, 0.1):
-            hx = x * (1.05 if woman else 0.95)
-            d = np.minimum(d, capsule(p, (x, Y(0.09), 0.0), (x, Y(0.50), 0.01), 0.052, 0.062))
-            d = smin(d, capsule(p, (x, Y(0.50), 0.01), (hx, Y(0.90), 0.0), 0.062, 0.088 if woman else 0.082), 0.03)
-        d = smin(d, ellipsoid(p, (0, Y(0.95), 0), (0.18 if woman else 0.165, 0.12, 0.115 if woman else 0.105)), 0.04)
+        for x in (-0.095, 0.095):
+            hx = x * (1.08 if woman else 1.0)
+            leg = capsule(p, (hx, Y(0.90), 0.0), (x, Y(0.52), 0.012), 0.088 if woman else 0.085, 0.056)
+            leg = smin(leg, capsule(p, (x, Y(0.52), 0.012), (x, Y(0.11), 0.0), 0.054, 0.042), 0.03)
+            leg = smin(leg, ellipsoid(p, (x, Y(0.36), -0.012), (0.056, 0.12, 0.06)), 0.03)        # calf
+            leg = smin(leg, ellipsoid(p, (x, Y(0.72), 0.01), (0.078 if woman else 0.074, 0.17, 0.08)), 0.04)  # thigh
+            d = np.minimum(d, leg)
+        d = smin(d, ellipsoid(p, (0, Y(0.95), -0.005), (0.18 if woman else 0.165, 0.12, 0.118 if woman else 0.105)), 0.04)
+        d = smin(d, ellipsoid(p, (0, Y(0.9), -0.05), (0.15 if woman else 0.13, 0.09, 0.07)), 0.03)    # seat
         return d
     def shirt(p):
         d = ellipsoid(p, (0, Y(1.08), 0), (0.125, 0.12, 0.09) if woman else (0.15, 0.12, 0.10))
@@ -46,7 +49,7 @@ def groups_body(woman):
         band = np.maximum(np.abs((np.sqrt((x / ba) ** 2 + (z / bb) ** 2) - 1) * bb) - 0.005, np.abs(y - Y(1.04)) - 0.017)
         d = np.minimum(d, band)
         return d
-    g[0] = neck; g[1] = shirt; g[2] = pants; g[3] = shoes; g[4] = apron
+    g[0] = neck; g[1] = shirt; g[2] = pants; g[4] = apron
     eye = Y(1.60); shoulders = (sh + 0.02, Y(1.40), -0.005)
     return g, eye, shoulders
 
@@ -97,12 +100,20 @@ def build(groups, lo, hi, step):
     subs = [faces[tri_lab == i].ravel() for i in range(NSUB)]
     return v, n, faces, tri_lab, subs
 
+def box_uv(v, n, scale=4.0):
+    # Box projection by the main direction of the normal (fabric textures repeat every 25 cm).
+    a = np.abs(n); uv = np.zeros((len(v), 2), np.float32)
+    mx = (a[:, 0] >= a[:, 1]) & (a[:, 0] >= a[:, 2]); my = (a[:, 1] > a[:, 0]) & (a[:, 1] >= a[:, 2]); mz = ~(mx | my)
+    uv[mx] = v[mx][:, [2, 1]]; uv[my] = v[my][:, [0, 2]]; uv[mz] = v[mz][:, [0, 1]]
+    return uv * scale
+
 def save(name, v, n, subs, extra):
+    uv = box_uv(v, n)
     with open(os.path.join(OUT, name + '.bytes'), 'wb') as fh:
-        fh.write(struct.pack('<3i', 0x504D4D31, len(v), NSUB))
+        fh.write(struct.pack('<3i', 0x504D4D32, len(v), len(subs)))
         fh.write(struct.pack('<%df' % len(extra), *extra))
-        fh.write(struct.pack('<%di' % NSUB, *[len(s) for s in subs]))
-        fh.write(v.astype('<f4').tobytes()); fh.write(n.astype('<f4').tobytes())
+        fh.write(struct.pack('<%di' % len(subs), *[len(s) for s in subs]))
+        fh.write(v.astype('<f4').tobytes()); fh.write(n.astype('<f4').tobytes()); fh.write(uv.astype('<f4').tobytes())
         for s in subs: fh.write(s.astype('<i4').tobytes())
 
 COL = np.array([[0.93, 0.76, 0.64], [0.15, 0.15, 0.18], [0.25, 0.27, 0.35], [0.08, 0.08, 0.08], [0.1, 0.35, 0.45], [0.35, 0.22, 0.12], [0.1, 0.1, 0.1]])

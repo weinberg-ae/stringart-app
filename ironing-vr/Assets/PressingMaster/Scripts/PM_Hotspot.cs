@@ -7,6 +7,7 @@ using UnityEngine;
 // to open an info card. Turns green after it was opened.
 public class PM_Hotspot : MonoBehaviour
 {
+    Collider hitCollider;
     public PM_HotspotInfo info;
     public List<Transform> parts;           // model parts to glow while the card is open
     public bool Visited { get; private set; }
@@ -37,6 +38,7 @@ public class PM_Hotspot : MonoBehaviour
         phase = UnityEngine.Random.value * 6f;
         Color acc = info.accent;
         var sc = gameObject.AddComponent<SphereCollider>();
+        hitCollider = sc;
         sc.radius = info.isFiber ? 0.2f : 0.055f;
 
         visual = new GameObject("Visual").transform;
@@ -104,6 +106,12 @@ public class PM_Hotspot : MonoBehaviour
 
     void Update()
     {
+        // While a hand reaches for the iron, points of light around it do not catch the Grip.
+        if (hitCollider != null)
+        {
+            bool block = PM_Iron.HandNear && PM_Iron.Instance != null && Vector3.Distance(transform.position, PM_Iron.Instance.transform.position) < 0.45f;
+            hitCollider.enabled = !block;
+        }
         Camera cam = Camera.main;
         if (info.isFiber)
         {

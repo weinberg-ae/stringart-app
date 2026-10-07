@@ -9,6 +9,7 @@ public class PM_Fabric : MonoBehaviour
     public PM_FabricInfo info;
     public float sizeX = 0.5f, sizeZ = 0.38f;   // meters
     public float dome = 0f;                      // height of a hump (fabric lying on a tailor's ham)
+    public System.Func<float, float, Vector3> shape;   // optional surface (u, w) -> local position (a dress on the dress form)
 
     public float Progress { get; private set; }  // 0..1
     public float Damage { get; private set; }    // 0..1 (scorch / melt / spots)
@@ -42,11 +43,24 @@ public class PM_Fabric : MonoBehaviour
         return f;
     }
 
+    // A garment of any shape: shape(u, w) gives the local position (u around, w up). sx, sz = size for the iron radius.
+    public static PM_Fabric CreateShaped(PM_FabricInfo info, Vector3 origin, System.Func<float, float, Vector3> shape, float sx, float sz, int seed)
+    {
+        var go = new GameObject("PM_Fabric_" + info.type);
+        go.transform.position = origin;
+        var f = go.AddComponent<PM_Fabric>();
+        f.info = info;
+        f.sizeX = sx; f.sizeZ = sz;
+        f.shape = shape;
+        f.Build(seed);
+        return f;
+    }
+
     void Build(int seed)
     {
-        // Mesh: flat quad, slightly bigger in the middle to look like cloth.
+        // Mesh: flat quad, slightly bigger in the middle to look like cloth (or the given garment shape).
         var mesh = new Mesh();
-        int n = 16;
+        int n = shape != null ? 40 : 16;
         var v = new Vector3[(n + 1) * (n + 1)];
         var uv = new Vector2[v.Length];
         var tri = new int[n * n * 6];
@@ -56,7 +70,7 @@ public class PM_Fabric : MonoBehaviour
                 float u = x / (float)n, w = z / (float)n;
                 float du = (u - 0.5f) * 2f, dw = (w - 0.5f) * 2f;
                 float y = dome * (1f - du * du) * (1f - dw * dw);
-                v[z * (n + 1) + x] = new Vector3((u - 0.5f) * sizeX, y, (w - 0.5f) * sizeZ);
+                v[z * (n + 1) + x] = shape != null ? shape(u, w) : new Vector3((u - 0.5f) * sizeX, y, (w - 0.5f) * sizeZ);
                 uv[z * (n + 1) + x] = new Vector2(u, w);
             }
         int k = 0;
@@ -71,6 +85,19 @@ public class PM_Fabric : MonoBehaviour
         mesh.uv = uv;
         mesh.triangles = tri;
         mesh.RecalculateNormals();
+        if (shape != null)
+        {
+            // Normals must point out of the garment: flip the triangles if they point inwards.
+            Vector3[] nr = mesh.normals;
+            float dot = 0f;
+            for (int i = 0; i < v.Length; i++) dot += Vector3.Dot(nr[i], new Vector3(v[i].x, 0f, v[i].z));
+            if (dot < 0f)
+            {
+                for (int i = 0; i < tri.Length; i += 3) { int t = tri[i + 1]; tri[i + 1] = tri[i + 2]; tri[i + 2] = t; }
+                mesh.triangles = tri;
+                mesh.RecalculateNormals();
+            }
+        }
         mesh.RecalculateTangents();
         mesh.RecalculateBounds();
         gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
