@@ -21,8 +21,8 @@ public class PM_Hose : MonoBehaviour
         h.anchor = table.InverseTransformPoint(anchorWorld);
         h.length = Vector3.Distance(anchorWorld, ironEndWorld) * 1.25f + 0.35f;
         var pts = new Vector3[Segments];
-        h.core = PM_Util.Line(go.transform, "Hose", pts, new Color(0.11f, 0.12f, 0.14f), 0.017f, false);
-        h.shine = PM_Util.Line(go.transform, "HoseShine", pts, new Color(0.45f, 0.5f, 0.58f, 0.55f), 0.005f, false);
+        h.core = PM_Util.Line(go.transform, "Hose", pts, new Color(0.32f, 0.34f, 0.4f), 0.022f, false);
+        h.shine = PM_Util.Line(go.transform, "HoseShine", pts, new Color(0.1f, 0.95f, 1f, 0.7f), 0.005f, false);   // neon line along the hose
         h.core.useWorldSpace = true;
         h.shine.useWorldSpace = true;
         h.core.numCapVertices = 4;

@@ -29,7 +29,7 @@ def groups_body(woman):
         d = smin(d, capsule(p, (-sh, Y(1.415), -0.005), (sh, Y(1.415), -0.005), 0.06, 0.06), 0.06)
         if woman:
             for x in (-0.06, 0.06):
-                d = smin(d, ellipsoid(p, (x, Y(1.285), 0.07), (0.065, 0.06, 0.055)), 0.03)
+                d = smin(d, ellipsoid(p, (x, Y(1.285), 0.055), (0.056, 0.05, 0.045)), 0.03)
         d = smin(d, ellipsoid(p, (0, Y(1.00), 0), (0.16 if woman else 0.155, 0.08, 0.105)), 0.04)   # tucked into the pants
         return d
     def neck(p):

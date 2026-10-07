@@ -5,7 +5,8 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 using Unity.XR.CoreUtils;
 
 // The professional iron: grab with Grip, steam with Trigger, returns to its rest when released.
-// It is a physical body while held (velocity tracking): it lies ON the board and the fabric, it does not pass through.
+// While held, the iron follows the hand by our own code (a little behind = weight), and it can never sink into
+// the board or the fabric: it is lifted onto the surface and lies flat on it when close.
 public class PM_Iron : MonoBehaviour
 {
     public bool Held { get { return grab != null && grab.isSelected; } }
@@ -42,6 +43,9 @@ public class PM_Iron : MonoBehaviour
     Vector3 returnFromPos;
     Quaternion returnFromRot;
     Vector3 lastSole;
+    Vector2 soleHalf;                 // half size of the soleplate (local x, z)
+    Vector3 grabPosOff, followPos;
+    Quaternion grabRotOff, followRot;
     ParticleSystem steam, spit;
     bool spitOn;
     AudioSource steamAudio;
@@ -76,21 +80,31 @@ public class PM_Iron : MonoBehaviour
         SoleRadius = Mathf.Min(worldBounds.size.x, worldBounds.size.z) * 0.6f;
 
         var rb = gameObject.AddComponent<Rigidbody>();
-        rb.isKinematic = true;          // on the rest: kinematic; XRI makes it physical while held
+        rb.isKinematic = true;          // always kinematic: the iron is moved by this script
         rb.useGravity = false;
         rb.mass = 1.6f;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
         grab = gameObject.AddComponent<XRGrabInteractable>();
-        // Velocity tracking = real physics: the board and the fabric stop the iron (no passing through).
-        grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+        // XRI only tells us who holds the iron; the movement is ours (see Follow).
+        grab.movementType = XRBaseInteractable.MovementType.Kinematic;
+        grab.trackPosition = false;
+        grab.trackRotation = false;
         grab.throwOnDetach = false;
-        grab.useDynamicAttach = true;
-        grab.smoothPosition = true;
-        grab.smoothPositionAmount = 12f;
-        grab.smoothRotation = true;
-        grab.smoothRotationAmount = 10f;
+        // Sole outline in the iron's own space (for the surface check).
+        Vector3 lmin = Vector3.one * 99f, lmax = -Vector3.one * 99f;
+        foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+        {
+            Bounds rb2 = r.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 c = new Vector3((i & 1) == 0 ? rb2.min.x : rb2.max.x, (i & 2) == 0 ? rb2.min.y : rb2.max.y, (i & 4) == 0 ? rb2.min.z : rb2.max.z);
+                Vector3 l = transform.InverseTransformPoint(c);
+                lmin = Vector3.Min(lmin, l); lmax = Vector3.Max(lmax, l);
+            }
+        }
+        soleHalf = new Vector2((lmax.x - lmin.x) * 0.42f, (lmax.z - lmin.z) * 0.42f);
 
         // The player's body must not push the iron around.
         foreach (CharacterController cc in Resources.FindObjectsOfTypeAll<CharacterController>())
@@ -157,7 +171,7 @@ public class PM_Iron : MonoBehaviour
         // Water drops (some brown = limescale) when the station is not ready or the tank is overfilled.
         var sgo = new GameObject("PM_Spit");
         sgo.transform.SetParent(transform, false);
-        sgo.transform.localPosition = localSole;
+        sgo.transform.localPosition = localSole + localDown * 0.02f;   // just under the sole, so drops don't hit the iron itself
         sgo.transform.rotation = Quaternion.LookRotation(Vector3.down);
         spit = sgo.AddComponent<ParticleSystem>();
         spit.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -180,6 +194,16 @@ public class PM_Iron : MonoBehaviour
         ssh.shapeType = ParticleSystemShapeType.Cone;
         ssh.angle = 25f;
         ssh.radius = 0.03f;
+        // Drops stop on the board / fabric and leave wet marks (PM_Drops).
+        var scol = spit.collision;
+        scol.enabled = true;
+        scol.type = ParticleSystemCollisionType.World;
+        scol.mode = ParticleSystemCollisionMode.Collision3D;
+        scol.bounce = 0f;
+        scol.dampen = 1f;
+        scol.lifetimeLoss = 1f;
+        scol.sendCollisionMessages = true;
+        sgo.AddComponent<PM_Drops>();
         var spr = sgo.GetComponent<ParticleSystemRenderer>();
         var spm = PM_Util.TransparentMaterial(Color.white);
         spm.mainTexture = PM_Util.SoftDot(16);
@@ -198,6 +222,10 @@ public class PM_Iron : MonoBehaviour
         holder = args.interactorObject.transform;
         CurrentHolder = holder;
         returnT = -1f;
+        grabPosOff = holder.InverseTransformPoint(transform.position);
+        grabRotOff = Quaternion.Inverse(holder.rotation) * transform.rotation;
+        followPos = transform.position;
+        followRot = transform.rotation;
         PM_Clickable.Haptic(holder, 0.7f, 0.08f);   // "thunk" — first pulse
         secondPulse = Time.time + 0.12f;              // second, softer pulse
         if (onGrab != null) onGrab();
@@ -221,6 +249,63 @@ public class PM_Iron : MonoBehaviour
         returnT = -1f;
         transform.position += point + Vector3.up * 0.004f - SoleWorld;
         desktopUntil = Time.time + 0.2f;
+    }
+
+    // Follow the hand with a slight delay (weight), then keep the sole above the board / fabric.
+    void LateUpdate()
+    {
+        if (!Held || holder == null) return;
+        float dt = Time.deltaTime;
+        Vector3 tp = holder.TransformPoint(grabPosOff);
+        Quaternion tr = holder.rotation * grabRotOff;
+        followPos = Vector3.Lerp(followPos, tp, 1f - Mathf.Exp(-dt * 22f));
+        followRot = Quaternion.Slerp(followRot, tr, 1f - Mathf.Exp(-dt * 18f));
+        transform.position = followPos;
+        transform.rotation = followRot;
+        KeepAboveSurface();
+    }
+
+    bool IsSurface(Collider c)
+    {
+        if (c.isTrigger || c.transform.IsChildOf(transform)) return false;
+        if (c.GetComponentInParent<PM_Clickable>() != null || c.GetComponentInParent<PM_Hotspot>() != null) return false;
+        return c.GetComponent<CharacterController>() == null;
+    }
+
+    void KeepAboveSurface()
+    {
+        float lift = -1f;
+        Vector3 normal = Vector3.zero;
+        int hitsCount = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            Vector3 lp = localSole;
+            if (i > 0) lp += new Vector3(((i & 1) == 0 ? -1 : 1) * soleHalf.x, 0f, (i < 3 ? -1 : 1) * soleHalf.y);
+            Vector3 wp = transform.TransformPoint(lp);
+            float best = float.MinValue; Vector3 bn = Vector3.up;
+            foreach (RaycastHit h in Physics.RaycastAll(wp + Vector3.up * 0.3f, Vector3.down, 0.6f))
+            {
+                if (!IsSurface(h.collider)) continue;
+                if (h.point.y > best) { best = h.point.y; bn = h.normal; }
+            }
+            if (best == float.MinValue) continue;
+            lift = Mathf.Max(lift, best - wp.y);
+            normal += bn; hitsCount++;
+        }
+        if (hitsCount == 0) return;
+        normal.Normalize();
+        // Close to the surface: the soleplate turns flat onto it (stable gliding, no tipping over).
+        if (lift > -0.03f)
+        {
+            float k = Mathf.Clamp01(1f - (-lift) / 0.03f) * 0.85f;
+            Quaternion flat = Quaternion.FromToRotation(DownWorld, -normal) * transform.rotation;
+            transform.rotation = Quaternion.Slerp(transform.rotation, flat, k);
+        }
+        if (lift > 0f)
+        {
+            transform.position += Vector3.up * lift;
+            followPos.y = Mathf.Max(followPos.y, transform.position.y);
+        }
     }
 
     public Vector3 SoleWorld { get { return transform.TransformPoint(localSole); } }

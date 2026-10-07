@@ -16,6 +16,7 @@ public class PM_Game : MonoBehaviour
     enum State { Avatar, Menu, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
 
     PM_Station station;
+    public PM_WaterTank Tank { get { return station != null ? station.Tank : null; } }
     PM_Panel panel;
     PM_Panel practicePanel, menuHeader;   // main menu: theory = main panel on the right, practice on the left
     PM_Highlight highlight;
@@ -117,6 +118,7 @@ public class PM_Game : MonoBehaviour
     // Two windows side by side: theory on the right (read first in Hebrew), practice and exam on the left.
     void ShowMenu()
     {
+        Remember();
         state = State.Menu;
         ClearStepVisuals();
         MenuLayout(true);
@@ -172,6 +174,7 @@ public class PM_Game : MonoBehaviour
 
     void StartTopic(PM_Topic t)
     {
+        Remember();
         List<PM_Step> all = PM_Content.LearningSteps();
         fullPath = t.steps == null;
         steps = new List<PM_Step>();
@@ -186,6 +189,7 @@ public class PM_Game : MonoBehaviour
 
     void StartPractice(int index)
     {
+        Remember();
         List<PM_Step> all = PM_Content.LearningSteps();
         fullPath = false;
         steps = new List<PM_Step>();
@@ -222,6 +226,8 @@ public class PM_Game : MonoBehaviour
     // ---------------- Avatar ----------------
     void ShowAvatarChoice()
     {
+        Remember();
+        avatarPage = 1;
         state = State.Avatar;
         ClearStepVisuals();
         panel.SetContent(PM_Content.AvatarTitle, PM_Content.AvatarBody, "");
@@ -258,6 +264,8 @@ public class PM_Game : MonoBehaviour
 
     void ShowBodyChoice()
     {
+        Remember();
+        avatarPage = 2;
         state = State.Avatar;
         ClearStepVisuals();
         panel.SetContent(PM_Content.BodyTitle, PM_Content.BodyBody, "");
@@ -284,6 +292,7 @@ public class PM_Game : MonoBehaviour
     // ---------------- Quizzes ----------------
     void StartQuiz(int kind)
     {
+        Remember();
         state = State.Quiz;
         ClearStepVisuals();
         quizKind = kind;
@@ -413,6 +422,7 @@ public class PM_Game : MonoBehaviour
     void OnFiberScreen(PM_FiberScreen fs)
     {
         bool open = !fs.Expanded;
+        CloseCard();   // one window at a time
         foreach (PM_FiberScreen f in fiberScreens) f.SetExpanded(false);
         fs.SetExpanded(open);
         if (PM_Audio.I != null)
@@ -438,16 +448,21 @@ public class PM_Game : MonoBehaviour
         return h;
     }
 
-    void ShowStationHotspots(bool on)
+    static readonly string[] StationStepIds = { "learn_intro", "water", "power", "explore_station", "iron", "purge", "temp" };
+
+    void ShowStationHotspots(bool on) { ShowStationHotspots(on, on); }
+
+    void ShowStationHotspots(bool station, bool fibers)
     {
-        foreach (PM_Hotspot h in stationHs) if (h != null) h.gameObject.SetActive(on);
-        foreach (PM_FiberScreen f in fiberScreens) if (f != null) { f.gameObject.SetActive(on); if (!on) f.SetExpanded(false); }
-        if (!on) CloseCard();
+        foreach (PM_Hotspot h in stationHs) if (h != null) h.gameObject.SetActive(station);
+        foreach (PM_FiberScreen f in fiberScreens) if (f != null) { f.gameObject.SetActive(fibers); f.SetExpanded(false); }
+        if (!station) CloseCard();
     }
 
     void OpenCard(PM_Hotspot h)
     {
         if (openHs == h && card.gameObject.activeSelf) { CloseCard(); return; }
+        foreach (PM_FiberScreen f in fiberScreens) if (f != null) f.SetExpanded(false);   // one window at a time
         openHs = h;
         h.SetVisited(true);
         card.gameObject.SetActive(true);
@@ -518,8 +533,10 @@ public class PM_Game : MonoBehaviour
         highlight.Clear();
         station.RefreshButtons();
         station.ShowTools(s.group == PM_HotspotGroup.Tools || s.toolTask > 0);
-        ShowStationHotspots(true);
         CloseCard();
+        // Only what belongs to this step is shown: fiber screens in the fibers step, points of light at the station steps.
+        bool stationStep = System.Array.IndexOf(StationStepIds, s.id) >= 0;
+        ShowStationHotspots(stationStep, s.group == PM_HotspotGroup.Fibers);
 
         if (s.target == PM_Target.Fabric)
         {
@@ -539,12 +556,12 @@ public class PM_Game : MonoBehaviour
         else if (s.group == PM_HotspotGroup.Tools) accent = PM_Util.Violet;
         panel.SetAccent(accent);
         // Navigation (right to left): menu, repeat, [new fabric], back, next. Forward is on the left, as Hebrew reads.
-        bool first = stepIndex == 0, last = stepIndex == steps.Count - 1;
+        bool last = stepIndex == steps.Count - 1;
         var nav = new List<KeyValuePair<string, Action>>();
         nav.Add(Btn(PM_Content.BtnMenu, ShowMenu));
         nav.Add(Btn(PM_Content.BtnRepeat, RepeatVoice));
         if (s.action == PM_Action.IronFabric || s.action == PM_Action.SteamOnForm) nav.Add(Btn(PM_Content.BtnNewFabric, NewFabric));
-        if (!first) nav.Add(Btn(PM_Content.BtnBack, PrevStep));
+        if (history.Count > 0) nav.Add(Btn(PM_Content.BtnBack, GoBack));
         if (!last) nav.Add(Btn(PM_Content.BtnNext, NextStep));
         else if (fullPath) nav.Add(Btn(PM_Content.BtnExamIron, StartExam));
         else nav.Add(Btn(PM_Content.BtnFinish, ShowMenu));
@@ -592,13 +609,45 @@ public class PM_Game : MonoBehaviour
     void NextStep()
     {
         if (state != State.Learning) return;
-        if (stepIndex < steps.Count - 1) EnterStep(stepIndex + 1);
+        if (stepIndex < steps.Count - 1) { Remember(); EnterStep(stepIndex + 1); }
     }
 
-    void PrevStep()
+    // ---------------- History: "הקודם" returns to the screen the player really came from ----------------
+    readonly List<Action> history = new List<Action>();
+    bool restoring, firstScreenShown;
+    int avatarPage = 1;
+
+    Action Snapshot()
     {
-        if (state != State.Learning) return;
-        if (stepIndex > 0) EnterStep(stepIndex - 1);
+        switch (state)
+        {
+            case State.Learning:
+            {
+                List<PM_Step> st = steps; int idx = stepIndex; bool fp = fullPath;
+                return () => { steps = st; fullPath = fp; MenuLayout(false); state = State.Learning; EnterStep(idx); };
+            }
+            case State.Avatar: return avatarPage == 2 ? (Action)ShowBodyChoice : ShowAvatarChoice;
+            case State.Quiz: { int k = quizKind; return () => StartQuiz(k); }
+            case State.ExamIntro: case State.ExamFabric: case State.ExamResult: return StartExam;
+            default: return ShowMenu;
+        }
+    }
+
+    void Remember()
+    {
+        if (restoring) return;
+        if (!firstScreenShown) { firstScreenShown = true; return; }
+        history.Add(Snapshot());
+        if (history.Count > 40) history.RemoveAt(0);
+    }
+
+    void GoBack()
+    {
+        if (history.Count == 0) { ShowMenu(); return; }
+        Action a = history[history.Count - 1];
+        history.RemoveAt(history.Count - 1);
+        restoring = true;
+        try { a(); } finally { restoring = false; }
     }
 
     void Complete(string message)
@@ -619,7 +668,7 @@ public class PM_Game : MonoBehaviour
         {
             doneTimer += dt;
             // Ironing tasks wait for "הבא" (free choice); other steps move on by themselves.
-            if (s.action != PM_Action.Next && s.action != PM_Action.IronFabric && s.action != PM_Action.SteamOnForm && doneTimer > 2.5f && stepIndex < steps.Count - 1) EnterStep(stepIndex + 1);
+            if (s.action != PM_Action.Next && s.action != PM_Action.IronFabric && s.action != PM_Action.SteamOnForm && doneTimer > 2.5f && stepIndex < steps.Count - 1) { Remember(); EnterStep(stepIndex + 1); }
             return;
         }
         PM_Iron iron = station.Iron;
@@ -856,15 +905,7 @@ public class PM_Game : MonoBehaviour
         if (iron == null || !iron.spitting) return false;
         PM_WaterTank t = station.Tank;
         panel.SetStatus(t != null && t.Overfilled ? PM_Content.StSpitOverfill : PM_Content.StSpitNotReady, PM_Util.Red);
-        if (fabric == null) return true;
-        RaycastHit[] hits = Physics.RaycastAll(iron.SoleWorld + Vector3.up * 0.02f, Vector3.down, 0.4f);
-        foreach (RaycastHit h in hits)
-        {
-            if (h.collider.GetComponent<PM_Fabric>() != fabric) continue;
-            if (UnityEngine.Random.value < dt * 12f) fabric.Splash(h.textureCoord, 0.06f, 3, t != null ? t.Limescale * 0.5f : 0.15f);
-            break;
-        }
-        return true;
+        return true;   // the drops themselves stain the fabric where they land (PM_Drops)
     }
 
     // Returns true while ironing happens this frame.
@@ -987,6 +1028,7 @@ public class PM_Game : MonoBehaviour
     // ---------------- Exam ----------------
     void StartExam()
     {
+        Remember();
         state = State.ExamIntro;
         ClearStepVisuals();
         station.MakeReady();
@@ -1129,7 +1171,7 @@ public class PM_Game : MonoBehaviour
             else if (state == State.ExamIntro) StartExamFabric(0);
             else if (state == State.Quiz) NextQuiz();
         }
-        if (KeyDown(Key.B)) PrevStep();
+        if (KeyDown(Key.B)) GoBack();
         if (KeyDown(Key.M)) ShowMenu();
         if (KeyDown(Key.R)) RecenterNow();
         if (KeyDown(Key.X)) StartExam();

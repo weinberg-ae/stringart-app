@@ -567,7 +567,12 @@ public class PM_Body : MonoBehaviour
         Quaternion rot = Quaternion.Euler(0, yaw, 0);
         figure.localScale = Vector3.one * s;
         figure.rotation = rot;
-        figure.position = head.position - Vector3.up * eyeModel * s - rot * new Vector3(0, 0, 0.08f * s);
+        // The body stands a bit behind the eyes, so looking down at the board the chest does not hide it.
+        float back = PM_Avatar.BodyType == 1 ? 0.21f : 0.18f;
+        figure.position = head.position - Vector3.up * eyeModel * s - rot * new Vector3(0, 0, back * s);
+        // ...but the head (seen only in the mirror) stays exactly where the eyes are.
+        Transform headPart = figure.Find("Head");
+        if (headPart != null) headPart.localPosition = new Vector3(0f, 0f, back - 0.08f);
 
         Vector3 right = rot * Vector3.right, fwd = rot * Vector3.forward;
         Vector3 shL = figure.TransformPoint(new Vector3(-shoulder.x, shoulder.y, shoulder.z));

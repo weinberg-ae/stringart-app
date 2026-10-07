@@ -525,6 +525,14 @@ public class PM_Station : MonoBehaviour
     }
 
     public void SwingSleeve(bool away) { sleeveTarget = away ? sleeveSwing : 0f; }
+    public float SleeveAngle { get { return sleeveAngle; } }
+    public bool sleeveDragging;
+    // Angle set by the hand: between "over the board" (0) and fully swung away (±90°).
+    public void SetSleeveAngle(float a)
+    {
+        float lo = Mathf.Min(0f, sleeveSwing * 1.2f), hi = Mathf.Max(0f, sleeveSwing * 1.2f);
+        sleeveTarget = Mathf.Clamp(a, lo, hi);
+    }
     public void ToggleSleeve() { SwingSleeve(sleeveTarget == 0f); }
 
     // The sleeve board stands on a swing arm: find the board + its arm, and rotate them around the arm's end.
@@ -567,14 +575,14 @@ public class PM_Station : MonoBehaviour
         Vector3 toB = BoardCenter - SleevePivot.position; toB.y = 0;
         float plus = Vector3.Distance(Quaternion.Euler(0, 75f, 0) * toS, toB), minus = Vector3.Distance(Quaternion.Euler(0, -75f, 0) * toS, toB);
         sleeveSwing = plus > minus ? 75f : -75f;
-        // Glowing knob at the free end: click = swing the sleeve board away / back.
-        var knob = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        knob.name = "PM_SleeveKnob";
-        knob.transform.SetParent(SleevePivot, false);
-        knob.transform.position = SleevePivot.position + toS * 1.0f + Vector3.up * (sb.extents.y + 0.03f);
-        knob.transform.localScale = Vector3.one * 0.045f;
-        knob.GetComponent<Renderer>().material = PM_Util.NeonMaterial(PM_Util.Violet, 1.5f);
-        PM_Clickable.Add(knob, ToggleSleeve);
+        // Grab the sleeve board with the hand (Grip) and swing it around its arm, like a real one.
+        var handle = new GameObject("PM_SleeveGrab");
+        handle.transform.SetParent(SleevePivot, false);
+        handle.transform.position = sb.center;
+        handle.transform.rotation = Quaternion.identity;
+        var box = handle.AddComponent<BoxCollider>();
+        box.size = sb.size + new Vector3(0.02f, 0.03f, 0.02f);
+        handle.AddComponent<PM_SleeveHandle>().station = this;
         Debug.Log("[PM] Шарнир шарвулона: " + group.Count + " деталей.");
     }
 
@@ -676,7 +684,7 @@ public class PM_Station : MonoBehaviour
         if (SleevePivot != null && !Mathf.Approximately(sleeveAngle, sleeveTarget))
         {
             float prev = sleeveAngle;
-            sleeveAngle = Mathf.MoveTowards(sleeveAngle, sleeveTarget, Time.deltaTime * 90f);
+            sleeveAngle = Mathf.MoveTowards(sleeveAngle, sleeveTarget, Time.deltaTime * (sleeveDragging ? 400f : 90f));
             SleevePivot.Rotate(0, sleeveAngle - prev, 0, Space.World);
         }
         // Temperature numbers: the selected one is bigger; on selection it flashes white and pops.
@@ -708,5 +716,39 @@ public class PM_Station : MonoBehaviour
             Iron.heat = Mathf.Clamp01((IronTemp - 20f) / 180f);
             if (Iron.Steaming && Tank != null) Tank.Use(Time.deltaTime * 0.006f);
         }
+    }
+}
+
+// Hand grip on the sleeve board: while held, the board turns with the hand around the arm's pivot.
+public class PM_SleeveHandle : MonoBehaviour
+{
+    public PM_Station station;
+    UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable interactable;
+    Transform hand;
+    Vector3 startVec;
+    float startAngle;
+
+    void Start()
+    {
+        interactable = gameObject.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+        interactable.selectEntered.AddListener(a =>
+        {
+            hand = a.interactorObject.transform;
+            startVec = Flat(hand.position - station.SleevePivot.position);
+            startAngle = station.SleeveAngle;
+            station.sleeveDragging = true;
+            PM_Clickable.Haptic(hand, 0.4f, 0.06f);
+        });
+        interactable.selectExited.AddListener(a => { hand = null; station.sleeveDragging = false; });
+    }
+
+    static Vector3 Flat(Vector3 v) { v.y = 0; return v; }
+
+    void Update()
+    {
+        if (hand == null || station == null || station.SleevePivot == null) return;
+        Vector3 cur = Flat(hand.position - station.SleevePivot.position);
+        if (cur.sqrMagnitude < 0.0004f || startVec.sqrMagnitude < 0.0004f) return;
+        station.SetSleeveAngle(startAngle + Vector3.SignedAngle(startVec, cur, Vector3.up));
     }
 }
