@@ -35,6 +35,8 @@ public class PM_Station : MonoBehaviour
     public int Mode { get; private set; }
     public bool PressureOk { get { return Powered && Pressure >= ReadyPressure; } }
     public PM_WaterTank Tank { get; private set; }
+    readonly TextMeshProUGUI[] tempLabels = new TextMeshProUGUI[4];
+    readonly float[] labelFlash = new float[4];
     public float IronTemp { get; private set; } = 20f;   // °C of the soleplate (it heats up slowly)
     public float TargetTemp { get { return Powered && Mode > 0 ? (Mode == 1 ? 110f : Mode == 2 ? 150f : 200f) : 20f; } }
     public bool fastHeat;   // practice: the iron reaches a new temperature quickly
@@ -286,7 +288,8 @@ public class PM_Station : MonoBehaviour
             cap.transform.SetParent(Table, true);
             var hit = PM_Util.HitBox("PM_TempHit_" + m, bb, 1.6f, 0.045f, Table);
             PM_Clickable.Add(hit, () => { if (onModeClicked != null) onModeClicked(mode); });
-            Label(bb.center + Vector3.up * 0.045f - Forward * 0.01f, PM_Content.ModeDots[m] + "\n" + PM_Content.ModeTemp[m], 20, PM_Util.ModeColor(m));
+            // Temperature label: a bit higher than the button's own ON/OFF print, on a dark plate, sharp outline.
+            tempLabels[m] = Label(bb.center + Vector3.up * 0.075f - Forward * 0.02f, PM_Content.ModeDots[m] + "\n" + PM_Content.ModeTemp[m], 22, PM_Util.ModeColor(m), true);
         }
         targets[PM_Target.TempButtons] = allButtons;
         RefreshButtons();
@@ -305,7 +308,7 @@ public class PM_Station : MonoBehaviour
     }
 
     // Small floating label (no Hebrew) facing the player.
-    void Label(Vector3 pos, string text, float size, Color c)
+    TextMeshProUGUI Label(Vector3 pos, string text, float size, Color c, bool plate = false)
     {
         var go = new GameObject("PM_Label", typeof(RectTransform));
         go.transform.SetParent(Table, true);
@@ -325,6 +328,19 @@ public class PM_Station : MonoBehaviour
         t.color = c;
         t.text = text;
         t.raycastTarget = false;
+        if (plate)
+        {
+            t.fontStyle = FontStyles.Bold;
+            t.outlineWidth = 0.22f;
+            t.outlineColor = new Color32(0, 0, 0, 255);
+            var bg = new GameObject("Plate", typeof(RectTransform)).AddComponent<UnityEngine.UI.Image>();
+            bg.transform.SetParent(go.transform, false);
+            bg.transform.SetAsFirstSibling();
+            bg.rectTransform.sizeDelta = new Vector2(66, 58);
+            bg.color = new Color(0.01f, 0.015f, 0.03f, 0.82f);
+            bg.raycastTarget = false;
+        }
+        return t;
     }
 
     void BuildLights()
@@ -528,6 +544,11 @@ public class PM_Station : MonoBehaviour
 
     public void SetMode(int m)
     {
+        if (m > 0 && m != Mode && tempLabels[m] != null)
+        {
+            labelFlash[m] = 1f;   // the chosen number pops up with a flash of light
+            PM_Look.Burst(tempLabels[m].transform.position - Forward * 0.01f, PM_Util.ModeColor(m));
+        }
         Mode = m;
         RefreshButtons();
     }
@@ -566,6 +587,21 @@ public class PM_Station : MonoBehaviour
             float k = !Powered ? 0.05f : (Mode == m ? (IronReady ? 3.5f : 0.4f + 3.2f * Mathf.Abs(Mathf.Sin(Time.time * 4f))) : 0.6f);
             capMats[m].SetColor("_EmissionColor", c * k);
             capMats[m].SetColor("_BaseColor", c * (Powered ? 0.35f : 0.08f));
+        }
+        // Temperature numbers: the selected one is bigger; on selection it flashes white and pops.
+        for (int m = 1; m <= 3; m++)
+        {
+            TextMeshProUGUI t = tempLabels[m];
+            if (t == null) continue;
+            labelFlash[m] = Mathf.MoveTowards(labelFlash[m], 0f, Time.deltaTime * 1.6f);
+            bool sel = Powered && Mode == m;
+            float target = (sel ? 1.4f : 1f) + labelFlash[m] * 0.5f;
+            Transform lt = t.transform.parent;
+            float cur = lt.localScale.x / 0.0007f;
+            lt.localScale = Vector3.one * 0.0007f * Mathf.Lerp(cur, target, Time.deltaTime * 10f);
+            Color baseC = PM_Util.ModeColor(m) * (Powered ? 1f : 0.55f);
+            baseC.a = 1f;
+            t.color = Color.Lerp(baseC, Color.white, labelFlash[m]);
         }
         // Real stations need 2–5 minutes; here it is shortened to about 45 seconds.
         if (Powered) Pressure = Mathf.MoveTowards(Pressure, WorkPressure, Time.deltaTime * 0.08f);
