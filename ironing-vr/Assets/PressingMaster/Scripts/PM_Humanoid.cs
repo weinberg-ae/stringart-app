@@ -4,7 +4,7 @@ using UnityEngine.XR;
 // A Humanoid character (Asset Store / Mixamo, Rig = Humanoid) as the player's body:
 // it stands under the eyes, turns with the head, and its arms reach the controllers (two-bone IK);
 // fingers follow Grip / Trigger. While holding the iron, the hand sits on the iron's handle.
-[DefaultExecutionOrder(210)]
+[DefaultExecutionOrder(32000)]   // last: after the animation and any loader scripts that pose the skeleton
 public class PM_Humanoid : MonoBehaviour
 {
     Transform root, head, cam, origin;
@@ -102,16 +102,21 @@ public class PM_Humanoid : MonoBehaviour
 
     // keepAnimator: a loaded avatar keeps its idle animation (and its body-shape rig); arms, hands and
     // fingers are overridden every frame after the animation.
+    Animator anim;
+    bool keepAnim;
+
     bool Setup(Animator an, bool keepAnimator = false)
     {
+        anim = an; keepAnim = keepAnimator;
         root = transform;
-        head = an.GetBoneTransform(HumanBodyBones.Head);
+        CollectSkinBones();
+        head = Bone(an, HumanBodyBones.Head);
         HumanBodyBones[] ab = { HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand,
                                 HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand };
-        for (int i = 0; i < 6; i++) { arm[i] = an.GetBoneTransform(ab[i]); if (arm[i] == null) return false; armRest[i] = arm[i].localRotation; }
+        for (int i = 0; i < 6; i++) { arm[i] = Bone(an, ab[i]); if (arm[i] == null) return false; armRest[i] = arm[i].localRotation; }
         if (head == null) return false;
         // Eyes: a bit above and in front of the head bone.
-        Transform eyeL = an.GetBoneTransform(HumanBodyBones.LeftEye), eyeR = an.GetBoneTransform(HumanBodyBones.RightEye);
+        Transform eyeL = Bone(an, HumanBodyBones.LeftEye), eyeR = Bone(an, HumanBodyBones.RightEye);
         Vector3 eye = eyeL != null && eyeR != null ? (eyeL.position + eyeR.position) * 0.5f + Vector3.forward * 0.02f
                                                    : head.position + Vector3.up * 0.09f + Vector3.forward * 0.09f;
         eyeLocal = root.InverseTransformPoint(eye);
@@ -121,9 +126,9 @@ public class PM_Humanoid : MonoBehaviour
         {
             bool left = s == 0;
             Transform hand = arm[s * 3 + 2];
-            Transform mid = an.GetBoneTransform(left ? HumanBodyBones.LeftMiddleProximal : HumanBodyBones.RightMiddleProximal);
-            Transform idx = an.GetBoneTransform(left ? HumanBodyBones.LeftIndexProximal : HumanBodyBones.RightIndexProximal);
-            Transform lit = an.GetBoneTransform(left ? HumanBodyBones.LeftLittleProximal : HumanBodyBones.RightLittleProximal);
+            Transform mid = Bone(an, left ? HumanBodyBones.LeftMiddleProximal : HumanBodyBones.RightMiddleProximal);
+            Transform idx = Bone(an, left ? HumanBodyBones.LeftIndexProximal : HumanBodyBones.RightIndexProximal);
+            Transform lit = Bone(an, left ? HumanBodyBones.LeftLittleProximal : HumanBodyBones.RightLittleProximal);
             Vector3 f = mid != null ? (mid.position - hand.position).normalized : (hand.position - arm[s * 3 + 1].position).normalized;
             Vector3 t = idx != null && lit != null ? (idx.position - lit.position) : Vector3.forward;
             t = (t - Vector3.Dot(t, f) * f).normalized;
@@ -136,7 +141,7 @@ public class PM_Humanoid : MonoBehaviour
             HumanBodyBones first = left ? HumanBodyBones.LeftIndexProximal : HumanBodyBones.RightIndexProximal;
             for (int k = 0; k < 12; k++)
             {
-                Transform b = an.GetBoneTransform(first + k);   // index, middle, ring, little × 3 joints
+                Transform b = Bone(an, first + k);   // index, middle, ring, little × 3 joints
                 list.Add(b);
             }
             fingers[s] = list.ToArray();
@@ -153,13 +158,21 @@ public class PM_Humanoid : MonoBehaviour
         foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true)) r.updateWhenOffscreen = true;
         cam = Camera.main != null ? Camera.main.transform : null;
         HideHead();
+        if (skinBones.Count > 0 && !skinBones.Contains(arm[5]))
+            Debug.LogWarning("[PM] Кость руки «" + arm[5].name + "» не связана с сеткой аватара — руки могут не двигаться. Пришлите этот лог.");
+        Debug.Log("[PM] Аватар: костей сетки " + skinBones.Count + ", переназначено " + remapped + ", рука: " + arm[5].parent.name + "/" + arm[5].name);
         return true;
     }
 
     void LateUpdate()
     {
         if (cam == null) { cam = Camera.main != null ? Camera.main.transform : null; if (cam == null) return; }
-        if (Time.unscaledTime > nextHeadCheck) { nextHeadCheck = Time.unscaledTime + 1f; HideHead(); }   // loaders may swap meshes later
+        if (Time.unscaledTime > nextHeadCheck)   // loaders may swap meshes (and skeletons) while loading
+        {
+            nextHeadCheck = Time.unscaledTime + 1f;
+            if (SkinChanged()) Resetup();
+            HideHead();
+        }
         SyncHeadCopies();
         float floorY = origin != null ? origin.position.y : cam.position.y - 1.6f;
         eyeReal = Mathf.Max(eyeReal, Mathf.Clamp(cam.position.y - floorY, 1.0f, 1.95f));
@@ -192,6 +205,62 @@ public class PM_Humanoid : MonoBehaviour
             arm[s * 3 + 2].rotation = gr * handOffset[s];
             Fingers(s, left);
         }
+    }
+
+    // Some loaders (Genies) animate one skeleton and copy it onto a second one that the meshes are skinned to.
+    // Posing the animation skeleton after that copy would change nothing on screen, so the bones are taken
+    // from the skinned skeleton (same names) whenever the Animator's bone is not used by any mesh.
+    readonly System.Collections.Generic.HashSet<Transform> skinBones = new System.Collections.Generic.HashSet<Transform>();
+    readonly System.Collections.Generic.Dictionary<string, Transform> skinByName = new System.Collections.Generic.Dictionary<string, Transform>();
+    int remapped;
+
+    void CollectSkinBones()
+    {
+        skinBones.Clear(); skinByName.Clear(); remapped = 0;
+        foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            Transform[] bs = r.bones;
+            if (bs == null) continue;
+            foreach (Transform b in bs)
+            {
+                if (b == null || !skinBones.Add(b)) continue;
+                if (!skinByName.ContainsKey(b.name)) skinByName[b.name] = b;
+            }
+        }
+    }
+
+    bool SkinChanged()
+    {
+        foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            if (r.gameObject.layer == PM_Avatar.MirrorLayer && r.name.EndsWith("_PMHead")) continue;
+            Transform[] bs = r.bones;
+            if (bs == null) continue;
+            foreach (Transform b in bs) if (b != null && !skinBones.Contains(b)) return true;
+        }
+        return false;
+    }
+
+    // Measures the body again in its own frame (facing +Z at the origin, scale 1) with the new skeleton.
+    void Resetup()
+    {
+        Vector3 p = root.position; Quaternion r = root.rotation; Vector3 sc = root.localScale;
+        root.position = Vector3.zero; root.rotation = Quaternion.identity; root.localScale = Vector3.one;
+        Setup(anim, keepAnim);
+        root.position = p; root.rotation = r; root.localScale = sc;
+    }
+
+    Transform Bone(Animator an, HumanBodyBones hb)
+    {
+        Transform t = an.GetBoneTransform(hb);
+        if (t == null || skinBones.Count == 0 || skinBones.Contains(t)) return t;
+        Transform same;
+        if (skinByName.TryGetValue(t.name, out same) && same != t)
+        {
+            if (remapped++ == 0) Debug.Log("[PM] У аватара отдельный скелет для отображения — руки управляют им (" + t.name + " → " + same.parent.name + "/" + same.name + ")");
+            return same;
+        }
+        return t;
     }
 
     // ----- the own head: the player looks out of it, so only the studio mirror draws it -----

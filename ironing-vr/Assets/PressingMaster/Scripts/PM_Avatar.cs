@@ -184,6 +184,12 @@ public static class PM_Avatar
         HideControllerModel(left);
         HideControllerModel(right);
         ctrlL = left; ctrlR = right; xrRoot = origin.transform;
+        if (Character == SceneCharacter && adopted != null && AdoptSceneCharacter)
+        {
+            adopted.SetActive(true);   // the Genies body stays; no extra hands
+            humanoid = adopted;
+            return true;
+        }
         if (Character >= 0)
         {
             // A Humanoid character: its own hands follow the controllers, its body stands under the eyes.
@@ -201,7 +207,7 @@ public static class PM_Avatar
         if (leftHand != null) Object.Destroy(leftHand.gameObject);
         if (rightHand != null) Object.Destroy(rightHand.gameObject);
         if (body != null) Object.Destroy(body.gameObject);
-        if (humanoid != null && humanoid == adopted) humanoid.SetActive(false);   // a scene avatar is kept for later
+        if (humanoid != null && humanoid == adopted) { if (Character != SceneCharacter) humanoid.SetActive(false); }   // a scene avatar is kept
         else if (humanoid != null) Object.Destroy(humanoid);
         leftHand = rightHand = null; body = null; humanoid = null;
     }
@@ -219,6 +225,9 @@ public static class PM_Avatar
     // Called by the rig every second: a Humanoid avatar loaded into the scene (Genies etc.) becomes the body.
     public static void CheckSceneCharacter()
     {
+        // Controller models may be spawned only after tracking starts: keep them hidden.
+        if (ctrlL != null) HideControllerModel(ctrlL);
+        if (ctrlR != null) HideControllerModel(ctrlR);
         if (!AdoptSceneCharacter || Character != SceneCharacter || humanoid != null || ctrlL == null || ctrlR == null) return;
         GameObject go = adopted;
         if (go != null) go.SetActive(true);
