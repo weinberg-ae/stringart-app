@@ -49,24 +49,7 @@ public class PM_Humanoid : MonoBehaviour
         if (an == null || !an.isHuman) return null;
         GameObject go = an.gameObject;
         if (go.GetComponent<PM_Humanoid>() != null) return go;
-        // The loader's own character controller (walking, gravity, touch joystick) must not move the body.
-        Transform spawn = null;
-        for (Transform p = go.transform; p != null; p = p.parent)
-        {
-            bool ctrl = false;
-            foreach (CharacterController cc in p.GetComponents<CharacterController>()) { cc.enabled = false; ctrl = true; }
-            foreach (Rigidbody rb in p.GetComponents<Rigidbody>()) rb.isKinematic = true;
-            foreach (MonoBehaviour mb in p.GetComponents<MonoBehaviour>())
-            {
-                if (mb == null || mb is PM_Humanoid) continue;
-                string n = mb.GetType().Name;
-                if (!n.Contains("Controller") && !n.Contains("Locomotion") && !n.Contains("Movement")) continue;
-                mb.enabled = false; ctrl = true;
-                Debug.Log("[PM] Управление персонажем из демо отключено: " + n);
-            }
-            if (ctrl) spawn = p;
-        }
-        foreach (Light l in (spawn != null ? spawn : go.transform).GetComponentsInChildren<Light>(true)) l.enabled = false;
+        StopLoaderControl(go);
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true)) c.enabled = false;   // the iron must not land on the body
         var h = go.AddComponent<PM_Humanoid>();
         h.origin = xrOrigin;
@@ -78,6 +61,28 @@ public class PM_Humanoid : MonoBehaviour
         if (!h.Setup(an, true)) { Destroy(h); go.transform.SetPositionAndRotation(p0, r0); return null; }
         Debug.Log("[PM] Аватар из сцены стал телом игрока: " + go.name);
         return go;
+    }
+
+    // The loader's own character controller (walking, gravity, touch joystick, its spotlight) must not move the body.
+    public static void StopLoaderControl(GameObject go)
+    {
+        Transform spawn = null;
+        for (Transform p = go.transform; p != null; p = p.parent)
+        {
+            bool ctrl = false;
+            foreach (CharacterController cc in p.GetComponents<CharacterController>()) { if (cc.enabled) { cc.enabled = false; } ctrl = true; }
+            foreach (Rigidbody rb in p.GetComponents<Rigidbody>()) rb.isKinematic = true;
+            foreach (MonoBehaviour mb in p.GetComponents<MonoBehaviour>())
+            {
+                if (mb == null || mb is PM_Humanoid || !mb.enabled) continue;
+                string n = mb.GetType().Name;
+                if (!n.Contains("Controller") && !n.Contains("Locomotion") && !n.Contains("Movement")) continue;
+                mb.enabled = false; ctrl = true;
+                Debug.Log("[PM] Управление персонажем из демо отключено: " + n);
+            }
+            if (ctrl) spawn = p;
+        }
+        foreach (Light l in (spawn != null ? spawn : go.transform).GetComponentsInChildren<Light>(true)) l.enabled = false;
     }
 
     // Finds a Humanoid character in the scene that is not ours (Genies or any other loader).
@@ -158,7 +163,7 @@ public class PM_Humanoid : MonoBehaviour
         foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true)) r.updateWhenOffscreen = true;
         cam = Camera.main != null ? Camera.main.transform : null;
         HideHead();
-        if (skinBones.Count > 0 && !skinBones.Contains(arm[5]))
+        if (skinBones.Count > 0 && !SkinnedBelow(arm[5]))
             Debug.LogWarning("[PM] Кость руки «" + arm[5].name + "» не связана с сеткой аватара — руки могут не двигаться. Пришлите этот лог.");
         Debug.Log("[PM] Аватар: костей сетки " + skinBones.Count + ", переназначено " + remapped + ", рука: " + arm[5].parent.name + "/" + arm[5].name);
         return true;
@@ -238,6 +243,13 @@ public class PM_Humanoid : MonoBehaviour
             if (bs == null) continue;
             foreach (Transform b in bs) if (b != null && !skinBones.Contains(b)) return true;
         }
+        return false;
+    }
+
+    bool SkinnedBelow(Transform t)
+    {
+        if (skinBones.Contains(t)) return true;
+        foreach (Transform c in t) if (skinBones.Contains(c)) return true;
         return false;
     }
 
@@ -337,7 +349,13 @@ public class PM_Humanoid : MonoBehaviour
     readonly System.Collections.Generic.Dictionary<SkinnedMeshRenderer, SkinnedMeshRenderer> headCopies =
         new System.Collections.Generic.Dictionary<SkinnedMeshRenderer, SkinnedMeshRenderer>();
 
-    bool IsHeadPart(Transform b) { return b != null && head != null && b.IsChildOf(head); }
+    bool IsHeadPart(Transform b)
+    {
+        if (b == null || head == null) return false;
+        if (b.IsChildOf(head)) return true;
+        string n = b.name.ToLower();
+        return n.Contains("hair") || n.Contains("sidebang") || n.Contains("bang0") || n.Contains("ponytail");   // hair dynamics chains
+    }
 
     void HideHead()
     {

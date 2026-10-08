@@ -234,6 +234,40 @@ public class PM_Game : MonoBehaviour
     // ---------------- Avatar ----------------
     void ShowAvatarChoice()
     {
+        if (PM_Avatar.Character != -1 && PM_Style.LoaderPresent()) { ShowStyleChoice(); return; }
+        ShowHandsChoice();
+    }
+
+    // A loaded avatar (Genies): outfit, skin tone, hair and a forearm tattoo. Seen in the studio mirror.
+    void ShowStyleChoice()
+    {
+        Remember();
+        avatarPage = 3;
+        state = State.Avatar;
+        ClearStepVisuals();
+        panel.SetContent(PM_Content.StyleTitle, PM_Content.StyleBody, "");
+        panel.SetAccent(PM_Util.Violet);
+        var rows = new List<KeyValuePair<string, Action>>[4];
+        for (int r = 0; r < 4; r++) rows[r] = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < PM_Style.Count; i++)
+        {
+            int k = i;
+            rows[0].Add(Btn(PM_Content.LookLabels[i], () => PM_Style.ChooseLook(k)));
+            rows[1].Add(Btn(PM_Content.SkinLabels[i], () => PM_Style.ChooseSkin(k)));
+            rows[2].Add(Btn(PM_Content.HairLabels[i], () => PM_Style.ChooseHair(k)));
+            rows[3].Add(Btn(PM_Content.StyleTattooLabels[i], () => PM_Style.ChooseTattoo(k)));
+        }
+        for (int r = 0; r < 4; r++) panel.SetButtonGrid(5, -1, 0.17f, 0.05f - r * 0.11f, r > 0, rows[r].ToArray());
+        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true,
+            Btn(PM_Content.BtnHandsOnly, () => { PM_Avatar.ChooseCharacter(-1); ShowHandsChoice(); }),
+            Btn(PM_Content.BtnContinue, ShowMenu));
+        PM_Avatar.ShowPreview(0, Vector3.zero, Vector3.zero);
+        PM_Style.ParkNextToMenu(panel.transform.position - panel.transform.right * 0.95f, station.PlayerPos + Vector3.up * 1.6f);
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar");
+    }
+
+    void ShowHandsChoice()
+    {
         Remember();
         avatarPage = 1;
         state = State.Avatar;
@@ -264,7 +298,7 @@ public class PM_Game : MonoBehaviour
         state = State.Avatar;
         panel.SetContent(PM_Content.ChildTitle, PM_Content.ChildBody, "");
         panel.SetAccent(PM_Util.Red);
-        panel.SetButtons(Btn(PM_Content.BtnHands, ShowAvatarChoice));
+        panel.SetButtons(Btn(PM_Content.BtnHands, ShowHandsChoice));
         AvatarPreview(1, 2);
         PM_Look.PulseRing(station.PlayerPos + Vector3.up * 0.01f, PM_Util.Red);
         if (PM_Audio.I != null) { PM_Audio.I.Play("error", 0.8f); PM_Audio.I.PlayVoice("child_warning"); }
@@ -293,7 +327,7 @@ public class PM_Game : MonoBehaviour
             items.Add(Btn(label, () => PM_Avatar.ChooseCharacter(k)));
         }
         panel.SetButtonGrid(4, -1, 0.22f, -0.02f, false, items.ToArray());
-        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnHands, ShowAvatarChoice), Btn(PM_Content.BtnContinue, ShowMenu));
+        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnHands, ShowHandsChoice), Btn(PM_Content.BtnContinue, ShowMenu));
         AvatarPreview(0);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar_body");
     }
@@ -644,7 +678,7 @@ public class PM_Game : MonoBehaviour
                 List<PM_Step> st = steps; int idx = stepIndex; bool fp = fullPath;
                 return () => { steps = st; fullPath = fp; MenuLayout(false); state = State.Learning; EnterStep(idx); };
             }
-            case State.Avatar: return avatarPage == 2 ? (Action)ShowBodyChoice : ShowAvatarChoice;
+            case State.Avatar: return avatarPage == 2 ? (Action)ShowBodyChoice : avatarPage == 3 ? (Action)ShowStyleChoice : ShowHandsChoice;
             case State.Quiz: { int k = quizKind; return () => StartQuiz(k); }
             case State.ExamIntro: case State.ExamFabric: case State.ExamResult: return StartExam;
             default: return ShowMenu;

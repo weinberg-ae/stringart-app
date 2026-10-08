@@ -308,6 +308,7 @@ public class PM_AvatarRig : MonoBehaviour
     bool infoWritten;
     void Update()
     {
+        PM_Style.Tick();
         // Diagnostics (also without the headset): describe a loaded scene avatar once, after it finished loading.
         if (!infoWritten && Time.unscaledTime > 2f)
         {

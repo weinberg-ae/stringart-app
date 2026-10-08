@@ -134,6 +134,12 @@ public static class PM_Content
     public const string BodyNone = "עוד אין דמויות. אפשר להמשיך עם ידיים בלבד.";
     public const string BtnHandsOnly = "ידיים בלבד";
     public const string BtnSceneAvatar = "הדמות שלי";
+    public const string StyleTitle = "בחרו לוק";
+    public const string StyleBody = "שורה 1 — בגדים · שורה 2 — צבע עור · שורה 3 — שיער · שורה 4 — קעקוע על האמה.\nבמשקפת — הציצו במראה שליד העמדה!";
+    public static readonly string[] LookLabels = { "לבן קלאסי", "ג'ינס", "ערב שחור", "סטודיו", "ורוד" };
+    public static readonly string[] SkinLabels = { "בהיר מאוד", "בהיר", "טבעי", "שחום", "כהה" };
+    public static readonly string[] HairLabels = { "שיער טבעי", "שחור", "בלונד", "ג'ינג'י", "שיער ורוד" };
+    public static readonly string[] StyleTattooLabels = { "בלי קעקוע", "מחט וחוט", "ורד", "גיאומטרי", "מגהץ" };
     public static readonly string[] BodyLabels = { "גוף גבר", "גוף אישה" };
     public static readonly string[] OutfitLabels = { "שחור", "ג'ינס", "משבצות", "בורדו" };
     public static readonly string[] ShoeLabels = { "סניקרס", "מגפיים", "קלאסיות" };
