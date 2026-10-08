@@ -35,6 +35,8 @@ public static class PM_Avatar
     public static int Shoes { get; private set; }
     // Humanoid characters from the Inspector (PM_Game → Avatar Characters). -1 = hands only.
     public static GameObject[] Characters = new GameObject[0];
+    public static bool AdoptSceneCharacter = true;   // use a Humanoid avatar that appears in the scene (e.g. Genies)
+    static Transform ctrlL, ctrlR, xrRoot;
     public static int Character { get; private set; } = -1;
     public static void ChooseCharacter(int c) { Character = Characters != null && c >= 0 && c < Characters.Length ? c : -1; Save(); }
     static GameObject humanoid;
@@ -174,6 +176,7 @@ public static class PM_Avatar
         Clear();
         HideControllerModel(left);
         HideControllerModel(right);
+        ctrlL = left; ctrlR = right; xrRoot = origin.transform;
         if (Character >= 0)
         {
             // A Humanoid character: its own hands follow the controllers, its body stands under the eyes.
@@ -203,6 +206,20 @@ public static class PM_Avatar
             if (r.GetComponentInParent<PM_Hand>() != null) continue;
             r.enabled = false;
         }
+    }
+
+    // Called by the rig every second: a Humanoid avatar loaded into the scene (Genies etc.) becomes the body.
+    public static void CheckSceneCharacter()
+    {
+        if (!AdoptSceneCharacter || humanoid != null || ctrlL == null || ctrlR == null) return;
+        Animator a = PM_Humanoid.FindSceneCharacter();
+        if (a == null) return;
+        GameObject go = PM_Humanoid.Adopt(a, xrRoot, ctrlL, ctrlR);
+        if (go == null) return;
+        if (leftHand != null) Object.Destroy(leftHand.gameObject);
+        if (rightHand != null) Object.Destroy(rightHand.gameObject);
+        leftHand = rightHand = null;
+        humanoid = go;
     }
 
     // ----- preview next to the menu (works also without the headset) -----
@@ -263,8 +280,10 @@ public class PM_AvatarRig : MonoBehaviour
     bool built;
     float nextTry;
     public void Rebuild() { built = false; nextTry = 0f; }
+    float nextScan;
     void Update()
     {
+        if (built && Time.unscaledTime > nextScan) { nextScan = Time.unscaledTime + 1f; PM_Avatar.CheckSceneCharacter(); }
         if (built || Time.unscaledTime < nextTry) return;
         nextTry = Time.unscaledTime + 0.5f;
         built = PM_Avatar.TryBuild();

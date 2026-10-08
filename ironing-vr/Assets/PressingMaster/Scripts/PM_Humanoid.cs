@@ -43,6 +43,36 @@ public class PM_Humanoid : MonoBehaviour
         return inst;
     }
 
+    // A character that is already in the scene (for example a Genies avatar spawned by its loader).
+    public static GameObject Adopt(Animator an, Transform xrOrigin, Transform leftCtrl, Transform rightCtrl)
+    {
+        if (an == null || !an.isHuman) return null;
+        GameObject go = an.gameObject;
+        if (go.GetComponent<PM_Humanoid>() != null) return go;
+        var h = go.AddComponent<PM_Humanoid>();
+        h.origin = xrOrigin;
+        h.controllers[0] = leftCtrl; h.controllers[1] = rightCtrl;
+        Quaternion r0 = go.transform.rotation; Vector3 p0 = go.transform.position;
+        go.transform.rotation = Quaternion.identity;   // measure the rest pose facing +Z
+        go.transform.position = Vector3.zero;
+        if (!h.Setup(an)) { Destroy(h); go.transform.SetPositionAndRotation(p0, r0); return null; }
+        Debug.Log("[PM] Аватар из сцены стал телом игрока: " + go.name);
+        return go;
+    }
+
+    // Finds a Humanoid character in the scene that is not ours (Genies or any other loader).
+    public static Animator FindSceneCharacter()
+    {
+        foreach (Animator a in Resources.FindObjectsOfTypeAll<Animator>())
+        {
+            if (a == null || !a.gameObject.scene.IsValid() || !a.isActiveAndEnabled || !a.isHuman) continue;
+            if (a.GetComponent<PM_Humanoid>() != null || a.GetComponentInParent<PM_Humanoid>() != null) continue;
+            if (a.name.StartsWith("PM_")) continue;
+            return a;
+        }
+        return null;
+    }
+
     bool Setup(Animator an)
     {
         root = transform;

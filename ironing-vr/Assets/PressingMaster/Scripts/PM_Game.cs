@@ -16,6 +16,9 @@ public class PM_Game : MonoBehaviour
     [Tooltip("Humanoid characters for the player's body (drag prefabs / FBX here). Rig must be Humanoid.")]
     public GameObject[] avatarCharacters;
 
+    [Tooltip("If a Humanoid avatar appears in the scene (for example loaded by the Genies Avatar SDK), it becomes the player's body.")]
+    public bool useSceneAvatar = true;
+
     enum State { Avatar, Menu, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
 
     PM_Station station;
@@ -105,6 +108,7 @@ public class PM_Game : MonoBehaviour
         Vector3 mpos = station.PlayerPos + station.Right * 1.7f + station.Forward * 0.1f;
         PM_Mirror.Create(mpos, station.PlayerPos - mpos);
         PM_Avatar.Characters = avatarCharacters ?? new GameObject[0];
+        PM_Avatar.AdoptSceneCharacter = useSceneAvatar;
         PM_Avatar.Init();
         ShowAvatarChoice();
 
