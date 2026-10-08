@@ -263,6 +263,74 @@ public class PM_Humanoid : MonoBehaviour
         return t;
     }
 
+    // ----- diagnostics: a text file in the project folder that describes a loaded avatar -----
+    // (skeleton, meshes, materials and their color properties) — needed for skin tone and outfit colors.
+    public static void WriteInfo(Animator an)
+    {
+        if (an == null) return;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("PM avatar info  " + System.DateTime.Now + "  object: " + an.name + "  isHuman: " + an.isHuman + "  avatar: " + (an.avatar != null ? an.avatar.name : "-"));
+        var skin = new System.Collections.Generic.HashSet<Transform>();
+        foreach (SkinnedMeshRenderer r in an.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            if (r.bones != null) foreach (Transform b in r.bones) if (b != null) skin.Add(b);
+        sb.AppendLine("\n== Humanoid bones (* = used by a mesh) ==");
+        if (an.isHuman)
+            foreach (HumanBodyBones hb in new[] { HumanBodyBones.Hips, HumanBodyBones.Spine, HumanBodyBones.Chest, HumanBodyBones.Neck, HumanBodyBones.Head,
+                HumanBodyBones.LeftEye, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, HumanBodyBones.LeftIndexProximal,
+                HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, HumanBodyBones.RightIndexProximal, HumanBodyBones.LeftFoot })
+            {
+                Transform t = an.GetBoneTransform(hb);
+                sb.AppendLine("  " + hb + ": " + (t == null ? "-" : Path(t, an.transform) + (skin.Contains(t) ? " *" : "")));
+            }
+        sb.AppendLine("\n== Hierarchy ==");
+        Tree(an.transform, 0, sb, skin);
+        sb.AppendLine("\n== Renderers and materials ==");
+        foreach (Renderer r in an.GetComponentsInChildren<Renderer>(true))
+        {
+            var smr = r as SkinnedMeshRenderer;
+            sb.AppendLine("[" + r.GetType().Name + "] " + Path(r.transform, an.transform) + (smr != null && smr.sharedMesh != null ? "  mesh: " + smr.sharedMesh.name + " readable: " + smr.sharedMesh.isReadable + " bones: " + (smr.bones != null ? smr.bones.Length : 0) : ""));
+            foreach (Material m in r.sharedMaterials)
+            {
+                if (m == null) continue;
+                Shader sh = m.shader;
+                sb.AppendLine("    material: " + m.name + "  shader: " + (sh != null ? sh.name : "-"));
+                if (sh == null) continue;
+                int n = sh.GetPropertyCount();
+                for (int i = 0; i < n; i++)
+                {
+                    string pn = sh.GetPropertyName(i);
+                    var pt = sh.GetPropertyType(i);
+                    string v = "";
+                    if (pt == UnityEngine.Rendering.ShaderPropertyType.Color) v = m.GetColor(pn).ToString();
+                    else if (pt == UnityEngine.Rendering.ShaderPropertyType.Texture) { Texture tx = m.GetTexture(pn); v = tx != null ? tx.name : "-"; }
+                    else if (pt == UnityEngine.Rendering.ShaderPropertyType.Float || pt == UnityEngine.Rendering.ShaderPropertyType.Range) v = m.GetFloat(pn).ToString("0.###");
+                    sb.AppendLine("        " + pn + " (" + pt + ") = " + v);
+                }
+            }
+        }
+        string file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), "PM_avatar_info.txt");
+        try { System.IO.File.WriteAllText(file, sb.ToString()); Debug.Log("[PM] Описание аватара записано в файл: " + file); }
+        catch (System.Exception e) { Debug.LogWarning("[PM] Не удалось записать описание аватара: " + e.Message); }
+    }
+
+    static string Path(Transform t, Transform top)
+    {
+        string p = t.name;
+        while (t != top && t.parent != null) { t = t.parent; p = t.name + "/" + p; }
+        return p;
+    }
+
+    static void Tree(Transform t, int depth, System.Text.StringBuilder sb, System.Collections.Generic.HashSet<Transform> skin)
+    {
+        if (sb.Length > 400000) return;
+        var comps = new System.Text.StringBuilder();
+        foreach (Component c in t.GetComponents<Component>())
+            if (c != null && !(c is Transform)) comps.Append(c.GetType().Name).Append(' ');
+        sb.Append(' ', depth * 2).Append(t.name).Append(skin.Contains(t) ? " *" : "").Append(comps.Length > 0 ? "  [" + comps.ToString().Trim() + "]" : "").Append('\n');
+        if (depth > 40) return;
+        foreach (Transform c in t) Tree(c, depth + 1, sb, skin);
+    }
+
     // ----- the own head: the player looks out of it, so only the studio mirror draws it -----
     float nextHeadCheck;
     readonly System.Collections.Generic.HashSet<Mesh> splitMeshes = new System.Collections.Generic.HashSet<Mesh>();

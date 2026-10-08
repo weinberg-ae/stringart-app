@@ -46,6 +46,7 @@ public static class PM_Avatar
         Save();
     }
     static GameObject humanoid, adopted;
+    public static Animator AdoptedAnimator { get { return adopted != null ? adopted.GetComponent<Animator>() : null; } }
     public static bool SceneCharacterAvailable { get { return AdoptSceneCharacter && (adopted != null || PM_Humanoid.FindSceneCharacter() != null); } }
 
     static Material skin, nail, shirt, pants, shoes, apron, hair, eyes, holo, sleeve, shoeUpper, shoeSole, shoeAccent;
@@ -303,9 +304,16 @@ public class PM_AvatarRig : MonoBehaviour
     bool built;
     float nextTry;
     public void Rebuild() { built = false; nextTry = 0f; }
-    float nextScan;
+    float nextScan, infoAt = -1f;
+    bool infoWritten;
     void Update()
     {
+        // Diagnostics (also without the headset): describe a loaded scene avatar once, after it finished loading.
+        if (!infoWritten && Time.unscaledTime > 2f)
+        {
+            if (infoAt < 0f) { if (Time.frameCount % 30 == 0 && PM_Humanoid.FindSceneCharacter() != null) infoAt = Time.unscaledTime + 8f; }
+            else if (Time.unscaledTime > infoAt) { infoWritten = true; PM_Humanoid.WriteInfo(PM_Humanoid.FindSceneCharacter() ?? PM_Avatar.AdoptedAnimator); }
+        }
         if (built && Time.unscaledTime > nextScan) { nextScan = Time.unscaledTime + 1f; PM_Avatar.CheckSceneCharacter(); }
         if (built || Time.unscaledTime < nextTry) return;
         nextTry = Time.unscaledTime + 0.5f;
