@@ -190,6 +190,7 @@ public class PM_Station : MonoBehaviour
         List<Transform> parts = PM_Util.FindAll(Table, IronParts);
         if (parts.Count == 0) { Debug.LogError("[PM] Детали утюга не найдены."); return; }
         Iron = PM_Iron.Assemble(parts.ToArray(), Table);
+        Iron.SetTipDirection(-Forward);   // at the rest the tip points to the player
         targets[PM_Target.Iron] = new List<Transform> { Iron.transform };
         BuildHose();
     }
@@ -202,6 +203,7 @@ public class PM_Station : MonoBehaviour
         Bounds probe = ib;
         probe.Expand(new Vector3(0.04f, 0.06f, 0.04f));
         Renderer best = null;
+        var others = new List<Renderer>();
         foreach (MeshRenderer r in Table.GetComponentsInChildren<MeshRenderer>(true))
         {
             if (r.transform.IsChildOf(Iron.transform)) continue;
@@ -210,6 +212,7 @@ public class PM_Station : MonoBehaviour
             Bounds b = r.bounds;
             if (b.size.magnitude > 1.0f || b.size.y < 0.15f) continue;     // not the table body, not small parts
             if (!b.Intersects(probe) || b.max.y < ib.max.y + 0.1f) continue; // must touch the iron and go up
+            others.Add(r);
             if (best == null || b.max.y > best.bounds.max.y) best = r;
         }
         if (best == null) { Debug.Log("[PM] Шланг модели не найден — гибкий шланг идёт от стойки."); }
@@ -224,7 +227,8 @@ public class PM_Station : MonoBehaviour
             if (dd > far) { far = dd; anchor = c; }
         }
         Vector3 end = ib.ClosestPoint(new Vector3(hb.center.x, hb.min.y, hb.center.z));
-        if (best != null) { best.enabled = false; Debug.Log("[PM] Шланг модели заменён гибким: " + best.name); }
+        // Hide every static piece of hose that touched the iron (it would stay behind when the iron is lifted).
+        foreach (Renderer r in others) { r.enabled = false; Debug.Log("[PM] Шланг модели заменён гибким: " + r.name); }
         PM_Hose.Create(Table, anchor, Iron.transform, end);
     }
 

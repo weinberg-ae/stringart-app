@@ -33,6 +33,11 @@ public static class PM_Avatar
         { new Color(0.07f, 0.07f, 0.08f), new Color(0.22f, 0.13f, 0.07f), new Color(0.8f, 0.8f, 0.82f) },
     };
     public static int Shoes { get; private set; }
+    // Humanoid characters from the Inspector (PM_Game → Avatar Characters). -1 = hands only.
+    public static GameObject[] Characters = new GameObject[0];
+    public static int Character { get; private set; } = -1;
+    public static void ChooseCharacter(int c) { Character = Characters != null && c >= 0 && c < Characters.Length ? c : -1; Save(); }
+    static GameObject humanoid;
 
     static Material skin, nail, shirt, pants, shoes, apron, hair, eyes, holo, sleeve, shoeUpper, shoeSole, shoeAccent;
     static PM_Hand leftHand, rightHand;
@@ -63,6 +68,8 @@ public static class PM_Avatar
         BodyType = Mathf.Clamp(PlayerPrefs.GetInt("PM_Body", 0), 0, 1);
         Outfit = Mathf.Clamp(PlayerPrefs.GetInt("PM_Outfit", 0), 0, 3);
         Shoes = Mathf.Clamp(PlayerPrefs.GetInt("PM_Shoes", 0), 0, 2);
+        Character = PlayerPrefs.GetInt("PM_Char", -1);
+        if (Characters == null || Character >= Characters.Length || (Character >= 0 && Characters[Character] == null)) Character = -1;
         ApplyMaterials();
         rig = new GameObject("PM_AvatarRig").AddComponent<PM_AvatarRig>();
     }
@@ -137,7 +144,7 @@ public static class PM_Avatar
     static void Save()
     {
         PlayerPrefs.SetInt("PM_Hand", HandType); PlayerPrefs.SetInt("PM_Tone", Tone); PlayerPrefs.SetInt("PM_Tattoo", Tattoo);
-        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes);
+        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes); PlayerPrefs.SetInt("PM_Char", Character);
         ApplyMaterials();
         if (rig != null) rig.Rebuild();
         RefreshPreview();
@@ -167,10 +174,15 @@ public static class PM_Avatar
         Clear();
         HideControllerModel(left);
         HideControllerModel(right);
+        if (Character >= 0)
+        {
+            // A Humanoid character: its own hands follow the controllers, its body stands under the eyes.
+            humanoid = PM_Humanoid.Create(Characters[Character], origin.transform, left, right);
+            if (humanoid != null) return true;
+        }
+        // Hands only (the simple body is switched off: it looked broken when moving).
         leftHand = PM_Hand.Create(left, true, HandKey(HandType), true);
         rightHand = PM_Hand.Create(right, false, HandKey(HandType), true);
-        if (Camera.main != null) Camera.main.cullingMask &= ~(1 << MirrorLayer);
-        body = PM_Body.Create(origin.transform, leftHand, rightHand);
         return leftHand != null && rightHand != null;
     }
 
@@ -179,7 +191,8 @@ public static class PM_Avatar
         if (leftHand != null) Object.Destroy(leftHand.gameObject);
         if (rightHand != null) Object.Destroy(rightHand.gameObject);
         if (body != null) Object.Destroy(body.gameObject);
-        leftHand = rightHand = null; body = null;
+        if (humanoid != null) Object.Destroy(humanoid);
+        leftHand = rightHand = null; body = null; humanoid = null;
     }
 
     static void HideControllerModel(Transform controller)
@@ -313,11 +326,14 @@ public class PM_HandData
 }
 
 // Human hand on a controller (grip pose): fingers forward (+Z), thumb up (+Y), palm facing inwards.
+// While it holds the iron, the hand sits on the iron's handle (so it never goes through the iron or the board).
+[DefaultExecutionOrder(200)]
 public class PM_Hand : MonoBehaviour
 {
     public bool left;
     public Transform Wrist { get; private set; }
     bool live;
+    Vector3 home;
     Transform[] bones;
     Vector3[] axes;
     float grip, trigger;
@@ -332,6 +348,7 @@ public class PM_Hand : MonoBehaviour
         // The controller handle sits inside the closed fist.
         if (live) go.transform.localPosition = new Vector3(0.026f * s, 0.006f, 0.035f);
         var h = go.AddComponent<PM_Hand>();
+        h.home = go.transform.localPosition;
         h.left = left;
         h.live = live;
         h.Build(d);
@@ -427,6 +444,22 @@ public class PM_Hand : MonoBehaviour
         grip = Mathf.Lerp(grip, g, Time.deltaTime * 18f);
         trigger = Mathf.Lerp(trigger, t, Time.deltaTime * 18f);
         Pose(0.1f + grip * 0.9f, 0.08f + trigger * 0.92f);
+    }
+
+    void LateUpdate()
+    {
+        if (!live) return;
+        Vector3 p; Quaternion r;
+        if (PM_Iron.HandleGrip(left, out p, out r))
+        {
+            transform.rotation = r;
+            transform.position = p + r * home;
+        }
+        else
+        {
+            transform.localPosition = home;
+            transform.localRotation = Quaternion.identity;
+        }
     }
 }
 

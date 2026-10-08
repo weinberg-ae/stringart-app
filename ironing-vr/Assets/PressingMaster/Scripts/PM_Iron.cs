@@ -44,6 +44,8 @@ public class PM_Iron : MonoBehaviour
     Quaternion returnFromRot;
     Vector3 lastSole;
     Vector2 soleHalf;                 // half size of the soleplate (local x, z)
+    Vector3 localMin, localMax;       // iron size in its own space
+    Vector3 tipLocal = Vector3.forward;   // direction of the iron's tip (local)
     Vector3 grabPosOff, followPos;
     Quaternion grabRotOff, followRot;
     ParticleSystem steam, spit;
@@ -105,6 +107,7 @@ public class PM_Iron : MonoBehaviour
             }
         }
         soleHalf = new Vector2((lmax.x - lmin.x) * 0.42f, (lmax.z - lmin.z) * 0.42f);
+        localMin = lmin; localMax = lmax;
 
         // The player's body must not push the iron around.
         foreach (CharacterController cc in Resources.FindObjectsOfTypeAll<CharacterController>())
@@ -249,6 +252,36 @@ public class PM_Iron : MonoBehaviour
         returnT = -1f;
         transform.position += point + Vector3.up * 0.004f - SoleWorld;
         desktopUntil = Time.time + 0.2f;
+    }
+
+    // The station tells which way the tip points (at the rest it points to the player).
+    public void SetTipDirection(Vector3 worldDir)
+    {
+        Vector3 l = transform.InverseTransformDirection(worldDir);
+        l -= Vector3.Dot(l, localDown) * localDown;   // horizontal in the iron's own frame
+        if (l.sqrMagnitude > 0.0001f) tipLocal = l.normalized;
+    }
+
+    // Where the hand holding the iron should be: around the handle, fist along the handle, palm down.
+    // Returns the "grip frame" (Z along the handle to the tip, Y = thumb side), like a controller grip pose.
+    public static bool HandleGrip(bool left, out Vector3 pos, out Quaternion rot)
+    {
+        pos = Vector3.zero; rot = Quaternion.identity;
+        PM_Iron it = Instance;
+        if (it == null || !it.Held || CurrentHolder == null || PM_Clickable.IsLeft(CurrentHolder) != left) return false;
+        Vector3 c = (it.localMin + it.localMax) * 0.5f;
+        Vector3 upL = -it.localDown;
+        float top = 0f;
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 k = new Vector3((i & 1) == 0 ? it.localMin.x : it.localMax.x, (i & 2) == 0 ? it.localMin.y : it.localMax.y, (i & 4) == 0 ? it.localMin.z : it.localMax.z);
+            top = Mathf.Max(top, Vector3.Dot(k - c, upL));
+        }
+        pos = it.transform.TransformPoint(c + upL * (top - 0.03f));
+        Vector3 tip = it.transform.TransformDirection(it.tipLocal);
+        Vector3 up = it.transform.TransformDirection(upL);
+        rot = Quaternion.LookRotation(tip, Vector3.Cross(tip, left ? -up : up));
+        return true;
     }
 
     // Follow the hand with a slight delay (weight), then keep the sole above the board / fabric.

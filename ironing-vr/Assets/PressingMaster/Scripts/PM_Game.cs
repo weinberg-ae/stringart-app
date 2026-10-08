@@ -13,6 +13,9 @@ public class PM_Game : MonoBehaviour
     [Tooltip("Graphite + neon look for the table. Uncheck to keep the original blue model.")]
     public bool restyleTable = true;
 
+    [Tooltip("Humanoid characters for the player's body (drag prefabs / FBX here). Rig must be Humanoid.")]
+    public GameObject[] avatarCharacters;
+
     enum State { Avatar, Menu, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
 
     PM_Station station;
@@ -101,6 +104,7 @@ public class PM_Game : MonoBehaviour
         // Studio mirror on the right: the player sees the avatar (body, apron, head).
         Vector3 mpos = station.PlayerPos + station.Right * 1.7f + station.Forward * 0.1f;
         PM_Mirror.Create(mpos, station.PlayerPos - mpos);
+        PM_Avatar.Characters = avatarCharacters ?? new GameObject[0];
         PM_Avatar.Init();
         ShowAvatarChoice();
 
@@ -262,29 +266,35 @@ public class PM_Game : MonoBehaviour
         if (PM_Audio.I != null) { PM_Audio.I.Play("error", 0.8f); PM_Audio.I.PlayVoice("child_warning"); }
     }
 
+    // Full body: a Humanoid character from the Inspector list (PM_Game → Avatar Characters), or hands only.
     void ShowBodyChoice()
     {
         Remember();
         avatarPage = 2;
         state = State.Avatar;
         ClearStepVisuals();
-        panel.SetContent(PM_Content.BodyTitle, PM_Content.BodyBody, "");
+        int n = avatarCharacters != null ? avatarCharacters.Length : 0;
+        panel.SetContent(PM_Content.BodyTitle, n > 0 ? PM_Content.BodyBody : PM_Content.BodyNone, "");
         panel.SetAccent(PM_Util.Violet);
-        panel.SetButtonGrid(2, -1, 0.3f, 0.0f, false,
-            Btn(PM_Content.BodyLabels[0], () => PM_Avatar.ChooseBody(0)), Btn(PM_Content.BodyLabels[1], () => PM_Avatar.ChooseBody(1)));
-        var outfits = new List<KeyValuePair<string, Action>>();
-        for (int i = 0; i < 4; i++) { int k = i; outfits.Add(Btn(PM_Content.OutfitLabels[i], () => PM_Avatar.ChooseOutfit(k))); }
-        panel.SetButtonGrid(4, -1, 0.22f, -0.11f, true, outfits.ToArray());
-        var shoes = new List<KeyValuePair<string, Action>>();
-        for (int i = 0; i < 3; i++) { int k = i; shoes.Add(Btn(PM_Content.ShoeLabels[i], () => PM_Avatar.ChooseShoes(k))); }
-        panel.SetButtonGrid(3, -1, 0.26f, -0.22f, true, shoes.ToArray());
+        var items = new List<KeyValuePair<string, Action>>();
+        items.Add(Btn(PM_Content.BtnHandsOnly, () => PM_Avatar.ChooseCharacter(-1)));
+        for (int i = 0; i < n && i < 7; i++)
+        {
+            if (avatarCharacters[i] == null) continue;
+            int k = i;
+            string label = avatarCharacters[i].name;
+            if (label.Length > 14) label = label.Substring(0, 14);
+            items.Add(Btn(label, () => PM_Avatar.ChooseCharacter(k)));
+        }
+        panel.SetButtonGrid(4, -1, 0.22f, -0.02f, false, items.ToArray());
         panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnHands, ShowAvatarChoice), Btn(PM_Content.BtnContinue, ShowMenu));
-        AvatarPreview(2);
+        AvatarPreview(0);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar_body");
     }
 
     void AvatarPreview(int mode, int handOverride = -1)
     {
+        if (mode == 0) { PM_Avatar.ShowPreview(0, Vector3.zero, Vector3.zero); return; }
         Vector3 pos = panel.transform.position - panel.transform.right * 0.78f + (mode == 2 ? Vector3.down * 0.4f : Vector3.zero);
         PM_Avatar.ShowPreview(mode, pos, station.PlayerPos + Vector3.up * 1.6f, handOverride);
     }
@@ -536,6 +546,8 @@ public class PM_Game : MonoBehaviour
         CloseCard();
         // Only what belongs to this step is shown: fiber screens in the fibers step, points of light at the station steps.
         bool stationStep = System.Array.IndexOf(StationStepIds, s.id) >= 0;
+        // In the fibers step the main window goes lower, so the fiber screens above stay visible.
+        panel.Place(station.PanelPos - (s.group == PM_HotspotGroup.Fibers ? Vector3.up * 0.38f : Vector3.zero), station.PlayerPos + Vector3.up * 1.6f);
         ShowStationHotspots(stationStep, s.group == PM_HotspotGroup.Fibers);
 
         if (s.target == PM_Target.Fabric)

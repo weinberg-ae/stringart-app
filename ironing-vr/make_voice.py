@@ -18,7 +18,7 @@ def voice_for(name):
 # Each word also matches with prefixes ו ה ב ל מ ש כ (for example: הפשתן, בעמדה, והלחץ).
 PRONOUNCE = {
     # fibers and fabrics
-    "פשתן": "פישתן",
+    "פשתן": "פישטאן",
     "פוליאסטר": "פולי אסטר",
     "כותנה": "כּוּתְנָה",
     "צמר": "צֶמֶר",
