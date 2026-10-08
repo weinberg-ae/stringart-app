@@ -133,6 +133,7 @@ public static class PM_Content
     public const string BodyBody = "בחרו דמות לגוף שלכם — ותראו אותה במראה שליד העמדה. או: ידיים בלבד.";
     public const string BodyNone = "עוד אין דמויות. אפשר להמשיך עם ידיים בלבד.";
     public const string BtnHandsOnly = "ידיים בלבד";
+    public const string BtnSceneAvatar = "הדמות שלי";
     public static readonly string[] BodyLabels = { "גוף גבר", "גוף אישה" };
     public static readonly string[] OutfitLabels = { "שחור", "ג'ינס", "משבצות", "בורדו" };
     public static readonly string[] ShoeLabels = { "סניקרס", "מגפיים", "קלאסיות" };

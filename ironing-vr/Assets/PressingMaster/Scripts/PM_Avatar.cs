@@ -33,13 +33,20 @@ public static class PM_Avatar
         { new Color(0.07f, 0.07f, 0.08f), new Color(0.22f, 0.13f, 0.07f), new Color(0.8f, 0.8f, 0.82f) },
     };
     public static int Shoes { get; private set; }
-    // Humanoid characters from the Inspector (PM_Game → Avatar Characters). -1 = hands only.
+    // Humanoid characters from the Inspector (PM_Game → Avatar Characters). -1 = hands only,
+    // -2 = the avatar that a loader puts into the scene (Genies); hands until it appears.
+    public const int SceneCharacter = -2;
     public static GameObject[] Characters = new GameObject[0];
     public static bool AdoptSceneCharacter = true;   // use a Humanoid avatar that appears in the scene (e.g. Genies)
     static Transform ctrlL, ctrlR, xrRoot;
-    public static int Character { get; private set; } = -1;
-    public static void ChooseCharacter(int c) { Character = Characters != null && c >= 0 && c < Characters.Length ? c : -1; Save(); }
-    static GameObject humanoid;
+    public static int Character { get; private set; } = SceneCharacter;
+    public static void ChooseCharacter(int c)
+    {
+        Character = c == SceneCharacter || (Characters != null && c >= 0 && c < Characters.Length) ? c : -1;
+        Save();
+    }
+    static GameObject humanoid, adopted;
+    public static bool SceneCharacterAvailable { get { return AdoptSceneCharacter && (adopted != null || PM_Humanoid.FindSceneCharacter() != null); } }
 
     static Material skin, nail, shirt, pants, shoes, apron, hair, eyes, holo, sleeve, shoeUpper, shoeSole, shoeAccent;
     static PM_Hand leftHand, rightHand;
@@ -70,8 +77,8 @@ public static class PM_Avatar
         BodyType = Mathf.Clamp(PlayerPrefs.GetInt("PM_Body", 0), 0, 1);
         Outfit = Mathf.Clamp(PlayerPrefs.GetInt("PM_Outfit", 0), 0, 3);
         Shoes = Mathf.Clamp(PlayerPrefs.GetInt("PM_Shoes", 0), 0, 2);
-        Character = PlayerPrefs.GetInt("PM_Char", -1);
-        if (Characters == null || Character >= Characters.Length || (Character >= 0 && Characters[Character] == null)) Character = -1;
+        Character = PlayerPrefs.GetInt("PM_Char2", SceneCharacter);
+        if (Character < SceneCharacter || Characters == null || Character >= Characters.Length || (Character >= 0 && Characters[Character] == null)) Character = -1;
         ApplyMaterials();
         rig = new GameObject("PM_AvatarRig").AddComponent<PM_AvatarRig>();
     }
@@ -146,7 +153,7 @@ public static class PM_Avatar
     static void Save()
     {
         PlayerPrefs.SetInt("PM_Hand", HandType); PlayerPrefs.SetInt("PM_Tone", Tone); PlayerPrefs.SetInt("PM_Tattoo", Tattoo);
-        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes); PlayerPrefs.SetInt("PM_Char", Character);
+        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes); PlayerPrefs.SetInt("PM_Char2", Character);
         ApplyMaterials();
         if (rig != null) rig.Rebuild();
         RefreshPreview();
@@ -194,7 +201,8 @@ public static class PM_Avatar
         if (leftHand != null) Object.Destroy(leftHand.gameObject);
         if (rightHand != null) Object.Destroy(rightHand.gameObject);
         if (body != null) Object.Destroy(body.gameObject);
-        if (humanoid != null) Object.Destroy(humanoid);
+        if (humanoid != null && humanoid == adopted) humanoid.SetActive(false);   // a scene avatar is kept for later
+        else if (humanoid != null) Object.Destroy(humanoid);
         leftHand = rightHand = null; body = null; humanoid = null;
     }
 
@@ -211,11 +219,17 @@ public static class PM_Avatar
     // Called by the rig every second: a Humanoid avatar loaded into the scene (Genies etc.) becomes the body.
     public static void CheckSceneCharacter()
     {
-        if (!AdoptSceneCharacter || humanoid != null || ctrlL == null || ctrlR == null) return;
-        Animator a = PM_Humanoid.FindSceneCharacter();
-        if (a == null) return;
-        GameObject go = PM_Humanoid.Adopt(a, xrRoot, ctrlL, ctrlR);
-        if (go == null) return;
+        if (!AdoptSceneCharacter || Character != SceneCharacter || humanoid != null || ctrlL == null || ctrlR == null) return;
+        GameObject go = adopted;
+        if (go != null) go.SetActive(true);
+        else
+        {
+            Animator a = PM_Humanoid.FindSceneCharacter();
+            if (a == null) return;
+            go = PM_Humanoid.Adopt(a, xrRoot, ctrlL, ctrlR);
+            if (go == null) return;
+            adopted = go;
+        }
         if (leftHand != null) Object.Destroy(leftHand.gameObject);
         if (rightHand != null) Object.Destroy(rightHand.gameObject);
         leftHand = rightHand = null;

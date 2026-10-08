@@ -278,9 +278,11 @@ public class PM_Game : MonoBehaviour
         state = State.Avatar;
         ClearStepVisuals();
         int n = avatarCharacters != null ? avatarCharacters.Length : 0;
-        panel.SetContent(PM_Content.BodyTitle, n > 0 ? PM_Content.BodyBody : PM_Content.BodyNone, "");
+        bool genies = PM_Avatar.SceneCharacterAvailable;
+        panel.SetContent(PM_Content.BodyTitle, n > 0 || genies ? PM_Content.BodyBody : PM_Content.BodyNone, "");
         panel.SetAccent(PM_Util.Violet);
         var items = new List<KeyValuePair<string, Action>>();
+        if (genies) items.Add(Btn(PM_Content.BtnSceneAvatar, () => PM_Avatar.ChooseCharacter(PM_Avatar.SceneCharacter)));
         items.Add(Btn(PM_Content.BtnHandsOnly, () => PM_Avatar.ChooseCharacter(-1)));
         for (int i = 0; i < n && i < 7; i++)
         {

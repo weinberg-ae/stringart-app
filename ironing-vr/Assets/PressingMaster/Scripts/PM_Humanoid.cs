@@ -49,31 +49,60 @@ public class PM_Humanoid : MonoBehaviour
         if (an == null || !an.isHuman) return null;
         GameObject go = an.gameObject;
         if (go.GetComponent<PM_Humanoid>() != null) return go;
+        // The loader's own character controller (walking, gravity, touch joystick) must not move the body.
+        Transform spawn = null;
+        for (Transform p = go.transform; p != null; p = p.parent)
+        {
+            bool ctrl = false;
+            foreach (CharacterController cc in p.GetComponents<CharacterController>()) { cc.enabled = false; ctrl = true; }
+            foreach (Rigidbody rb in p.GetComponents<Rigidbody>()) rb.isKinematic = true;
+            foreach (MonoBehaviour mb in p.GetComponents<MonoBehaviour>())
+            {
+                if (mb == null || mb is PM_Humanoid) continue;
+                string n = mb.GetType().Name;
+                if (!n.Contains("Controller") && !n.Contains("Locomotion") && !n.Contains("Movement")) continue;
+                mb.enabled = false; ctrl = true;
+                Debug.Log("[PM] Управление персонажем из демо отключено: " + n);
+            }
+            if (ctrl) spawn = p;
+        }
+        foreach (Light l in (spawn != null ? spawn : go.transform).GetComponentsInChildren<Light>(true)) l.enabled = false;
+        foreach (Collider c in go.GetComponentsInChildren<Collider>(true)) c.enabled = false;   // the iron must not land on the body
         var h = go.AddComponent<PM_Humanoid>();
         h.origin = xrOrigin;
         h.controllers[0] = leftCtrl; h.controllers[1] = rightCtrl;
         Quaternion r0 = go.transform.rotation; Vector3 p0 = go.transform.position;
         go.transform.rotation = Quaternion.identity;   // measure the rest pose facing +Z
         go.transform.position = Vector3.zero;
-        if (!h.Setup(an)) { Destroy(h); go.transform.SetPositionAndRotation(p0, r0); return null; }
+        an.applyRootMotion = false;
+        if (!h.Setup(an, true)) { Destroy(h); go.transform.SetPositionAndRotation(p0, r0); return null; }
         Debug.Log("[PM] Аватар из сцены стал телом игрока: " + go.name);
         return go;
     }
 
     // Finds a Humanoid character in the scene that is not ours (Genies or any other loader).
+    static readonly System.Collections.Generic.HashSet<Animator> reported = new System.Collections.Generic.HashSet<Animator>();
     public static Animator FindSceneCharacter()
     {
         foreach (Animator a in Resources.FindObjectsOfTypeAll<Animator>())
         {
-            if (a == null || !a.gameObject.scene.IsValid() || !a.isActiveAndEnabled || !a.isHuman) continue;
+            if (a == null || !a.gameObject.scene.IsValid() || !a.isActiveAndEnabled) continue;
             if (a.GetComponent<PM_Humanoid>() != null || a.GetComponentInParent<PM_Humanoid>() != null) continue;
             if (a.name.StartsWith("PM_")) continue;
+            if (!a.isHuman)
+            {
+                if (a.GetComponentInChildren<SkinnedMeshRenderer>() != null && reported.Add(a))
+                    Debug.LogWarning("[PM] Персонаж «" + a.name + "» в сцене не Humanoid (Avatar: " + (a.avatar != null ? a.avatar.name : "нет") + ") — телом игрока он стать не может.");
+                continue;
+            }
             return a;
         }
         return null;
     }
 
-    bool Setup(Animator an)
+    // keepAnimator: a loaded avatar keeps its idle animation (and its body-shape rig); arms, hands and
+    // fingers are overridden every frame after the animation.
+    bool Setup(Animator an, bool keepAnimator = false)
     {
         root = transform;
         head = an.GetBoneTransform(HumanBodyBones.Head);
@@ -82,7 +111,9 @@ public class PM_Humanoid : MonoBehaviour
         for (int i = 0; i < 6; i++) { arm[i] = an.GetBoneTransform(ab[i]); if (arm[i] == null) return false; armRest[i] = arm[i].localRotation; }
         if (head == null) return false;
         // Eyes: a bit above and in front of the head bone.
-        Vector3 eye = head.position + Vector3.up * 0.09f + Vector3.forward * 0.09f;
+        Transform eyeL = an.GetBoneTransform(HumanBodyBones.LeftEye), eyeR = an.GetBoneTransform(HumanBodyBones.RightEye);
+        Vector3 eye = eyeL != null && eyeR != null ? (eyeL.position + eyeR.position) * 0.5f + Vector3.forward * 0.02f
+                                                   : head.position + Vector3.up * 0.09f + Vector3.forward * 0.09f;
         eyeLocal = root.InverseTransformPoint(eye);
         eyeModel = Mathf.Max(0.5f, eye.y - root.position.y);
         // Fingers + the hand's own frame (fingers direction, thumb side) in the rest pose.
@@ -118,15 +149,18 @@ public class PM_Humanoid : MonoBehaviour
                 fingerAxis[s][k] = Quaternion.Inverse(fingers[s][k].rotation) * axisW;
             }
         }
-        an.enabled = false;   // bones are driven by this script
+        if (!keepAnimator) an.enabled = false;   // bones are driven by this script
+        foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true)) r.updateWhenOffscreen = true;
         cam = Camera.main != null ? Camera.main.transform : null;
-        if (Camera.main != null) Camera.main.nearClipPlane = Mathf.Max(Camera.main.nearClipPlane, 0.07f);   // don't see inside the own head
+        HideHead();
         return true;
     }
 
     void LateUpdate()
     {
         if (cam == null) { cam = Camera.main != null ? Camera.main.transform : null; if (cam == null) return; }
+        if (Time.unscaledTime > nextHeadCheck) { nextHeadCheck = Time.unscaledTime + 1f; HideHead(); }   // loaders may swap meshes later
+        SyncHeadCopies();
         float floorY = origin != null ? origin.position.y : cam.position.y - 1.6f;
         eyeReal = Mathf.Max(eyeReal, Mathf.Clamp(cam.position.y - floorY, 1.0f, 1.95f));
         float sc = eyeReal / eyeModel;
@@ -157,6 +191,113 @@ public class PM_Humanoid : MonoBehaviour
             Solve(arm[s * 3], arm[s * 3 + 1], arm[s * 3 + 2], wrist, Vector3.down + outward * 0.6f - rot * Vector3.forward * 0.3f);
             arm[s * 3 + 2].rotation = gr * handOffset[s];
             Fingers(s, left);
+        }
+    }
+
+    // ----- the own head: the player looks out of it, so only the studio mirror draws it -----
+    float nextHeadCheck;
+    readonly System.Collections.Generic.HashSet<Mesh> splitMeshes = new System.Collections.Generic.HashSet<Mesh>();
+    readonly System.Collections.Generic.Dictionary<SkinnedMeshRenderer, SkinnedMeshRenderer> headCopies =
+        new System.Collections.Generic.Dictionary<SkinnedMeshRenderer, SkinnedMeshRenderer>();
+
+    bool IsHeadPart(Transform b) { return b != null && head != null && b.IsChildOf(head); }
+
+    void HideHead()
+    {
+        Camera main = cam != null ? cam.GetComponent<Camera>() : Camera.main;
+        if (main != null)
+        {
+            main.cullingMask &= ~(1 << PM_Avatar.MirrorLayer);
+            main.nearClipPlane = Mathf.Max(main.nearClipPlane, 0.05f);
+        }
+        foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            if (r.gameObject.layer == PM_Avatar.MirrorLayer || r.sharedMesh == null || splitMeshes.Contains(r.sharedMesh)) continue;
+            SplitHead(r);
+        }
+        foreach (MeshRenderer r in GetComponentsInChildren<MeshRenderer>(true))   // hats, glasses, earrings on the head bone
+            if (IsHeadPart(r.transform)) r.gameObject.layer = PM_Avatar.MirrorLayer;
+    }
+
+    // Moves the triangles that follow the head (face, hair, hat) into a copy drawn on the mirror-only layer.
+    void SplitHead(SkinnedMeshRenderer r)
+    {
+        Mesh m = r.sharedMesh;
+        splitMeshes.Add(m);
+        Transform[] bones = r.bones;
+        BoneWeight[] w = m.isReadable ? m.boneWeights : null;
+        if (w == null || w.Length == 0 || bones == null || bones.Length == 0)
+        {
+            if (IsHeadPart(r.rootBone != null ? r.rootBone : r.transform)) r.gameObject.layer = PM_Avatar.MirrorLayer;
+            return;
+        }
+        var headBone = new bool[bones.Length];
+        for (int i = 0; i < bones.Length; i++) headBone[i] = IsHeadPart(bones[i]);
+        var headVert = new bool[w.Length];
+        for (int v = 0; v < w.Length; v++)
+        {
+            BoneWeight b = w[v];
+            int bi = b.boneIndex0; float bw = b.weight0;
+            if (b.weight1 > bw) { bi = b.boneIndex1; bw = b.weight1; }
+            if (b.weight2 > bw) { bi = b.boneIndex2; bw = b.weight2; }
+            if (b.weight3 > bw) { bi = b.boneIndex3; bw = b.weight3; }
+            headVert[v] = bi >= 0 && bi < headBone.Length && headBone[bi];
+        }
+        int subs = m.subMeshCount, nHead = 0, nBody = 0;
+        var headTris = new System.Collections.Generic.List<int>[subs];
+        var bodyTris = new System.Collections.Generic.List<int>[subs];
+        for (int s = 0; s < subs; s++)
+        {
+            headTris[s] = new System.Collections.Generic.List<int>();
+            bodyTris[s] = new System.Collections.Generic.List<int>();
+            int[] t = m.GetTriangles(s);
+            for (int k = 0; k + 2 < t.Length; k += 3)
+            {
+                bool hd = headVert[t[k]] || headVert[t[k + 1]] || headVert[t[k + 2]];
+                var list = hd ? headTris[s] : bodyTris[s];
+                list.Add(t[k]); list.Add(t[k + 1]); list.Add(t[k + 2]);
+                if (hd) nHead++; else nBody++;
+            }
+        }
+        if (nHead == 0) return;
+        if (nBody == 0) { r.gameObject.layer = PM_Avatar.MirrorLayer; return; }
+
+        Mesh body = Instantiate(m); body.name = m.name + "_PMbody";
+        Mesh hm = Instantiate(m); hm.name = m.name + "_PMhead";
+        for (int s = 0; s < subs; s++) { body.SetTriangles(bodyTris[s], s); hm.SetTriangles(headTris[s], s); }
+        splitMeshes.Add(body); splitMeshes.Add(hm);
+
+        SkinnedMeshRenderer old;
+        if (headCopies.TryGetValue(r, out old) && old != null) Destroy(old.gameObject);
+        var go = new GameObject(r.name + "_PMHead");
+        go.layer = PM_Avatar.MirrorLayer;
+        go.transform.SetParent(r.transform.parent, false);
+        go.transform.localPosition = r.transform.localPosition;
+        go.transform.localRotation = r.transform.localRotation;
+        go.transform.localScale = r.transform.localScale;
+        var hr = go.AddComponent<SkinnedMeshRenderer>();
+        hr.sharedMesh = hm;
+        hr.bones = bones;
+        hr.rootBone = r.rootBone;
+        hr.sharedMaterials = r.sharedMaterials;
+        hr.localBounds = r.localBounds;
+        hr.updateWhenOffscreen = true;
+        hr.shadowCastingMode = r.shadowCastingMode;
+        var block = new MaterialPropertyBlock();
+        r.GetPropertyBlock(block); hr.SetPropertyBlock(block);
+        r.sharedMesh = body;
+        headCopies[r] = hr;
+    }
+
+    void SyncHeadCopies()
+    {
+        foreach (var kv in headCopies)
+        {
+            SkinnedMeshRenderer src = kv.Key, dst = kv.Value;
+            if (src == null || dst == null) continue;
+            dst.enabled = src.enabled && src.gameObject.activeInHierarchy;
+            int n = dst.sharedMesh != null ? dst.sharedMesh.blendShapeCount : 0;
+            for (int i = 0; i < n; i++) dst.SetBlendShapeWeight(i, src.GetBlendShapeWeight(i));   // blinking, expressions
         }
     }
 
