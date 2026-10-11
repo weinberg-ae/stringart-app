@@ -5,7 +5,7 @@ using UnityEngine;
 public enum PM_Target { None, Water, DressForm, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest }
 public enum PM_Action { Next, FillWater, SteamOnForm, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
 public enum PM_HotspotGroup { None, Station, Tools, Fabric, Fibers }
-public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft }
+public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft, FrontAbove }
 public enum PM_FabricType { Cotton, Linen, Wool, Silk, Polyester, Viscose, Modal, Lyocell, Acetate, Polyamide, Acrylic, Elastane }
 public enum PM_Steam { Required, Optional, Forbidden }
 public enum PM_Weave { Plain, Slub, Twill, Satin, Smooth }
@@ -385,7 +385,7 @@ public static class PM_Content
             "משטח עמיד לחום שעליו מניחים את המגהץ בין פעולה לפעולה.\n" +
             "מגהץ מקצועי מניחים תמיד בשכיבה על המשטח — לא מעמידים אותו על העקב כמו מגהץ ביתי: הוא עלול ליפול ולגרום לכוויה.\n" +
             "לעולם לא משאירים מגהץ חם על הבד או על כיסוי הקרש — זו הסיבה העיקרית לכתמי חריכה ולשריפות.",
-            PM_Target.Rest, PM_Anchor.Front));
+            PM_Target.Rest, PM_Anchor.FrontAbove));
         l.Add(new PM_HotspotInfo("boom", "זרוע הכבל", "זרוע תליית הכבל",
             "הכבל וצינור הקיטור תלויים על זרוע עם קפיץ.\n" +
             "כך הם לא נגררים על הבד ולא מקמטים אותו, לא מפריעים לתנועת היד, והצינור נשאר ישר — פחות מים מתעבים בתוכו.",

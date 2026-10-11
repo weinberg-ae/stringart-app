@@ -606,6 +606,8 @@ public class PM_Station : MonoBehaviour
                 return b.center - Forward * (depth * 0.5f + 0.05f);
             case PM_Anchor.FrontBelow:
                 return b.center - Forward * (depth * 0.5f + 0.05f) - Vector3.up * 0.06f;
+            case PM_Anchor.FrontAbove:   // flat parts lying on the board: in front of the part, above the board surface
+                return new Vector3(b.center.x, Mathf.Max(b.max.y, BoardTopY) + 0.07f, b.center.z) - Forward * (depth * 0.5f + 0.04f);
             case PM_Anchor.IronFront:
                 return new Vector3(b.center.x, b.min.y + 0.03f, b.center.z) - Forward * (depth * 0.5f + 0.06f) + Right * 0.06f;
             default:

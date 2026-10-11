@@ -68,7 +68,7 @@ PRONOUNCE = {
     "חולצת": "חוּלְצַת",
     "בובה": "בּוּבָּה",
     "בובת": "בּוּבַּת",
-    "תפירה": "תְּפִירָה",
+    # "תפירה" is read correctly (TFIRA) without vowel marks; with a dagesh + sheva the voice said TEFIRA
     "סינר": "סִינָר",
     "קמטים": "קְמָטִים",
     "שריפה": "שְׂרֵפָה",
