@@ -295,6 +295,7 @@ public class PM_Iron : MonoBehaviour
         followRot = Quaternion.Slerp(followRot, tr, 1f - Mathf.Exp(-dt * 18f));
         transform.position = followPos;
         transform.rotation = followRot;
+        KeepOutOfBody();
         KeepAboveSurface();
     }
 
@@ -322,7 +323,7 @@ public class PM_Iron : MonoBehaviour
                 if (h.point.y > best) { best = h.point.y; bn = h.normal; }
             }
             if (best == float.MinValue) continue;
-            lift = Mathf.Max(lift, best - wp.y);
+            lift = Mathf.Max(lift, best + soleExtra - wp.y);
             normal += bn; hitsCount++;
         }
         if (hitsCount == 0) return;
@@ -339,6 +340,49 @@ public class PM_Iron : MonoBehaviour
             transform.position += Vector3.up * lift;
             followPos.y = Mathf.Max(followPos.y, transform.position.y);
         }
+    }
+
+    public float soleExtra;   // a silicone shoe under the sole lifts the iron a little
+
+    // The iron never goes into the player's own body (the cartoon body stands under the eyes).
+    void KeepOutOfBody()
+    {
+        Vector3 a, b; float r;
+        if (!PM_ToonBody.Capsule(out a, out b, out r)) return;
+        Vector3 c = transform.TransformPoint((localMin + localMax) * 0.5f);
+        float ironR = 0.07f;
+        Vector3 ab = b - a;
+        float t = Mathf.Clamp01(Vector3.Dot(c - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f));
+        Vector3 q = a + ab * t;
+        Vector3 d = c - q; d.y = 0f;
+        float dist = d.magnitude, need = r + ironR;
+        if (dist >= need) return;
+        Vector3 dir = dist > 0.001f ? d / dist : (PM_ToonBody.Forward);
+        Vector3 push = dir * (need - dist);
+        transform.position += push;
+        followPos += push;
+    }
+
+    // Silicone shoe (an exam reward): a soft blue cover under the soleplate.
+    public GameObject AddSiliconeShoe()
+    {
+        Vector3 size = localMax - localMin;
+        Vector3 side = Vector3.Cross(localDown, tipLocal).normalized;
+        float len = Mathf.Abs(Vector3.Dot(size, tipLocal.normalized)) * 1.04f;
+        float wid = Mathf.Abs(Vector3.Dot(size, side)) * 1.08f;
+        var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        go.name = "PM_SiliconeShoe";
+        Destroy(go.GetComponent<Collider>());
+        go.transform.SetParent(transform, false);
+        go.transform.localRotation = Quaternion.LookRotation(tipLocal, -localDown);
+        go.transform.localPosition = localSole + localDown * 0.002f;
+        go.transform.localScale = new Vector3(wid, 0.022f, len);
+        var m = new Material(PM_Util.LitShader());
+        Color c = new Color(0.25f, 0.62f, 0.85f);
+        m.SetColor("_BaseColor", c); m.SetColor("_Color", c); m.SetFloat("_Smoothness", 0.55f);
+        go.GetComponent<Renderer>().sharedMaterial = m;
+        soleExtra = 0.009f;
+        return go;
     }
 
     public Vector3 SoleWorld { get { return transform.TransformPoint(localSole); } }

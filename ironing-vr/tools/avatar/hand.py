@@ -10,6 +10,9 @@ VARIANTS = {
     'man':   dict(scale=1.00, rad=1.00, length=1.00, palm=1.00, thick=1.00, nail=1.00, wrist=1.00),
     'woman': dict(scale=0.93, rad=0.84, length=1.04, palm=0.90, thick=0.88, nail=1.35, wrist=0.84),
     'child': dict(scale=0.72, rad=1.10, length=0.86, palm=1.00, thick=1.10, nail=0.9, wrist=1.05),
+    # cartoon hands for the toon characters: chubbier fingers, rounder palm, a bit bigger
+    'toonm': dict(scale=1.12, rad=1.40, length=0.90, palm=1.10, thick=1.35, nail=0.8, wrist=1.15),
+    'toonf': dict(scale=1.05, rad=1.25, length=0.95, palm=1.02, thick=1.20, nail=1.1, wrist=1.0),
 }
 
 def build(var):

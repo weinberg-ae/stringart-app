@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // All game texts (Hebrew) and fabric data. Edit texts here.
-public enum PM_Target { None, Water, DressForm, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest }
+public enum PM_Target { None, Water, DressForm, Power, Gauge, Iron, Boom, TempButtons, SleeveBoard, Board, Ham, PointPresser, Cloth, Fusible, Fabric, Rest, ChestPad, Shoulder, Clapper }
 public enum PM_Action { Next, FillWater, SteamOnForm, Power, WaitPressure, GrabIron, SteamInAir, PressTemp, IronFabric, Explore }
 public enum PM_HotspotGroup { None, Station, Tools, Fabric, Fibers }
 public enum PM_Anchor { Top, Front, FrontBelow, IronFront, BoardLeft, FrontAbove }
@@ -19,7 +19,7 @@ public class PM_Step
     public PM_Action action;
     public PM_FabricType fabric;
     public PM_HotspotGroup group = PM_HotspotGroup.None;
-    public int toolTask;   // 1 = collar on the point presser, 2 = dress bodice on the ham
+    public int toolTask;   // 1 = collar on the collar board, 2 = dress bodice on the chest pad
 
     public PM_Step(string id, string title, string body, PM_Target target, PM_Action action, PM_FabricType fabric = PM_FabricType.Cotton)
     {
@@ -134,6 +134,11 @@ public static class PM_Content
     public const string BodyNone = "עוד אין דמויות. אפשר להמשיך עם ידיים בלבד.";
     public const string BtnHandsOnly = "ידיים בלבד";
     public const string BtnSceneAvatar = "הדמות שלי";
+    public const string GenderTitle = "מי אתם היום?";
+    public const string GenderBody = "בחרו דמות: אישה או גבר. אחר כך תבחרו לוק — בגדים, שיער ואביזרים.";
+    public static readonly string[] GenderLabels = { "אישה", "גבר", "ילד/ה" };
+    public const string BtnChangeGender = "החלפת דמות";
+    public const string BtnBackToChoice = "חזרה לבחירה";
     public const string ToonTitle = "בחרו דמות ולוק";
     public const string ToonBody = "הדמות מופיעה ליד המסך ובמראה שליד העמדה. במשקפת — הידיים במקום השלטים.";
     public static readonly string[] ToonTabs = { "דמויות", "שיער", "בגדים", "אביזרים", "עור ועיניים" };
@@ -291,7 +296,7 @@ public static class PM_Content
             PM_Target.TempButtons, PM_Action.PressTemp));
 
         var tools = new PM_Step("tools", "כלי עזר לגיהוץ",
-            "על משטח הגיהוץ ארבעה כלי עזר: חמור (קבנצ'יק), מגהצון פינות, מטלית גיהוץ ושכבות דביקון.\n" +
+            "על משטח הגיהוץ כלי עזר: חמור (קבנצ'יק), כרית חזה וחפתים, מגהצון צווארונים, גיהוצון כתפיים, מטלית גיהוץ ודביקונים.\n" +
             "געו בנקודות האור כדי ללמוד מתי ולמה משתמשים בכל אחד.",
             PM_Target.None, PM_Action.Explore);
         tools.group = PM_HotspotGroup.Tools;
@@ -327,14 +332,14 @@ public static class PM_Content
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Cotton);
         collar.toolTask = 1;
         s.Add(collar);
-        var chest = new PM_Step("chest_task", "משימה: אזור החזה בשמלה על החמור",
-            "חלק החזה של שמלת משי מונח על החמור (קבנצ'יק) — הצורה המעוגלת שומרת על הנפח.\n" +
+        var chest = new PM_Step("chest_task", "משימה: אזור החזה בשמלה על כרית החזה",
+            "חלק החזה של שמלת משי מונח על כרית החזה — הצורה המעוגלת שומרת על הנפח.\n" +
             "משי: •• בלי קיטור, דרך מטלית. גהצו בתנועות קצרות לאורך הקימור.",
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Silk);
         chest.toolTask = 2;
         s.Add(chest);
         var form = new PM_Step("form_task", "משימה: אידוי שמלה על בובת תפירה",
-            "על בובת התפירה לבושה שמלת כותנה מקומטת. מאדים אותה בלי קרש:\n" +
+            "על בובת התפירה לבושה שמלה מקומטת. מאדים אותה בלי קרש:\n" +
             "• מחזיקים את המגהץ זקוף, 2–3 ס\"מ מהבד, ולוחצים על ההדק.\n" +
             "• לא נוגעים ולא לוחצים — רק קיטור.\n" +
             "• מתאים לרענון חולצות, שמלות וז'קטים מוכנים.\n" +
@@ -423,16 +428,27 @@ public static class PM_Content
     public static List<PM_HotspotInfo> ToolHotspots()
     {
         var l = new List<PM_HotspotInfo>();
-        l.Add(new PM_HotspotInfo("ham", "חמור (קבנצ'יק)", "חמור — כרית חייט (קבנצ'יק)",
-            "כרית קשיחה וגדולה בצורת ביצה, ממולאת בנסורת.\n" +
-            "משמשת לגיהוץ ולעיצוב אזורים מעוגלים: חזה בז'קט, פנסים, תפרי כתף, ראש שרוול.\n" +
-            "שומרת על הצורה התלת-ממדית של הבגד.",
+        l.Add(new PM_HotspotInfo("ham", "חמור (קבנצ'יק)", "חמור — קבנצ'יק",
+            "כרית גיהוץ מרופדת על משטח עץ, שעומד על עמוד ובסיס.\n" +
+            "בזכות הרווח שמתחת מלבישים עליה שרוולים, מכפלות ותפרי צד — ומגהצים שכבה אחת בכל פעם, בלי ליצור קפל בצד השני.",
             PM_Target.Ham, PM_Anchor.Top));
-        l.Add(new PM_HotspotInfo("point", "מגהצון פינות", "מגהצון לפינות וצווארונים",
-            "כלי עץ עם קצה צר ומחודד.\n" +
-            "בעזרתו פותחים תפרים בתוך צווארונים, דשים ופינות.\n" +
-            "בבסיס העץ (קלאפר) לוחצים על הבד מיד אחרי הקיטור: העץ סופג חום ולחות ומקבע קפל חד ושטוח.",
+        l.Add(new PM_HotspotInfo("chestpad", "כרית חזה וחפתים", "כרית לחזה ולחפתים",
+            "כרית מרופדת בצורת אגס על בסיס עץ.\n" +
+            "החלק הרחב — לאזור החזה ולפנסים, הקצה הצר — לחפתים ולשרוולים.\n" +
+            "הצורה המעוגלת שומרת על הנפח של הבגד ולא משטחת אותו.",
+            PM_Target.ChestPad, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("point", "מגהצון צווארונים", "מגהצון לצווארונים ולפינות",
+            "לוח מרופד עם קצוות בצורות שונות, על רגל עץ מסתובבת — אפשר לסובב אותו 360° ולעבוד מכל כיוון.\n" +
+            "מתאים לצווארונים, פינות, דשים, מקומות צרים ואפילו לאזור הכתף.",
             PM_Target.PointPresser, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("shoulder", "גיהוצון כתפיים", "גיהוצון לכתפיים של ז'קט",
+            "כרית חצי-עגולה על עמוד עץ.\n" +
+            "מלבישים עליה את כתף הז'קט ומגהצים את קו הכתף ואת ראש השרוול בצורה המעוגלת שלהם — בלי לשטח אותם.",
+            PM_Target.Shoulder, PM_Anchor.Top));
+        l.Add(new PM_HotspotInfo("clapper", "קלאפר עץ", "קלאפר עץ (פרס!)",
+            "בלוק עץ שלוחצים איתו על הבד מיד אחרי הקיטור.\n" +
+            "העץ סופג חום ולחות, משטיח תפרים ומייבש את הבד — הקפל נשאר חד ושטוח.",
+            PM_Target.Clapper, PM_Anchor.Top));
         l.Add(new PM_HotspotInfo("cloth", "מטלית גיהוץ", "מטלית גיהוץ",
             "בד כותנה דק או אורגנזה שמניחים בין המגהץ לבגד.\n" +
             "חובה בצמר, במשי ובבדים כהים — מונעת ברק וכתמים.\n" +
@@ -623,6 +639,7 @@ public static class PM_Content
         "תקבלו 3 בדים בלי שם. לכל בד — 40 שניות.\n" +
         "זהו את הבד לפי המראה ולפי תוצאת מבחן השריפה, בחרו טמפרטורה, החליטו על קיטור — וגהצו.\n" +
         "טעות בטמפרטורה עלולה לשרוף את הבד!\n" +
+        "ציון: עד 100 נקודות. ציון 90 ומעלה — פרס: פריט גיהוץ חדש!\n" +
         "העמדה כבר חמה ומוכנה — לחצו על \"הבא\" כדי להתחיל.";
     public const string ExamFabricTitle = "בד מספר {0}";
     public const string ExamFabricBody = "מראה: {0}\nמבחן שריפה: {1}\nבחרו טמפרטורה וקיטור — וגהצו.";
@@ -631,6 +648,21 @@ public static class PM_Content
     public const string ExamLineBurn = "בד {0}: {1} — נפגע ({2})";
     public const string ExamLineTime = "בד {0}: {1} — הזמן נגמר";
     public static readonly string[] Ranks = { "דרגה: מתחילים — נסו שוב", "דרגה: מתלמד", "דרגה: מקצועי", "דרגה: מאסטר גיהוץ" };
+    public const string ExamPts = " · {0} נק'";
+    public const string ExamGrade = "ציון סופי: {0}";
+    public const string ExamRewardLine = "ציון 90 ומעלה — מגיע לכם פריט גיהוץ חדש!";
+    public const string BtnReward = "בחירת פרס";
+    public const string BtnPractice = "לתפריט";
+    public const string RewardTitle = "כל הכבוד! ציון {0} — בחרו פריט גיהוץ חדש";
+    public static readonly string[] RewardNames = { "דבשת סיליקון", "מילוי מים אוטומטי", "קלאפר עץ" };
+    public static readonly string[] RewardTexts =
+    {
+        "כיסוי סיליקון שמתלבש על סוליית המגהץ — מגן על הבד מפגיעות ומשריפות, מגביר עמידות ונותן יותר זמן לתגובה.",
+        "צינור מים שמחובר לדוד — המיכל מתמלא לבד ונשאר בין MIN ל-MAX, בלי לעצור למלא.",
+        "בלוק עץ שלוחצים איתו על הבד מיד אחרי הקיטור — משטיח תפרים, סופג לחות ומייבש את הבד.",
+    };
+    public const string RewardGot = "הפריט החדש כבר על העמדה — נסו אותו בתרגול!";
+    public const string RewardAll = "יש לכם כבר את כל הפריטים — אתם מאסטרים אמיתיים!";
 
     // ---------- Fabrics ----------
     static Dictionary<PM_FabricType, PM_FabricInfo> fabrics;

@@ -195,6 +195,20 @@ public static class PM_Toon
         Col(hat1, hc[0]); Col(hat2, hc[1]);
     }
 
+    // Sleeves of the current top for the arms: end (0 = bare arm, 0.38 = short sleeve, 1 = long), looseness, cuff.
+    public static void SleeveInfo(out Material skinMat, out Material sleeve, out Material cuff, out float end, out float extra, out float cuffLen, out bool wide)
+    {
+        Load(); Materials();
+        skinMat = skin; sleeve = top1; cuff = top2;
+        string t = TopKeys[Top];
+        wide = t == "kimono";
+        cuffLen = t == "hoodie" || t == "bighoodie" || t == "bomber" || t == "puffer" ? 0.08f : 0.05f;
+        if (t == "crop" || t == "silkdress") { end = 0f; extra = 0f; }
+        else if (t == "tee") { end = 0.36f; extra = 0.012f; }
+        else { end = 1f; extra = t == "puffer" ? 0.022f : t == "bighoodie" ? 0.018f : 0.009f; }
+        if (t == "shirt" || t == "denim" || t == "kimono") cuff = top1;
+    }
+
     // Builds the character under parent (feet at the parent's origin, facing +Z). live: in the headset
     // (head parts only in the mirror). Returns the head group (moved by the body follower).
     public static Transform Build(Transform parent, bool live)
@@ -226,6 +240,27 @@ public static class PM_Toon
         return headGroup;
     }
 
+    public static string HandKey { get { return Woman ? "toonf" : "toonm"; } }
+
+    // Preview figure: arms hanging down, the cartoon hands at the hips.
+    public static void AddStaticArms(Transform figure)
+    {
+        float sx = Woman ? 0.112f : 0.135f;
+        float s = figure.lossyScale.x;
+        for (int i = 0; i < 2; i++)
+        {
+            bool left = i == 0;
+            float sg = left ? -1f : 1f;
+            PM_Hand h = PM_Hand.Create(figure, left, HandKey, false);
+            if (h == null) continue;
+            h.transform.localPosition = new Vector3(sg * (sx + 0.045f), 0.66f, 0.02f);
+            h.transform.localRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+            PM_ToonArm arm = PM_ToonArm.Create(figure, left);
+            Vector3 sh = figure.TransformPoint(new Vector3(sg * sx, 1.325f * BodyY - 0.012f, -0.01f));
+            arm.Pose(sh, h.Wrist, figure.right * sg, figure.forward, s);
+        }
+    }
+
     static void Part(Transform parent, string mesh, int layer, bool headScale, params Material[] mats)
     {
         Mesh m = PM_Body.LoadMesh(mesh);
@@ -252,16 +287,36 @@ public static class PM_Toon
 public class PM_ToonBody : MonoBehaviour
 {
     Transform cam, origin, figure, headGroup;
-    float yaw, eyeReal = 1.0f;
+    float yaw, eyeReal = 1.0f, scale = 1f;
+    PM_Hand lh, rh;
+    PM_ToonArm armL, armR;
+    static PM_ToonBody instance;
 
-    public static PM_ToonBody Create(Transform xrOrigin)
+    // The torso as a vertical capsule (world space) — the iron is kept out of it.
+    public static bool Capsule(out Vector3 a, out Vector3 b, out float r)
+    {
+        a = b = Vector3.zero; r = 0f;
+        if (instance == null || !instance.isActiveAndEnabled) return false;
+        Transform f = instance.figure;
+        a = f.TransformPoint(new Vector3(0f, 0.92f * PM_Toon.BodyY, 0f));
+        b = f.TransformPoint(new Vector3(0f, 1.32f * PM_Toon.BodyY, 0f));
+        r = (PM_Toon.Woman ? 0.13f : 0.15f) * instance.scale;
+        return true;
+    }
+    public static Vector3 Forward { get { return instance != null ? instance.figure.forward : Vector3.forward; } }
+
+    public static PM_ToonBody Create(Transform xrOrigin, PM_Hand left, PM_Hand right)
     {
         var go = new GameObject("PM_ToonBody");
         var b = go.AddComponent<PM_ToonBody>();
+        instance = b;
+        b.lh = left; b.rh = right;
         b.origin = xrOrigin;
         b.figure = new GameObject("Figure").transform;
         b.figure.SetParent(go.transform, false);
         b.headGroup = PM_Toon.Build(b.figure, true);
+        b.armL = PM_ToonArm.Create(go.transform, true);
+        b.armR = PM_ToonArm.Create(go.transform, false);
         Camera main = Camera.main;
         if (main != null)
         {
@@ -296,5 +351,136 @@ public class PM_ToonBody : MonoBehaviour
         Vector3 neck = new Vector3(0f, PM_Toon.NeckY * PM_Toon.BodyY, back - 0.10f);
         headGroup.localRotation = look;
         headGroup.localPosition = neck - look * new Vector3(0f, PM_Toon.NeckY * PM_Toon.HeadScale, 0f);
+        scale = s;
+        // Arms: from the shoulders to the wrists of the hands on the controllers (they never come apart).
+        float sx = PM_Toon.Woman ? 0.112f : 0.135f;
+        Vector3 shL = figure.TransformPoint(new Vector3(-sx, 1.325f * PM_Toon.BodyY - 0.012f, -0.01f));
+        Vector3 shR = figure.TransformPoint(new Vector3(sx, 1.325f * PM_Toon.BodyY - 0.012f, -0.01f));
+        Vector3 right = rot * Vector3.right, fwd = rot * Vector3.forward;
+        if (armL != null) armL.Pose(shL, lh != null && lh.isActiveAndEnabled ? lh.Wrist : null, -right, fwd, s);
+        if (armR != null) armR.Pose(shR, rh != null && rh.isActiveAndEnabled ? rh.Wrist : null, right, fwd, s);
+    }
+}
+
+// A smooth arm (one tube mesh, rebuilt every frame) from the shoulder through a bent elbow to the wrist.
+// Sleeves follow the top: short (tee), none (crop top, silk dress), long with a cuff, or the wide kimono sleeve.
+public class PM_ToonArm : MonoBehaviour
+{
+    const int Rings = 26, Sides = 14;
+    Mesh mesh;
+    MeshRenderer mr;
+    Vector3[] verts;
+    bool left;
+
+    public static PM_ToonArm Create(Transform parent, bool left)
+    {
+        var go = new GameObject(left ? "PM_ArmL" : "PM_ArmR");
+        go.transform.SetParent(parent, false);
+        var a = go.AddComponent<PM_ToonArm>();
+        a.left = left;
+        a.mesh = new Mesh { name = "PM_Arm" };
+        a.mesh.MarkDynamic();
+        go.AddComponent<MeshFilter>().sharedMesh = a.mesh;
+        a.mr = go.AddComponent<MeshRenderer>();
+        a.mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        a.Setup();
+        return a;
+    }
+
+    float sleeveEnd, sleeveExtra, cuffLen;
+    bool wide;
+
+    void Setup()
+    {
+        Material skin, sleeve, cuff;
+        PM_Toon.SleeveInfo(out skin, out sleeve, out cuff, out sleeveEnd, out sleeveExtra, out cuffLen, out wide);
+        mr.sharedMaterials = new[] { skin, sleeve, cuff };
+        // Rings: 0..Rings-1 along the arm, plus one extra ring at the sleeve end (the step from cloth to skin).
+        int rc = Rings + 1;
+        verts = new Vector3[rc * Sides];
+        mesh.vertices = verts;
+        var tri = new List<int>[3]; for (int i = 0; i < 3; i++) tri[i] = new List<int>();
+        for (int r = 0; r < rc - 1; r++)
+        {
+            float t = RingT(r), t2 = RingT(r + 1);
+            int sub = SubAt((t + t2) * 0.5f);
+            if (r == SleeveRing()) sub = 1;   // the sleeve hem
+            for (int k = 0; k < Sides; k++)
+            {
+                int a = r * Sides + k, b = r * Sides + (k + 1) % Sides, c = a + Sides, d = b + Sides;
+                // cross(b - a, c - a) points outwards (Unity front face) for both arms: the ring frame is not mirrored
+                tri[sub].Add(a); tri[sub].Add(b); tri[sub].Add(c); tri[sub].Add(b); tri[sub].Add(d); tri[sub].Add(c);
+            }
+        }
+        mesh.subMeshCount = 3;
+        for (int i = 0; i < 3; i++) mesh.SetTriangles(tri[i], i);
+    }
+
+    // Ring parameter along the arm (the extra ring repeats the sleeve end).
+    int SleeveRing() { return sleeveEnd > 0f && sleeveEnd < 1f ? Mathf.RoundToInt(sleeveEnd * (Rings - 1)) : -1; }
+    float RingT(int r)
+    {
+        int sr = SleeveRing();
+        if (sr < 0) return Mathf.Clamp01(r / (float)(Rings - 1));
+        if (r <= sr) return r / (float)(Rings - 1);
+        return (r - 1) / (float)(Rings - 1);
+    }
+    int SubAt(float t)
+    {
+        if (t > sleeveEnd) return 0;
+        if (sleeveEnd >= 1f && t > 1f - cuffLen) return 2;
+        return 1;
+    }
+
+    float Radius(int r, float t, float s)
+    {
+        float baseR = Mathf.Lerp(0.050f, 0.040f, Mathf.Clamp01(t / 0.5f));
+        if (t > 0.5f) baseR = Mathf.Lerp(0.040f, 0.031f, (t - 0.5f) / 0.5f);
+        bool cloth = t <= sleeveEnd && !(SleeveRing() >= 0 && r == SleeveRing() + 1);   // the extra ring starts the bare arm
+        float rad = baseR + (cloth ? sleeveExtra : 0f);
+        if (cloth && wide) rad += Mathf.Clamp01((t - 0.35f) / 0.65f) * 0.05f;            // kimono sleeve opens towards the wrist
+        if (cloth && sleeveEnd >= 1f && t > 1f - cuffLen) rad += 0.004f;                    // rib cuff
+        return rad * s;
+    }
+
+    public void Pose(Vector3 shoulder, Transform wrist, Vector3 outward, Vector3 fwd, float s)
+    {
+        mr.enabled = wrist != null;
+        if (wrist == null) return;
+        Vector3 w = wrist.position;
+        float L1 = 0.26f * s, L2 = 0.24f * s;
+        Vector3 to = w - shoulder;
+        float dist = to.magnitude;
+        Vector3 dir = dist > 1e-4f ? to / dist : Vector3.down;
+        float dc = Mathf.Clamp(dist, 0.05f, L1 + L2 - 0.001f);
+        Vector3 pole = Vector3.down * 0.7f + outward * 0.6f - fwd * 0.4f;
+        pole = (pole - Vector3.Dot(pole, dir) * dir).normalized;
+        float a = (L1 * L1 - L2 * L2 + dc * dc) / (2f * dc);
+        float h = Mathf.Sqrt(Mathf.Max(0f, L1 * L1 - a * a));
+        Vector3 elbow = shoulder + dir * (a * Mathf.Min(1f, dist / dc)) + pole * h;   // a fully stretched arm stretches a little (cartoon)
+        // Smooth curve through the elbow (quadratic Bezier with its middle on the elbow).
+        Vector3 ctrl = elbow * 2f - (shoulder + w) * 0.5f;
+        Vector3 prevN = Vector3.Cross(dir, pole).normalized;
+        if (prevN.sqrMagnitude < 0.01f) prevN = outward;
+        Matrix4x4 toLocal = transform.worldToLocalMatrix;
+        int rc = Rings + 1;
+        for (int r = 0; r < rc; r++)
+        {
+            float t = RingT(r);
+            Vector3 p = (1 - t) * (1 - t) * shoulder + 2 * (1 - t) * t * ctrl + t * t * w;
+            Vector3 tan = (2 * (1 - t) * (ctrl - shoulder) + 2 * t * (w - ctrl)).normalized;
+            Vector3 n = (prevN - Vector3.Dot(prevN, tan) * tan).normalized;   // parallel transport: no twisting
+            prevN = n;
+            Vector3 b = Vector3.Cross(tan, n);
+            float rad = Radius(r, t, s);
+            for (int k = 0; k < Sides; k++)
+            {
+                float ang = k * Mathf.PI * 2f / Sides;
+                verts[r * Sides + k] = toLocal.MultiplyPoint3x4(p + (n * Mathf.Cos(ang) + b * Mathf.Sin(ang)) * rad);
+            }
+        }
+        mesh.vertices = verts;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
     }
 }

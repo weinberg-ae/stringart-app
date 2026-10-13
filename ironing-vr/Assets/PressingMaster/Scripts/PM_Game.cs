@@ -60,6 +60,7 @@ public class PM_Game : MonoBehaviour
     readonly List<PM_FabricType> examList = new List<PM_FabricType>();
     readonly List<string> examLines = new List<string>();
     int examIndex, examScore;
+    readonly List<int> examPoints = new List<int>();
     float examTime;
     bool examFinishedFabric;
 
@@ -82,6 +83,7 @@ public class PM_Game : MonoBehaviour
         station.onPowerClicked = () => station.SetPower(!station.Powered);
         station.onModeClicked = OnModeClicked;
         if (station.Iron != null) station.Iron.onGrab = () => { };
+        PM_Rewards.Apply(station);
 
         highlight = PM_Highlight.Create("PM_Highlight");
         panel = PM_Panel.Create(null);
@@ -91,8 +93,20 @@ public class PM_Game : MonoBehaviour
         card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
         card.gameObject.SetActive(false);
         // Dress form (tailor's mannequin) front-left of the player; it comes closer for the steaming task.
-        formHome = station.PlayerPos + station.Forward * 1.3f - station.Right * 1.35f;
-        formTask = station.PlayerPos + station.Forward * 0.5f - station.Right * 1.05f;
+        // Keep clear of the station: measure how far it reaches to the player's left.
+        float leftmost = -0.9f;
+        if (station.Table != null)
+        {
+            Bounds tb = PM_Util.WorldBounds(station.Table);
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 c = new Vector3((i & 1) == 0 ? tb.min.x : tb.max.x, tb.center.y, (i & 4) == 0 ? tb.min.z : tb.max.z);
+                leftmost = Mathf.Min(leftmost, Vector3.Dot(c - station.PlayerPos, station.Right));
+            }
+            leftmost = Mathf.Max(leftmost, -1.6f);
+        }
+        formHome = station.PlayerPos + station.Forward * 1.15f + station.Right * (leftmost - 0.55f);
+        formTask = station.PlayerPos + station.Forward * 0.45f + station.Right * (leftmost - 0.42f);
         form = PM_Garment.Show("mannequin", formHome, 1.6f, station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
         if (form != null)
         {
@@ -234,9 +248,36 @@ public class PM_Game : MonoBehaviour
     // ---------------- Avatar ----------------
     void ShowAvatarChoice()
     {
-        if (PM_Avatar.IsToon) { ShowToonChoice(0); return; }
+        if (PM_Avatar.IsToon) { ShowGenderChoice(); return; }
         if (PM_Avatar.Character == PM_Avatar.SceneCharacter && PM_Style.LoaderPresent()) { ShowStyleChoice(); return; }
         ShowHandsChoice();
+    }
+
+    // ---- first: woman, man or child (a child gets the safety rule of the sewing room) ----
+    void ShowGenderChoice()
+    {
+        Remember();
+        avatarPage = 5;
+        state = State.Avatar;
+        ClearStepVisuals();
+        PM_Toon.Load();
+        panel.SetContent(PM_Content.GenderTitle, PM_Content.GenderBody, "");
+        panel.SetAccent(PM_Util.Violet);
+        panel.SetButtonGrid(3, -1, 0.28f, -0.06f, false,
+            Btn(PM_Content.GenderLabels[0], () => PickGender(true)),
+            Btn(PM_Content.GenderLabels[1], () => PickGender(false)),
+            Btn(PM_Content.GenderLabels[2], ShowChildWarning));
+        AvatarPreview(3);
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar");
+    }
+
+    void PickGender(bool woman)
+    {
+        PM_Toon.Load();
+        if (PM_Toon.Woman != woman || !PM_Avatar.IsToon)
+            for (int i = 0; i < PM_Toon.Presets.Length; i++)
+                if (PM_Toon.Presets[i].woman == woman) { PM_Toon.ApplyPreset(i); break; }
+        ShowToonChoice(0);
     }
 
     // ---- our cartoon characters: tabs (ready characters, hair, clothes, accessories, skin & eyes) ----
@@ -285,11 +326,13 @@ public class PM_Game : MonoBehaviour
         {
             case 0:
                 {
-                    var names = new string[PM_Toon.Presets.Length];
-                    for (int i = 0; i < names.Length; i++) names[i] = PM_Toon.Presets[i].name;
-                    Row(names, 0, 3, i => PM_Toon.ApplyPreset(i));
-                    Row(names, 3, 3, i => PM_Toon.ApplyPreset(i));
-                    Row(Mark(PM_Content.ToonBodies, PM_Toon.Woman ? 0 : 1), 0, 2, i => { PM_Toon.Woman = i == 0; PM_Toon.Save(); });
+                    // only the characters of the chosen gender
+                    var idx = new List<int>();
+                    for (int i = 0; i < PM_Toon.Presets.Length; i++) if (PM_Toon.Presets[i].woman == PM_Toon.Woman) idx.Add(i);
+                    var names = new string[idx.Count];
+                    for (int i = 0; i < names.Length; i++) names[i] = PM_Toon.Presets[idx[i]].name;
+                    Row(names, 0, names.Length, i => PM_Toon.ApplyPreset(idx[i]));
+                    panel.SetButtonGrid(1, -1, 0.3f, y[row++], true, Btn(PM_Content.BtnChangeGender, ShowGenderChoice));
                     break;
                 }
             case 1:
@@ -319,7 +362,6 @@ public class PM_Game : MonoBehaviour
                 Row(Mark(PM_Content.ToonSkins, PM_Toon.Skin), 0, 6, i => { PM_Toon.Skin = i; PM_Toon.Save(); });
                 Row(Mark(PM_Content.ToonEyes, PM_Toon.Eyes), 0, 5, i => { PM_Toon.Eyes = i; PM_Toon.Save(); });
                 Row(Mark(PM_Content.TattooLabels, PM_Avatar.Tattoo), 0, 4, i => PM_Avatar.ChooseTattoo(i));
-                Row(Mark(PM_Content.ToonBodies, PM_Toon.Woman ? 0 : 1), 0, 2, i => { PM_Toon.Woman = i == 0; PM_Toon.Save(); });
                 break;
         }
         panel.SetButtonGrid(2, 1, 0.3f, tab == 2 ? -0.47f : -0.42f, true,
@@ -391,7 +433,7 @@ public class PM_Game : MonoBehaviour
         state = State.Avatar;
         panel.SetContent(PM_Content.ChildTitle, PM_Content.ChildBody, "");
         panel.SetAccent(PM_Util.Red);
-        panel.SetButtons(Btn(PM_Content.BtnHands, ShowHandsChoice));
+        panel.SetButtons(Btn(PM_Avatar.IsToon ? PM_Content.BtnBackToChoice : PM_Content.BtnHands, PM_Avatar.IsToon ? (Action)ShowGenderChoice : ShowHandsChoice));
         AvatarPreview(1, 2);
         PM_Look.PulseRing(station.PlayerPos + Vector3.up * 0.01f, PM_Util.Red);
         if (PM_Audio.I != null) { PM_Audio.I.Play("error", 0.8f); PM_Audio.I.PlayVoice("child_warning"); }
@@ -771,7 +813,7 @@ public class PM_Game : MonoBehaviour
                 List<PM_Step> st = steps; int idx = stepIndex; bool fp = fullPath;
                 return () => { steps = st; fullPath = fp; MenuLayout(false); state = State.Learning; EnterStep(idx); };
             }
-            case State.Avatar: { int t = toonTab; return avatarPage == 2 ? (Action)ShowBodyChoice : avatarPage == 3 ? (Action)ShowStyleChoice : avatarPage == 4 ? (Action)(() => ShowToonChoice(t)) : ShowHandsChoice; }
+            case State.Avatar: { int t = toonTab; return avatarPage == 2 ? (Action)ShowBodyChoice : avatarPage == 3 ? (Action)ShowStyleChoice : avatarPage == 4 ? (Action)(() => ShowToonChoice(t)) : avatarPage == 5 ? ShowGenderChoice : (Action)ShowHandsChoice; }
             case State.Quiz: { int k = quizKind; return () => StartQuiz(k); }
             case State.ExamIntro: case State.ExamFabric: case State.ExamResult: return StartExam;
             default: return ShowMenu;
@@ -917,13 +959,13 @@ public class PM_Game : MonoBehaviour
     {
         RemoveFabric();
         PM_FabricInfo info = PM_Content.Fabric(t);
-        List<Transform> tool = station.Targets(task == 1 ? PM_Target.PointPresser : PM_Target.Ham);
+        List<Transform> tool = station.Targets(task == 1 ? PM_Target.PointPresser : PM_Target.ChestPad);
         if (tool.Count == 0) { SpawnFabric(t, 7); return; }
         Transform tr = tool[0];
         if (task == 1)
-            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(0f, 0.142f, 0f)), station.BoardRotation, null, 41, 0.28f, 0.075f, 0.008f);
+            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.142f, 0f)), station.BoardRotation, null, 41, 0.26f, 0.08f, 0.008f);
         else
-            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(0f, 0.015f, 0f)), station.BoardRotation, null, 43, 0.27f, 0.17f, 0.06f);
+            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.022f, 0f)), station.BoardRotation, null, 43, 0.30f, 0.16f, 0.095f);
         Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.3f + station.Forward * 0.05f;
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
     }
@@ -994,9 +1036,82 @@ public class PM_Game : MonoBehaviour
             return world - new Vector3(axis.x, 0f, axis.z);
         };
         PM_FabricInfo info = PM_Content.Fabric(t).Clone();
-        info.color = new Color(0.55f, 0.72f, 0.92f);   // light blue summer dress
+        info.color = new Color(0.55f, 0.72f, 0.92f);
         float circ = Mathf.PI * (rxT + rzT) * 1.2f;
         fabric = PM_Fabric.CreateShaped(info, new Vector3(axis.x, 0f, axis.z), shape, circ, yTop - yHem, 57);
+        // The fitted shell is only the invisible "steam target"; what you see is a real dress (the exam's silk dress)
+        // worn by the form, with wrinkles that the steam smooths out.
+        foreach (Renderer r in fabric.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+        DressTheForm(axis, yTorso, yTop, yHem, rxT, rzT);
+        SetDressWrinkles(1f);
+    }
+
+    PM_Garment formDress;
+    Material formDressMat;
+    static Texture2D wrinkles;
+
+    void DressTheForm(Vector3 axis, float yTorso, float yTop, float yHem, float rxT, float rzT)
+    {
+        if (formDress != null) return;   // already dressed (it stays on the form)
+        formDress = PM_Garment.Show("silk", new Vector3(axis.x, yHem, axis.z), (yTop - yHem) + 0.03f, station.PlayerPos + Vector3.up * 1.6f, null, 0.55f, false);
+        if (formDress == null) return;
+        formDress.spinSpeed = 0f;
+        // Not thinner than the form's torso (the form must not poke through).
+        Bounds db = PM_Util.WorldBounds(formDress.transform);
+        float need = Mathf.Max(rxT, rzT) * 2f * 1.08f, have = Mathf.Min(db.size.x, db.size.z);
+        if (have > 0.01f && have < need)
+        {
+            float k = need / have;
+            Transform spin = formDress.transform.GetChild(0);
+            spin.localScale = new Vector3(spin.localScale.x * k, spin.localScale.y, spin.localScale.z * k);
+        }
+        formDress.transform.SetParent(form.transform, true);   // goes back home with the form
+        foreach (Renderer r in formDress.GetComponentsInChildren<Renderer>(true)) { formDressMat = r.sharedMaterial; break; }
+    }
+
+    // Crumpled-fabric normal map (built once), strong while wrinkled, gone when the steaming is done.
+    void SetDressWrinkles(float amount)
+    {
+        if (formDressMat == null) return;
+        if (wrinkles == null) wrinkles = MakeWrinkles(256);
+        formDressMat.SetTexture("_BumpMap", wrinkles);
+        formDressMat.SetTextureScale("_BumpMap", new Vector2(3f, 3f));
+        formDressMat.SetFloat("_BumpScale", 1.8f * amount);
+        if (amount > 0.01f) formDressMat.EnableKeyword("_NORMALMAP"); else formDressMat.DisableKeyword("_NORMALMAP");
+    }
+
+    static Texture2D MakeWrinkles(int n)
+    {
+        var h = new float[n * n];
+        var rnd = new System.Random(5);
+        for (int k = 0; k < 9; k++)
+        {
+            float ang = (float)rnd.NextDouble() * Mathf.PI, fx = Mathf.Cos(ang), fy = Mathf.Sin(ang);
+            int freq = 2 + rnd.Next(6);
+            float ph = (float)rnd.NextDouble() * 6f;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float u = (float)x / n, v = (float)y / n;
+                    float warp = 0.08f * Mathf.Sin((u * 3 + v * 2) * Mathf.PI * 2f + k);
+                    h[y * n + x] += Mathf.Pow(Mathf.Abs(Mathf.Sin(((Mathf.Round(fx * freq) * u + Mathf.Round(fy * freq) * v) + warp) * Mathf.PI * 2f + ph)), 3f) / (1 + k * 0.3f);
+                }
+        }
+        var tex = new Texture2D(n, n, TextureFormat.RGBA32, true, true);
+        var px = new Color32[n * n];
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float dx = h[y * n + (x + 1) % n] - h[y * n + (x + n - 1) % n];
+                float dy = h[((y + 1) % n) * n + x] - h[((y + n - 1) % n) * n + x];
+                Vector3 nn = new Vector3(-dx * 2f, -dy * 2f, 1f).normalized;
+                byte nx = (byte)Mathf.Clamp((nn.x * 0.5f + 0.5f) * 255f, 0, 255), ny = (byte)Mathf.Clamp((nn.y * 0.5f + 0.5f) * 255f, 0, 255);
+                px[y * n + x] = new Color32(255, ny, 255, nx);   // works for both RG and AG normal unpacking
+            }
+        tex.SetPixels32(px);
+        tex.wrapMode = TextureWrapMode.Repeat;
+        tex.Apply(true);
+        return tex;
     }
 
     static float[] SmoothProfile(float[] a)
@@ -1016,7 +1131,7 @@ public class PM_Game : MonoBehaviour
         bool mouse = Time.time - desktopTime < 0.15f;
         if (mouse)
         {
-            if (KeyHeld(Key.LeftShift)) fabric.Iron(desktopUV, 0.08f, dt, 1.2f, 0f, 0f, 0.4f);
+            if (KeyHeld(Key.LeftShift)) { fabric.Iron(desktopUV, 0.08f, dt, 1.2f, 0f, 0f, 0.4f); SetDressWrinkles(1f - fabric.Progress); }
             panel.SetStatus(KeyHeld(Key.LeftShift) ? string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)) : PM_Content.StFormSteam, PM_Util.Cyan);
             return;
         }
@@ -1032,6 +1147,7 @@ public class PM_Game : MonoBehaviour
         if (gap > 0.08f) { panel.SetStatus(PM_Content.StFormFar, PM_Util.Yellow); return; }
         if (!iron.Steaming) { panel.SetStatus(PM_Content.StFormSteam, PM_Util.Yellow); return; }
         fabric.Iron(hit.textureCoord, 0.08f, dt, 1.2f, 0f, 0f, 0.35f);
+        SetDressWrinkles(1f - fabric.Progress);
         panel.SetStatus(string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)), PM_Util.Cyan);
     }
 
@@ -1098,7 +1214,7 @@ public class PM_Game : MonoBehaviour
         {
             // Too hot burns in the exam AND in learning — that's the lesson.
             rate = exam ? 1f : 0f;
-            scorch = (mode - info.mode) * (poly ? 1.6f : 0.9f);
+            scorch = (mode - info.mode) * (poly ? 1.6f : 0.9f) * PM_Rewards.TooHotFactor;   // a silicone shoe protects
             msg = exam ? (poly ? PM_Content.StMelted : PM_Content.StBurned) : string.Format(PM_Content.StTooHotLearn, PM_Content.ModeLabel(info.mode));
             msgColor = PM_Util.Red;
         }
@@ -1107,13 +1223,14 @@ public class PM_Game : MonoBehaviour
         bool still = !simulated || mouseIroning;
         if (still && iron != null && iron.Speed < 0.04f && mode >= info.mode) dwell += dt;
         else dwell = Mathf.Max(0f, dwell - dt * 3f);
-        if (mode >= info.mode && dwell > info.dwellSeconds)
+        float dwellLimit = info.dwellSeconds * PM_Rewards.DwellFactor;
+        if (mode >= info.mode && dwell > dwellLimit)
         {
-            scorch += 0.8f + (dwell - info.dwellSeconds) * 0.6f * (poly ? 1.6f : 1f);
+            scorch += 0.8f + (dwell - dwellLimit) * 0.6f * (poly ? 1.6f : 1f);
             msg = PM_Content.StDwellBurn;
             msgColor = PM_Util.Red;
         }
-        else if (mode >= info.mode && dwell > info.dwellSeconds * 0.6f && msg == null)
+        else if (mode >= info.mode && dwell > dwellLimit * 0.6f && msg == null)
         {
             msg = PM_Content.StDwellWarn;
             if (iron != null) iron.Buzz(0.35f, 0.05f);
@@ -1180,6 +1297,7 @@ public class PM_Game : MonoBehaviour
         examList.Clear();
         examLines.Clear();
         examScore = 0;
+        examPoints.Clear();
         var plant = new[] { PM_FabricType.Cotton, PM_FabricType.Linen };
         var animal = new[] { PM_FabricType.Wool, PM_FabricType.Silk };
         examList.Add(plant[UnityEngine.Random.Range(0, 2)]);
@@ -1233,18 +1351,25 @@ public class PM_Game : MonoBehaviour
         if (fabric.Damage >= 0.25f)
         {
             string why = info.type == PM_FabricType.Polyester && fabric.Damage > 0 ? PM_Content.StMelted : PM_Content.StBurned;
-            examLines.Add(string.Format(PM_Content.ExamLineBurn, n, info.name, why));
+            int pts = Mathf.RoundToInt(10f * fabric.Progress);
+            examPoints.Add(pts);
+            examLines.Add(string.Format(PM_Content.ExamLineBurn, n, info.name, why) + string.Format(PM_Content.ExamPts, pts));
             FinishExamFabric(why, PM_Util.Red, "error");
         }
         else if (fabric.Done)
         {
             examScore++;
-            examLines.Add(string.Format(PM_Content.ExamLineOk, n, info.name, Mathf.RoundToInt(60f - examTime)));
+            // 60 for a finished fabric + up to 25 for speed + up to 15 for care (no scorch at all)
+            int pts = Mathf.Clamp(Mathf.RoundToInt(60f + 25f * Mathf.Clamp01(examTime / 40f) + 15f * (1f - Mathf.Clamp01(fabric.Damage / 0.25f))), 0, 100);
+            examPoints.Add(pts);
+            examLines.Add(string.Format(PM_Content.ExamLineOk, n, info.name, Mathf.RoundToInt(40f - examTime)) + string.Format(PM_Content.ExamPts, pts));
             FinishExamFabric(PM_Content.StDone + " (" + info.name + ")", PM_Util.Green, "ding");
         }
         else if (examTime <= 0f)
         {
-            examLines.Add(string.Format(PM_Content.ExamLineTime, n, info.name));
+            int pts = Mathf.RoundToInt(55f * fabric.Progress);
+            examPoints.Add(pts);
+            examLines.Add(string.Format(PM_Content.ExamLineTime, n, info.name) + string.Format(PM_Content.ExamPts, pts));
             FinishExamFabric(PM_Content.StTimeUp + " (" + info.name + ")", PM_Util.Red, "error");
         }
     }
@@ -1265,14 +1390,70 @@ public class PM_Game : MonoBehaviour
         if (PM_Audio.I != null) PM_Audio.I.Play(sound, 0.8f);
     }
 
+    int ExamGrade()
+    {
+        if (examPoints.Count == 0) return 0;
+        int sum = 0;
+        foreach (int p in examPoints) sum += p;
+        return Mathf.RoundToInt(sum / (float)examList.Count);
+    }
+
     void ShowExamResult()
     {
         state = State.ExamResult;
         RemoveFabric();
-        string body = string.Join("\n", examLines.ToArray()) + "\n\n" + PM_Content.Ranks[Mathf.Clamp(examScore, 0, 3)];
-        panel.SetContent(PM_Content.ExamResultTitle, body, examScore + "/3");
-        panel.SetButtons(Btn(PM_Content.BtnAgain, StartExam), Btn(PM_Content.BtnMenu, ShowMenu));
-        if (PM_Audio.I != null) PM_Audio.I.Play(examScore >= 2 ? "ding" : "error", 0.8f);
+        int grade = ExamGrade();
+        int rank = grade >= 90 ? 3 : grade >= 75 ? 2 : grade >= 55 ? 1 : 0;
+        string body = string.Join("\n", examLines.ToArray()) + "\n\n" + string.Format(PM_Content.ExamGrade, grade) + "\n" + PM_Content.Ranks[rank];
+        if (grade >= 90) body += "\n" + PM_Content.ExamRewardLine;
+        panel.SetContent(PM_Content.ExamResultTitle, body, grade + "/100");
+        if (grade >= 90)
+            panel.SetButtons(1, Btn(PM_Content.BtnAgain, StartExam), Btn(PM_Content.BtnReward, () => ShowRewardChoice(grade)), Btn(PM_Content.BtnMenu, ShowMenu));
+        else
+            panel.SetButtons(Btn(PM_Content.BtnAgain, StartExam), Btn(PM_Content.BtnMenu, ShowMenu));
+        if (grade >= 90) { PM_Look.Burst(panel.transform.position, PM_Util.Green); PM_Look.PulseRing(station.PlayerPos + Vector3.up * 0.01f, PM_Util.Green); }
+        if (PM_Audio.I != null) PM_Audio.I.Play(grade >= 75 ? "ding" : "error", 0.8f);
+    }
+
+    // A grade of 90+: pick one new pressing item (silicone shoe, automatic water filling, wooden clapper).
+    void ShowRewardChoice(int grade)
+    {
+        Remember();
+        state = State.ExamResult;
+        var items = new List<KeyValuePair<string, Action>>();
+        string body = "";
+        for (int i = 0; i < PM_Rewards.All.Length; i++)
+        {
+            int r = PM_Rewards.All[i];
+            if (PM_Rewards.Has(r)) continue;
+            int k = i;
+            body += "• " + PM_Content.RewardNames[i] + ": " + PM_Content.RewardTexts[i] + "\n";
+            items.Add(Btn(PM_Content.RewardNames[i], () => TakeReward(k)));
+        }
+        if (items.Count == 0)
+        {
+            panel.SetContent(string.Format(PM_Content.RewardTitle, grade), PM_Content.RewardAll, "");
+            panel.SetButtons(Btn(PM_Content.BtnMenu, ShowMenu));
+            return;
+        }
+        panel.SetContent(string.Format(PM_Content.RewardTitle, grade), body.TrimEnd('\n'), "");
+        panel.SetAccent(PM_Util.Green);
+        items.Add(Btn(PM_Content.BtnMenu, ShowMenu));
+        panel.SetButtonGrid(items.Count, -1, 0.26f, items.ToArray());
+    }
+
+    void TakeReward(int i)
+    {
+        int r = PM_Rewards.All[i];
+        PM_Rewards.Unlock(r);
+        PM_Rewards.Apply(station);
+        panel.SetContent(PM_Content.RewardNames[i], PM_Content.RewardTexts[i] + "\n\n" + PM_Content.RewardGot, "");
+        panel.SetButtons(Btn(PM_Content.BtnPractice, ShowMenu));
+        Vector3 at = r == PM_Rewards.SiliconeShoe && station.Iron != null ? station.Iron.transform.position
+                   : r == PM_Rewards.AutoFill && station.Tank != null ? station.Tank.transform.position
+                   : new Vector3(station.BoardCenter.x, station.BoardTopY, station.BoardCenter.z);
+        PM_Look.Burst(at, PM_Util.Green);
+        if (PM_Audio.I != null) PM_Audio.I.Play("ding", 0.9f);
     }
 
     // ---------------- Loop ----------------
@@ -1287,6 +1468,7 @@ public class PM_Game : MonoBehaviour
             cardLink.SetPosition(1, card.transform.position - card.transform.up * (0.26f));
         }
         if (station != null && station.Iron != null) station.Iron.simulateSteam = KeyHeld(Key.LeftShift);
+        PM_Rewards.Tick(station, dt);
         switch (state)
         {
             case State.Learning: UpdateLearning(dt); break;

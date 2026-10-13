@@ -141,7 +141,7 @@ public static class PM_Avatar
         if (Hologram) return new[] { holo, holo, holo, holo, holo, holo, holo };
         return new[] { skin, shirt, pants, shoes, apron, hair, eyes };
     }
-    static string HandKey(int t) { return t == 1 ? "woman" : t == 2 ? "child" : "man"; }
+    static string HandKey(int t) { return IsToon && t != 2 ? (t == 1 ? "toonf" : "toonm") : t == 1 ? "woman" : t == 2 ? "child" : "man"; }
     public static string BodyKey() { return BodyType == 1 ? "woman" : "man"; }
 
     // ----- choices -----
@@ -203,7 +203,7 @@ public static class PM_Avatar
             // Cartoon character: body + head under the eyes, the hands float on the controllers.
             leftHand = PM_Hand.Create(left, true, HandKey(handKind), true);
             rightHand = PM_Hand.Create(right, false, HandKey(handKind), true);
-            toonBody = PM_ToonBody.Create(origin.transform);
+            toonBody = PM_ToonBody.Create(origin.transform, leftHand, rightHand);
             return leftHand != null && rightHand != null;
         }
         if (Character >= 0)
@@ -303,9 +303,10 @@ public static class PM_Avatar
             var spin = new GameObject("Spin").transform;
             spin.SetParent(preview, false);
             spin.localRotation = Quaternion.Euler(0, 180, 0);
-            PM_Toon.Build(spin, false);
-            spin.gameObject.AddComponent<PM_Spin>();
             preview.localScale = Vector3.one * 0.5f;
+            PM_Toon.Build(spin, false);
+            PM_Toon.AddStaticArms(spin);
+            spin.gameObject.AddComponent<PM_Spin>();
         }
         else
         {
@@ -476,7 +477,7 @@ public class PM_Hand : MonoBehaviour
         Wrist = new GameObject("Wrist").transform;
         Wrist.SetParent(transform, false);
         Wrist.localPosition = d.joints[0] + new Vector3(0.012f * s, -0.006f, -0.15f);
-        if (live)
+        if (live && !PM_Avatar.IsToon)   // (the cartoon body has its own arms and sleeves)
         {
             // Shirt cuff over the end of the forearm.
             var cuff = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -530,6 +531,8 @@ public class PM_Hand : MonoBehaviour
         Vector3 p; Quaternion r;
         if (PM_Iron.HandleGrip(left, out p, out r))
         {
+            // On the handle, but turned exactly like the player's real hand (never flipped around).
+            if (transform.parent != null) r = transform.parent.rotation;
             transform.rotation = r;
             transform.position = p + r * home;
         }

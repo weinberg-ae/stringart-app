@@ -388,86 +388,113 @@ public class PM_Station : MonoBehaviour
     // ---------- Neon training tools (no 3D models needed) ----------
     void BuildTools()
     {
-        // Lower shelf: a large thin horizontal part 0.25–0.8 m under the board.
-        float bestArea = 0f;
+        // Lower shelf: a large flat horizontal part right under the board (not a foot or a leg bar):
+        // it must lie under the board's footprint, be wide in both directions and not too low.
+        float bestScore = 0f;
+        Transform boardT = PM_Util.FindDeep(Table, BoardPart);
+        Bounds boardB = boardT != null ? PM_Util.WorldBounds(boardT) : new Bounds(new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z), new Vector3(1.2f, 0.05f, 0.4f));
+        string shelfName = null;
         foreach (MeshRenderer r in Table.GetComponentsInChildren<MeshRenderer>(true))
         {
             Bounds b = r.bounds;
-            if (b.size.y > 0.05f || r.name.StartsWith("Box")) continue;
+            if (b.size.y > 0.08f || r.name.StartsWith("PM_")) continue;
             float drop = BoardTopY - b.max.y;
-            if (drop < 0.25f || drop > 0.8f) continue;
-            float area = b.size.x * b.size.z;
-            if (area > 0.08f && area > bestArea) { bestArea = area; shelf = b; hasShelf = true; }
+            if (drop < 0.15f || drop > 0.85f) continue;
+            float w = Mathf.Min(b.size.x, b.size.z), l = Mathf.Max(b.size.x, b.size.z);
+            if (w < 0.18f || l < 0.35f) continue;                       // bars and feet are narrow
+            float ox = Mathf.Max(0f, Mathf.Min(b.max.x, boardB.max.x + 0.05f) - Mathf.Max(b.min.x, boardB.min.x - 0.05f));
+            float oz = Mathf.Max(0f, Mathf.Min(b.max.z, boardB.max.z + 0.05f) - Mathf.Max(b.min.z, boardB.min.z - 0.05f));
+            float under = (ox * oz) / Mathf.Max(0.0001f, b.size.x * b.size.z);   // part of the shelf that is under the board
+            if (under < 0.6f) continue;
+            float score = b.size.x * b.size.z * under * (1.2f - drop);        // prefer large and high
+            if (score > bestScore) { bestScore = score; shelf = b; hasShelf = true; shelfName = r.name; }
+        }
+        Debug.Log(hasShelf ? "[PM] Полка для инструментов: " + shelfName + " (" + shelf.size.x.ToString("F2") + " × " + shelf.size.z.ToString("F2") + " м)"
+                           : "[PM] Полка под доской не найдена — инструменты будут на подставке под доской.");
+        if (!hasShelf)
+        {
+            // No shelf in the model: a simple tray under the board.
+            var tray = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tray.name = "PM_ToolTray";
+            Destroy(tray.GetComponent<Collider>());
+            tray.transform.position = new Vector3(boardB.center.x, BoardTopY - 0.42f, boardB.center.z);
+            tray.transform.rotation = BoardRotation;
+            tray.transform.localScale = new Vector3(Mathf.Min(0.9f, boardB.size.x * 0.75f), 0.02f, 0.3f);
+            tray.GetComponent<Renderer>().sharedMaterial = PM_Util.TransparentMaterial(new Color(0.1f, 0.95f, 1f, 0.25f));
+            shelf = tray.GetComponent<Renderer>().bounds; hasShelf = true;
         }
         tools = new GameObject("PM_Tools").transform;
         tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
         tools.rotation = BoardRotation;
 
-        // Tailor's ham: egg-shaped wireframe.
-        var ham = new GameObject("PM_Ham").transform;
-        ham.SetParent(tools, false);
-        ham.localPosition = new Vector3(-0.5f, 0.08f, 0);
-        for (int i = 0; i < 6; i++)
-        {
-            float a = i * Mathf.PI / 6f;
-            var pts = new Vector3[40];
-            for (int k = 0; k < 40; k++)
-            {
-                float t = k * Mathf.PI * 2f / 40f;
-                float x = Mathf.Cos(t) * 0.15f;
-                float r = Mathf.Sin(t) * (x > 0 ? 0.09f - x * 0.15f : 0.09f);
-                pts[k] = new Vector3(x, r * Mathf.Cos(a) * 0.8f, r * Mathf.Sin(a));
-            }
-            PM_Util.Line(ham, "Long" + i, pts, PM_Util.Cyan, 0.004f, true);
-        }
-        for (int j = 1; j < 6; j++)
-        {
-            float x = -0.15f + j * 0.05f;
-            float t = Mathf.Acos(Mathf.Clamp(x / 0.15f, -1f, 1f));
-            float r = Mathf.Sin(t) * (x > 0 ? 0.09f - x * 0.15f : 0.09f);
-            var pts = new Vector3[32];
-            for (int k = 0; k < 32; k++)
-            {
-                float a = k * Mathf.PI * 2f / 32f;
-                pts[k] = new Vector3(x, Mathf.Cos(a) * r * 0.8f, Mathf.Sin(a) * r);
-            }
-            PM_Util.Line(ham, "Ring" + j, pts, PM_Util.Cyan, 0.004f, true);
-        }
+        // Real pressing tools (meshes from tools/avatar/tools3d.py, as in the reference photos).
+        // Two rows on the board; local X runs along the board.
+        Transform ham = Tool("PM_Donkey", "tool_donkey", new Color(0.98f, 0.80f, 0.85f), new Vector3(-0.40f, 0f, -0.11f), 0f);         // חמור (קבנצ'יק)
         targets[PM_Target.Ham] = new List<Transform> { ham };
-
-        // Point presser / clapper: wooden base + pointed top board on a post.
-        var pp = new GameObject("PM_PointPresser").transform;
-        pp.SetParent(tools, false);
-        pp.localPosition = new Vector3(-0.17f, 0, 0);
-        WireBox(pp, new Vector3(0, 0.02f, 0), new Vector3(0.30f, 0.04f, 0.08f), PM_Util.Yellow);
-        WireBox(pp, new Vector3(0.05f, 0.08f, 0), new Vector3(0.03f, 0.08f, 0.03f), PM_Util.Yellow);
-        Vector3[] top =
-        {
-            new Vector3(-0.15f, 0.12f, -0.03f), new Vector3(0.09f, 0.12f, -0.03f), new Vector3(0.15f, 0.12f, 0f),
-            new Vector3(0.09f, 0.12f, 0.03f), new Vector3(-0.15f, 0.12f, 0.03f)
-        };
-        PM_Util.Line(pp, "Top", top, PM_Util.Yellow, 0.004f, true);
-        for (int i = 0; i < top.Length; i++) top[i].y = 0.135f;
-        PM_Util.Line(pp, "Top2", top, PM_Util.Yellow, 0.004f, true);
+        Transform pp = Tool("PM_PointPresser", "tool_collarboard", new Color(0.91f, 0.94f, 0.98f), new Vector3(0.0f, 0f, -0.11f), 0f); // צווארונים ופינות
         targets[PM_Target.PointPresser] = new List<Transform> { pp };
+        Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.56f, 0.73f, 0.95f), new Vector3(0.38f, 0f, -0.11f), 0f);
+        targets[PM_Target.ChestPad] = new List<Transform> { chestPad };
+        Transform sh = Tool("PM_Shoulder", "tool_shoulder", new Color(0.42f, 0.62f, 0.93f), new Vector3(-0.42f, 0f, 0.13f), 0f);
+        targets[PM_Target.Shoulder] = new List<Transform> { sh };
+        clapper = Tool("PM_Clapper", "tool_clapper", Color.white, new Vector3(0.58f, 0f, 0.02f), 90f);
+        targets[PM_Target.Clapper] = new List<Transform> { clapper };
+        clapper.gameObject.SetActive(PM_Rewards.Has(PM_Rewards.Clapper));
 
         // Pressing cloth: translucent sheet.
         var cloth = new GameObject("PM_Cloth").transform;
         cloth.SetParent(tools, false);
-        cloth.localPosition = new Vector3(0.17f, 0, 0);
-        Sheet(cloth, "Cloth", new Vector3(0, 0.006f, 0), new Vector2(0.27f, 0.22f), new Color(1f, 1f, 1f, 0.35f), Color.white);
+        cloth.localPosition = new Vector3(-0.04f, 0, 0.13f);
+        Sheet(cloth, "Cloth", new Vector3(0, 0.006f, 0), new Vector2(0.26f, 0.17f), new Color(1f, 1f, 1f, 0.35f), Color.white);
         targets[PM_Target.Cloth] = new List<Transform> { cloth };
 
         // Fusible: baking paper above and below the fusible interfacing (exploded view).
         var fus = new GameObject("PM_Fusible").transform;
         fus.SetParent(tools, false);
-        fus.localPosition = new Vector3(0.5f, 0, 0);
-        Sheet(fus, "PaperBottom", new Vector3(0, 0.01f, 0), new Vector2(0.26f, 0.2f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
-        Sheet(fus, "Interfacing", new Vector3(0, 0.05f, 0), new Vector2(0.2f, 0.14f), new Color(1f, 0.85f, 0.1f, 0.5f), PM_Util.Yellow);
-        Sheet(fus, "PaperTop", new Vector3(0, 0.09f, 0), new Vector2(0.26f, 0.2f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
+        fus.localPosition = new Vector3(0.28f, 0, 0.13f);
+        Sheet(fus, "PaperBottom", new Vector3(0, 0.01f, 0), new Vector2(0.22f, 0.17f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
+        Sheet(fus, "Interfacing", new Vector3(0, 0.05f, 0), new Vector2(0.17f, 0.12f), new Color(1f, 0.85f, 0.1f, 0.5f), PM_Util.Yellow);
+        Sheet(fus, "PaperTop", new Vector3(0, 0.09f, 0), new Vector2(0.22f, 0.17f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
         targets[PM_Target.Fusible] = new List<Transform> { fus };
 
         ShowTools(false);
+    }
+
+    Transform clapper;
+    static Material woodMat;
+    public void ShowClapper(bool on) { if (clapper != null) clapper.gameObject.SetActive(on); }
+
+    // A pressing tool: padded cloth (color) + beech wood.
+    Transform Tool(string name, string mesh, Color cloth, Vector3 local, float yaw)
+    {
+        var t = new GameObject(name).transform;
+        t.SetParent(tools, false);
+        t.localPosition = local;
+        t.localRotation = Quaternion.Euler(0, yaw, 0);
+        Mesh m = PM_Body.LoadMesh(mesh);
+        if (m == null) return t;
+        if (woodMat == null)
+        {
+            woodMat = new Material(PM_Util.LitShader());
+            Texture2D wt = Resources.Load<Texture2D>("PM_Avatar/tex_wood");
+            if (wt != null) { wt.wrapMode = TextureWrapMode.Repeat; woodMat.SetTexture("_BaseMap", wt); woodMat.SetTexture("_MainTex", wt); }
+            woodMat.SetFloat("_Smoothness", 0.35f);
+        }
+        var cm = new Material(PM_Util.LitShader());
+        cm.SetColor("_BaseColor", cloth); cm.SetColor("_Color", cloth);
+        cm.SetFloat("_Smoothness", 0.12f);
+        Texture2D knit = Resources.Load<Texture2D>("PM_Avatar/tex_knit");
+        if (knit != null) { cm.SetTexture("_BaseMap", knit); cm.SetTexture("_MainTex", knit); cm.SetTextureScale("_BaseMap", new Vector2(3f, 3f)); }
+        var dark = new Material(PM_Util.LitShader());
+        dark.SetColor("_BaseColor", new Color(0.25f, 0.25f, 0.27f)); dark.SetFloat("_Metallic", 0.8f); dark.SetFloat("_Smoothness", 0.7f);
+        var vis = new GameObject("Mesh");
+        vis.transform.SetParent(t, false);
+        vis.AddComponent<MeshFilter>().sharedMesh = m;
+        var r = vis.AddComponent<MeshRenderer>();
+        var mats = new Material[m.subMeshCount];
+        for (int i = 0; i < mats.Length; i++) mats[i] = i == 0 ? cm : i == 1 ? woodMat : dark;
+        r.sharedMaterials = mats;
+        return t;
     }
 
     void WireBox(Transform parent, Vector3 c, Vector3 s, Color col)
@@ -521,9 +548,14 @@ public class PM_Station : MonoBehaviour
         }
         else if (hasShelf)
         {
+            // Smaller and spread to fit inside the shelf, so nothing sticks into the station.
             tools.gameObject.SetActive(true);
-            tools.position = new Vector3(shelf.center.x, shelf.max.y + 0.002f, shelf.center.z);
-            tools.localScale = Vector3.one * 0.72f;
+            Vector3 along = BoardRotation * Vector3.right, across = BoardRotation * Vector3.forward;
+            float len = Mathf.Abs(along.x) * shelf.size.x + Mathf.Abs(along.z) * shelf.size.z;
+            float wid = Mathf.Abs(across.x) * shelf.size.x + Mathf.Abs(across.z) * shelf.size.z;
+            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.25f, (wid - 0.03f) / 0.44f), 0.3f, 0.72f);
+            tools.localScale = Vector3.one * sc;
+            tools.position = new Vector3(shelf.center.x, shelf.max.y + 0.004f, shelf.center.z);
         }
         else tools.gameObject.SetActive(false);
     }

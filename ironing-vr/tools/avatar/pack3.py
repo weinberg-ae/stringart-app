@@ -4,7 +4,7 @@ import glob, os, struct, sys, numpy as np
 src = sys.argv[1]; dst = sys.argv[2]
 os.makedirs(dst, exist_ok=True)
 tot = 0
-for f in sorted(glob.glob(os.path.join(src, 'toon_*.bytes'))):
+for f in sorted(glob.glob(os.path.join(src, 'toon_*.bytes')) + glob.glob(os.path.join(src, 'tool_*.bytes'))):
     b = open(f, 'rb').read()
     magic, vc, ns = struct.unpack_from('<3i', b, 0); o = 12
     extra = struct.unpack_from('<4f', b, o); o += 16
