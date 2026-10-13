@@ -36,16 +36,22 @@ public static class PM_Avatar
     // Humanoid characters from the Inspector (PM_Game → Avatar Characters). -1 = hands only,
     // -2 = the avatar that a loader puts into the scene (Genies); hands until it appears.
     public const int SceneCharacter = -2;
+    public const int ToonCharacter = -3;   // our cartoon characters (PM_Toon) — the default
     public static GameObject[] Characters = new GameObject[0];
     public static bool AdoptSceneCharacter = true;   // use a Humanoid avatar that appears in the scene (e.g. Genies)
     static Transform ctrlL, ctrlR, xrRoot;
-    public static int Character { get; private set; } = SceneCharacter;
+    public static int Character { get; private set; } = ToonCharacter;
     public static void ChooseCharacter(int c)
     {
-        Character = c == SceneCharacter || (Characters != null && c >= 0 && c < Characters.Length) ? c : -1;
+        Character = c == SceneCharacter || c == ToonCharacter || (Characters != null && c >= 0 && c < Characters.Length) ? c : -1;
         Save();
     }
     static GameObject humanoid, adopted;
+    static PM_ToonBody toonBody;
+    public static bool IsToon { get { return Character == ToonCharacter; } }
+    public static void ToonChanged() { if (Character != ToonCharacter) Character = ToonCharacter; Save(); }
+    public static void SetShoesQuiet(int s) { Shoes = Mathf.Clamp(s, 0, 2); }
+    public static Material ApronMaterial() { return apron; }
     public static Animator AdoptedAnimator { get { return adopted != null ? adopted.GetComponent<Animator>() : null; } }
     public static bool SceneCharacterAvailable { get { return AdoptSceneCharacter && (adopted != null || PM_Humanoid.FindSceneCharacter() != null); } }
 
@@ -78,8 +84,8 @@ public static class PM_Avatar
         BodyType = Mathf.Clamp(PlayerPrefs.GetInt("PM_Body", 0), 0, 1);
         Outfit = Mathf.Clamp(PlayerPrefs.GetInt("PM_Outfit", 0), 0, 3);
         Shoes = Mathf.Clamp(PlayerPrefs.GetInt("PM_Shoes", 0), 0, 2);
-        Character = PlayerPrefs.GetInt("PM_Char2", SceneCharacter);
-        if (Character < SceneCharacter || Characters == null || Character >= Characters.Length || (Character >= 0 && Characters[Character] == null)) Character = -1;
+        Character = PlayerPrefs.GetInt("PM_Char3", ToonCharacter);
+        if (Character < ToonCharacter || Characters == null || Character >= Characters.Length || (Character >= 0 && Characters[Character] == null)) Character = -1;
         ApplyMaterials();
         rig = new GameObject("PM_AvatarRig").AddComponent<PM_AvatarRig>();
     }
@@ -106,13 +112,13 @@ public static class PM_Avatar
 
     static void ApplyMaterials()
     {
-        Color tone = Tones[Tone];
+        Color tone = IsToon ? PM_Toon.SkinColor : Tones[Tone];
         SetColor(skin, tone);
         Texture2D tex = TattooNames[Tattoo] != null ? Resources.Load<Texture2D>("PM_Avatar/" + TattooNames[Tattoo]) : null;
         if (tex != null) tex.wrapMode = TextureWrapMode.Clamp;
         skin.SetTexture("_BaseMap", tex != null ? tex : Texture2D.whiteTexture);
         skin.SetTexture("_MainTex", tex != null ? tex : Texture2D.whiteTexture);
-        if (HandType == 1) { SetColor(nail, new Color(0.72f, 0.08f, 0.24f)); nail.SetFloat("_Smoothness", 0.9f); }
+        if (IsToon ? PM_Toon.Woman : HandType == 1) { SetColor(nail, new Color(0.72f, 0.08f, 0.24f)); nail.SetFloat("_Smoothness", 0.9f); }
         else { SetColor(nail, Color.Lerp(tone, new Color(1f, 0.82f, 0.82f), 0.45f)); nail.SetFloat("_Smoothness", 0.6f); }
         SetColor(shirt, ShirtTint[Outfit]); Tex(shirt, ShirtTex[Outfit], 1f);
         SetColor(sleeve, ShirtTint[Outfit]); Tex(sleeve, ShirtTex[Outfit], 2.5f);   // arm tubes: unit UVs, so tile more
@@ -154,7 +160,7 @@ public static class PM_Avatar
     static void Save()
     {
         PlayerPrefs.SetInt("PM_Hand", HandType); PlayerPrefs.SetInt("PM_Tone", Tone); PlayerPrefs.SetInt("PM_Tattoo", Tattoo);
-        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes); PlayerPrefs.SetInt("PM_Char2", Character);
+        PlayerPrefs.SetInt("PM_Holo", Hologram ? 1 : 0); PlayerPrefs.SetInt("PM_Body", BodyType); PlayerPrefs.SetInt("PM_Outfit", Outfit); PlayerPrefs.SetInt("PM_Shoes", Shoes); PlayerPrefs.SetInt("PM_Char3", Character);
         ApplyMaterials();
         if (rig != null) rig.Rebuild();
         RefreshPreview();
@@ -180,7 +186,8 @@ public static class PM_Avatar
             else if (n.Contains("right") && (right == null || c.name.Length < right.name.Length)) right = c;
         }
         if (left == null || right == null) return false;
-        if (PM_HandData.Get(HandKey(HandType), false) == null) return true;   // no hand files: keep the controllers
+        int handKind = IsToon ? (PM_Toon.Woman ? 1 : 0) : HandType;
+        if (PM_HandData.Get(HandKey(handKind), false) == null) return true;   // no hand files: keep the controllers
         Clear();
         HideControllerModel(left);
         HideControllerModel(right);
@@ -191,6 +198,14 @@ public static class PM_Avatar
             humanoid = adopted;
             return true;
         }
+        if (IsToon)
+        {
+            // Cartoon character: body + head under the eyes, the hands float on the controllers.
+            leftHand = PM_Hand.Create(left, true, HandKey(handKind), true);
+            rightHand = PM_Hand.Create(right, false, HandKey(handKind), true);
+            toonBody = PM_ToonBody.Create(origin.transform);
+            return leftHand != null && rightHand != null;
+        }
         if (Character >= 0)
         {
             // A Humanoid character: its own hands follow the controllers, its body stands under the eyes.
@@ -198,8 +213,8 @@ public static class PM_Avatar
             if (humanoid != null) return true;
         }
         // Hands only (the simple body is switched off: it looked broken when moving).
-        leftHand = PM_Hand.Create(left, true, HandKey(HandType), true);
-        rightHand = PM_Hand.Create(right, false, HandKey(HandType), true);
+        leftHand = PM_Hand.Create(left, true, HandKey(handKind), true);
+        rightHand = PM_Hand.Create(right, false, HandKey(handKind), true);
         return leftHand != null && rightHand != null;
     }
 
@@ -208,6 +223,8 @@ public static class PM_Avatar
         if (leftHand != null) Object.Destroy(leftHand.gameObject);
         if (rightHand != null) Object.Destroy(rightHand.gameObject);
         if (body != null) Object.Destroy(body.gameObject);
+        if (toonBody != null) Object.Destroy(toonBody.gameObject);
+        toonBody = null;
         if (humanoid != null && humanoid == adopted) { if (Character != SceneCharacter) humanoid.SetActive(false); }   // a scene avatar is kept
         else if (humanoid != null) Object.Destroy(humanoid);
         leftHand = rightHand = null; body = null; humanoid = null;
@@ -279,6 +296,16 @@ public static class PM_Avatar
             r.transform.localRotation = Quaternion.LookRotation(Vector3.up, -Vector3.right);
             preview.localScale = Vector3.one * 1.6f;
             preview.gameObject.AddComponent<PM_Float>().amplitude = 0.015f;
+        }
+        else if (previewMode == 3)
+        {
+            // The cartoon character, turning slowly next to the menu.
+            var spin = new GameObject("Spin").transform;
+            spin.SetParent(preview, false);
+            spin.localRotation = Quaternion.Euler(0, 180, 0);
+            PM_Toon.Build(spin, false);
+            spin.gameObject.AddComponent<PM_Spin>();
+            preview.localScale = Vector3.one * 0.5f;
         }
         else
         {
@@ -554,6 +581,40 @@ public class PM_Body : MonoBehaviour
     static readonly Dictionary<string, Mesh> meshes = new Dictionary<string, Mesh>();
     static readonly Dictionary<string, Vector4> info = new Dictionary<string, Vector4>();
 
+    public static Mesh LoadMesh(string name) { float e; Vector3 sh; return Load(name, out e, out sh); }
+
+    static Mesh ReadCompact(System.IO.BinaryReader r, string name, int vc, int[] counts)
+    {
+        bool small = r.ReadInt32() == 1;
+        var v = new Vector3[vc];
+        for (int i = 0; i < vc; i++) v[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+        var m = new Mesh { name = name };
+        if (vc > 65000) m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        m.vertices = v;
+        m.subMeshCount = counts.Length;
+        for (int s = 0; s < counts.Length; s++)
+        {
+            var t = new int[counts[s]];
+            for (int i = 0; i < t.Length; i++) t[i] = small ? r.ReadUInt16() : r.ReadInt32();
+            m.SetTriangles(t, s);
+        }
+        m.RecalculateNormals();
+        // Box projection by the main direction of the normal (fabric textures repeat every 25 cm).
+        Vector3[] n = m.normals;
+        var uv = new Vector2[vc];
+        for (int i = 0; i < vc; i++)
+        {
+            Vector3 a = new Vector3(Mathf.Abs(n[i].x), Mathf.Abs(n[i].y), Mathf.Abs(n[i].z));
+            Vector3 p = v[i] * 4f;
+            if (a.x >= a.y && a.x >= a.z) uv[i] = new Vector2(p.z, p.y);
+            else if (a.y > a.x && a.y >= a.z) uv[i] = new Vector2(p.x, p.z);
+            else uv[i] = new Vector2(p.x, p.y);
+        }
+        m.uv = uv;
+        m.RecalculateBounds();
+        return m;
+    }
+
     static Mesh Load(string name, out float eye, out Vector3 shoulder)
     {
         eye = 1.6f; shoulder = new Vector3(0.21f, 1.4f, 0f);
@@ -567,12 +628,20 @@ public class PM_Body : MonoBehaviour
         TextAsset ta = Resources.Load<TextAsset>("PM_Avatar/" + name);
         if (ta == null) { Debug.LogWarning("[PM] Нет файла аватара: " + name); return null; }
         var r = new System.IO.BinaryReader(new System.IO.MemoryStream(ta.bytes));
-        bool hasUV = r.ReadInt32() == 0x504D4D32;   // version 2 files carry texture coordinates
+        int magic = r.ReadInt32();
+        bool hasUV = magic == 0x504D4D32;   // version 2 files carry texture coordinates
         int vc = r.ReadInt32(), ns = r.ReadInt32();
         eye = r.ReadSingle();
         shoulder = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
         var counts = new int[ns];
         for (int i = 0; i < ns; i++) counts[i] = r.ReadInt32();
+        if (magic == 0x504D4D33)   // version 3 (toon parts): positions + 16/32-bit indices; normals and UVs are rebuilt here
+        {
+            m = ReadCompact(r, name, vc, counts);
+            meshes[name] = m;
+            info[name] = new Vector4(shoulder.x, shoulder.y, shoulder.z, eye);
+            return m;
+        }
         var v = new Vector3[vc]; var n = new Vector3[vc];
         for (int i = 0; i < vc; i++) v[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
         for (int i = 0; i < vc; i++) n[i] = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());

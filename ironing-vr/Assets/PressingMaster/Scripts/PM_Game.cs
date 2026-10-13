@@ -234,8 +234,99 @@ public class PM_Game : MonoBehaviour
     // ---------------- Avatar ----------------
     void ShowAvatarChoice()
     {
-        if (PM_Avatar.Character != -1 && PM_Style.LoaderPresent()) { ShowStyleChoice(); return; }
+        if (PM_Avatar.IsToon) { ShowToonChoice(0); return; }
+        if (PM_Avatar.Character == PM_Avatar.SceneCharacter && PM_Style.LoaderPresent()) { ShowStyleChoice(); return; }
         ShowHandsChoice();
+    }
+
+    // ---- our cartoon characters: tabs (ready characters, hair, clothes, accessories, skin & eyes) ----
+    int toonTab;
+    void ShowToonChoice(int tab) { ShowToonChoice(tab, true); }
+
+    void ShowToonChoice(int tab, bool remember)
+    {
+        if (remember) Remember();
+        toonTab = tab;
+        avatarPage = 4;
+        state = State.Avatar;
+        ClearStepVisuals();
+        PM_Toon.Load();
+        panel.SetContent(PM_Content.ToonTitle, PM_Content.ToonBody, "");
+        panel.SetAccent(PM_Util.Violet);
+        var tabs = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < PM_Content.ToonTabs.Length; i++)
+        {
+            int k = i;
+            tabs.Add(Btn((i == tab ? "• " : "") + PM_Content.ToonTabs[i], () => ShowToonChoice(k)));
+        }
+        panel.SetButtonGrid(5, tab, 0.18f, 0.16f, false, tabs.ToArray());
+        float[] y = { 0.04f, -0.07f, -0.18f, -0.29f };
+        int row = 0;
+        Action<string[], int, int, Action<int>> Row = (labels, from, count, pick) =>
+        {
+            var items = new List<KeyValuePair<string, Action>>();
+            for (int i = from; i < from + count && i < labels.Length; i++)
+            {
+                int k = i;
+                items.Add(Btn(labels[i], () => { pick(k); ShowToonChoice(toonTab, false); }));
+            }
+            int per = Mathf.Max(items.Count, 1);
+            float w = per >= 6 ? 0.145f : per == 5 ? 0.18f : 0.2f;
+            if (row < y.Length) panel.SetButtonGrid(per, -1, w, y[row], true, items.ToArray());
+            row++;
+        };
+        Func<string[], int, string[]> Mark = (labels, sel) =>
+        {
+            var m = new string[labels.Length];
+            for (int i = 0; i < labels.Length; i++) m[i] = (i == sel ? "• " : "") + labels[i];
+            return m;
+        };
+        switch (tab)
+        {
+            case 0:
+                {
+                    var names = new string[PM_Toon.Presets.Length];
+                    for (int i = 0; i < names.Length; i++) names[i] = PM_Toon.Presets[i].name;
+                    Row(names, 0, 3, i => PM_Toon.ApplyPreset(i));
+                    Row(names, 3, 3, i => PM_Toon.ApplyPreset(i));
+                    Row(Mark(PM_Content.ToonBodies, PM_Toon.Woman ? 0 : 1), 0, 2, i => { PM_Toon.Woman = i == 0; PM_Toon.Save(); });
+                    break;
+                }
+            case 1:
+                Row(Mark(PM_Content.ToonHair, PM_Toon.Hair), 0, 5, i => { PM_Toon.Hair = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonHair, PM_Toon.Hair), 5, 4, i => { PM_Toon.Hair = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonHairColors, PM_Toon.HairColor), 0, 4, i => { PM_Toon.HairColor = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonHairColors, PM_Toon.HairColor), 4, 4, i => { PM_Toon.HairColor = i; PM_Toon.Save(); });
+                break;
+            case 2:
+                Row(Mark(PM_Content.ToonTops, PM_Toon.Top), 0, 6, i => { PM_Toon.Top = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonTopColors, PM_Toon.TopColor), 0, 8, i => { PM_Toon.TopColor = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonBottoms, PM_Toon.Bottom), 0, 5, i => { PM_Toon.Bottom = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonBottomColors, PM_Toon.BottomColor), 0, 6, i => { PM_Toon.BottomColor = i; PM_Toon.Save(); });
+                break;
+            case 3:
+                {
+                    var accs = new string[PM_Content.ToonAccs.Length];
+                    for (int i = 0; i < accs.Length; i++) accs[i] = (PM_Toon.HasAcc(i) ? "• " : "") + PM_Content.ToonAccs[i];
+                    Row(Mark(PM_Content.ToonHats, PM_Toon.Hat), 0, 4, i => { PM_Toon.Hat = i; PM_Toon.Save(); });
+                    Row(Mark(PM_Content.ToonTopColors, PM_Toon.HatColor), 0, 8, i => { PM_Toon.HatColor = i; PM_Toon.Save(); });
+                    Row(accs, 0, 6, i => PM_Toon.ToggleAcc(i));
+                    Row(Mark(PM_Content.ToonShoes, PM_Avatar.Shoes), 0, 3, i => PM_Avatar.ChooseShoes(i));
+                    break;
+                }
+            default:
+                Row(Mark(PM_Content.ToonSkins, PM_Toon.Skin), 0, 6, i => { PM_Toon.Skin = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonEyes, PM_Toon.Eyes), 0, 5, i => { PM_Toon.Eyes = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.TattooLabels, PM_Avatar.Tattoo), 0, 4, i => PM_Avatar.ChooseTattoo(i));
+                Row(Mark(PM_Content.ToonBodies, PM_Toon.Woman ? 0 : 1), 0, 2, i => { PM_Toon.Woman = i == 0; PM_Toon.Save(); });
+                break;
+        }
+        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true,
+            Btn(PM_Content.BtnHandsOnly, () => { PM_Avatar.ChooseCharacter(-1); ShowHandsChoice(); }),
+            Btn(PM_Content.BtnContinue, ShowMenu));
+        if (PM_Toon.HatHidden) panel.SetStatus(PM_Content.ToonHatHidden, new Color(1f, 0.63f, 0.25f));
+        AvatarPreview(3);
+        if (remember && PM_Audio.I != null && tab == 0) PM_Audio.I.PlayVoice("avatar");
     }
 
     // A loaded avatar (Genies): outfit, skin tone, hair and a forearm tattoo. Seen in the studio mirror.
@@ -335,7 +426,7 @@ public class PM_Game : MonoBehaviour
     void AvatarPreview(int mode, int handOverride = -1)
     {
         if (mode == 0) { PM_Avatar.ShowPreview(0, Vector3.zero, Vector3.zero); return; }
-        Vector3 pos = panel.transform.position - panel.transform.right * 0.78f + (mode == 2 ? Vector3.down * 0.4f : Vector3.zero);
+        Vector3 pos = panel.transform.position - panel.transform.right * (mode == 3 ? 0.85f : 0.78f) + (mode == 2 ? Vector3.down * 0.4f : mode == 3 ? Vector3.down * 0.5f : Vector3.zero);
         PM_Avatar.ShowPreview(mode, pos, station.PlayerPos + Vector3.up * 1.6f, handOverride);
     }
 
@@ -678,7 +769,7 @@ public class PM_Game : MonoBehaviour
                 List<PM_Step> st = steps; int idx = stepIndex; bool fp = fullPath;
                 return () => { steps = st; fullPath = fp; MenuLayout(false); state = State.Learning; EnterStep(idx); };
             }
-            case State.Avatar: return avatarPage == 2 ? (Action)ShowBodyChoice : avatarPage == 3 ? (Action)ShowStyleChoice : ShowHandsChoice;
+            case State.Avatar: { int t = toonTab; return avatarPage == 2 ? (Action)ShowBodyChoice : avatarPage == 3 ? (Action)ShowStyleChoice : avatarPage == 4 ? (Action)(() => ShowToonChoice(t)) : ShowHandsChoice; }
             case State.Quiz: { int k = quizKind; return () => StartQuiz(k); }
             case State.ExamIntro: case State.ExamFabric: case State.ExamResult: return StartExam;
             default: return ShowMenu;
