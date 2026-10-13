@@ -512,9 +512,127 @@ def top_bomber(woman):
         return np.minimum(np.minimum(stripes, zipper), patch)
     return {1: main, 2: rib, 3: accent}
 
-TOPS = {'tee': top_tee, 'hoodie': top_hoodie, 'denim': top_denim, 'crop': top_crop, 'puffer': top_puffer, 'bomber': top_bomber}
+def top_shirt(woman):   # white button-up shirt
+    def main(p):
+        d = cut_below(torso(p, woman, 0.011), p, 0.95)
+        placket = np.maximum(np.abs(torso(p, woman, 0.016)) - 0.004, np.maximum(np.abs(p[:, 0]) - 0.016, np.maximum(0.95 - p[:, 1], -p[:, 2])))
+        d = np.minimum(d, placket)
+        for s_ in (-1, 1):   # pointed collar
+            c = np.array([s_ * 0.048, 1.405, 0.048])
+            d = smin(d, ellipsoid(p, c, (0.045, 0.032, 0.009), yaw_basis(s_ * 32, -55)), 0.006)
+        d = smin(d, torus_y(p, (0, 1.42, 0.0), 0.056, 0.011), 0.01)                       # collar band
+        z = 0.11 if woman else 0.12
+        d = smin(d, roundbox(p, (-0.07, 1.25, z - 0.004), (0.03, 0.033, 0.006), 0.004), 0.003)   # chest pocket
+        return d
+    def buttons(p):
+        d = 9.0
+        for y in (1.34, 1.27, 1.19, 1.11, 1.03):
+            z = torso_front_z(woman, y) + 0.018
+            d = np.minimum(d, ellipsoid(p, (0, y, z), (0.0065, 0.0065, 0.003)))
+        return d
+    return {1: main, 3: buttons}
+
+def torso_front_z(woman, y):
+    zs = np.linspace(0.0, 0.25, 600)
+    P = np.stack([np.zeros_like(zs), np.full_like(zs, y), zs], 1)
+    d = torso(P, woman, 0.0)
+    i = np.nonzero(d > 0)[0]
+    return zs[i[0]] if len(i) else 0.1
+
+def top_bighoodie(woman):   # oversized hoodie with a huge hood
+    def main(p):
+        base = torso(p, woman, 0.050)
+        low = np.maximum(ellipsoid(p, (0, 0.98, 0.0), (0.205 if woman else 0.215, 0.20, 0.15)), -9)   # long, loose body
+        d = smin(base, low, 0.06)
+        d = cut_below(d, p, 0.865)
+        pocket = np.maximum(shell(smin(torso(p, woman, 0.056), low + 0.006, 0.06), 0.004),
+                            np.maximum(np.abs(p[:, 0]) - 0.11 + (p[:, 1] - 0.96) * 0.3, np.maximum(np.abs(p[:, 1] - 0.97) - 0.06, -p[:, 2])))
+        d = smin(d, pocket, 0.004)
+        hood = ellipsoid(p, (0, 1.455, -0.105), (0.14, 0.085, 0.085))
+        hood = smin(hood, torus_y(p, (0, 1.425, -0.01), 0.085, 0.032), 0.04)      # thick hood rim around the neck
+        hood = np.maximum(hood, -ellipsoid(p, (0, 1.47, 0.02), (0.07, 0.07, 0.07)))  # neck opening
+        return smin(d, hood, 0.04)
+    def rib(p):
+        low = ellipsoid(p, (0, 0.98, 0.0), (0.212 if woman else 0.222, 0.205, 0.155))
+        return np.maximum(shell(smin(torso(p, woman, 0.056), low, 0.06), 0.007), np.abs(p[:, 1] - 0.875) - 0.022)
+    def strings(p):
+        d = 9.0
+        for s_ in (-1, 1):
+            z0 = torso_front_z(woman, 1.25) + 0.06
+            d = np.minimum(d, capsule(p, (s_ * 0.035, 1.42, 0.07), (s_ * 0.042, 1.17, z0), 0.0055, 0.0055))
+            d = np.minimum(d, capsule(p, (s_ * 0.042, 1.175, z0), (s_ * 0.042, 1.145, z0), 0.008, 0.008))
+        return d
+    return {1: main, 2: rib, 3: strings}
+
+def top_silkdress(woman):   # one piece: slip dress with thin straps (legs included)
+    def skin(p):
+        legs_ = cut_above(cut_below(legs(p, woman, 0.0, bottom=0.10), p, 0.10), p, 0.62)
+        return np.minimum(torso(p, woman, 0.0), legs_)
+    def dress(p):
+        y = p[:, 1]
+        bod = torso(p, woman, 0.009)
+        neck = 1.30 - np.maximum(0.065 - np.abs(p[:, 0]), 0) * 1.3 * (p[:, 2] > 0)
+        bod = np.maximum(bod, y - neck)
+        bod = cut_below(bod, p, 0.98)
+        q = p - np.array([0, 0, -0.005])
+        t = np.clip((1.04 - y) / 0.50, 0, 1)
+        rx, rz = 0.150 + 0.10 * t, 0.105 + 0.08 * t
+        ang = np.arctan2(q[:, 0], q[:, 2])
+        r = np.sqrt((q[:, 0] / rx) ** 2 + (q[:, 2] / rz) ** 2)
+        folds = 0.010 * t * np.sin(ang * 7 + 0.6 * np.sin(y * 9))
+        skirt = np.maximum((r - 1) * 0.12 + folds, np.maximum(0.55 - y - 0.015 * np.sin(ang * 3), y - 1.05))
+        skirt = np.maximum(skirt, -((r - 0.80) * 0.12))
+        d = smin(bod, skirt, 0.04)
+        for s_ in (-1, 1):
+            d = np.minimum(d, np.maximum(shell(torso(p, woman, 0.005), 0.003), np.maximum(np.abs(p[:, 0] - s_ * 0.07) - 0.006, 1.29 - y)))
+        return d
+    return {0: skin, 1: dress}
+
+def top_kimono(woman):   # one piece: robe to the ankles, crossed collar, obi belt with a bow (sakura texture at runtime)
+    def robe_d(p, grow):
+        y = p[:, 1]
+        q = p - np.array([0, 0, -0.005])
+        t = np.clip((1.02 - y) / 0.88, 0, 1)
+        rx, rz = 0.165 + 0.035 * t + grow, 0.120 + 0.030 * t + grow
+        r = np.sqrt((q[:, 0] / rx) ** 2 + (q[:, 2] / rz) ** 2)
+        low = np.maximum((r - 1) * 0.13, np.maximum(0.13 - y, y - 1.06))
+        return smin(cut_below(torso(p, woman, 0.022 + grow), p, 0.95), low, 0.05)
+    def robe(p):
+        d = robe_d(p, 0.0)
+        return np.maximum(d, -(robe_d(p, -0.03)))
+    def collar(p):
+        y = p[:, 1]
+        surf = np.abs(robe_d(p, 0.004)) - 0.004
+        d = 9.0
+        for s_ in (-1, 1):
+            xline = s_ * 0.075 * np.clip((y - 1.10) / 0.30, 0, 1)
+            band = np.maximum(surf, np.maximum(np.abs(p[:, 0] - xline) - 0.018, np.maximum(1.10 - y, np.maximum(y - 1.44, -p[:, 2] + 0.02))))
+            d = np.minimum(d, band)
+        behind = np.maximum(torus_y(p, (0, 1.425, -0.01), 0.062, 0.014), p[:, 2] - 0.02)    # around the back of the neck
+        seam = np.maximum(surf, np.maximum(np.abs(p[:, 0] - 0.03 * (1.10 - y)) - 0.006, np.maximum(y - 1.10, 0.13 - y + 0 * p[:, 2])))
+        seam = np.maximum(seam, -p[:, 2])
+        return np.minimum(np.minimum(d, behind), seam)
+    def obi(p):
+        y = p[:, 1]
+        belt = np.maximum(np.abs(robe_d(p, 0.012)) - 0.010, np.abs(y - 1.045) - 0.055)
+        bz = -0.15 if woman else -0.16
+        bow = np.minimum(ellipsoid(p, (-0.05, 1.06, bz), (0.055, 0.035, 0.025)), ellipsoid(p, (0.05, 1.06, bz), (0.055, 0.035, 0.025)))
+        bow = smin(bow, ellipsoid(p, (0, 1.05, bz + 0.01), (0.022, 0.03, 0.022)), 0.01)
+        return np.minimum(belt, bow)
+    def cord(p):
+        return np.maximum(np.abs(robe_d(p, 0.024)) - 0.0035, np.abs(p[:, 1] - 1.045) - 0.0045)
+    return {1: robe, 2: collar, 3: obi, 4: cord}
+
+ONE_PIECE = {'silkdress', 'kimono'}
+
+TOPS = {'tee': top_tee, 'hoodie': top_hoodie, 'denim': top_denim, 'crop': top_crop, 'puffer': top_puffer, 'bomber': top_bomber,
+        'shirt': top_shirt, 'bighoodie': top_bighoodie, 'silkdress': top_silkdress, 'kimono': top_kimono}
 
 def make_top(name, woman):
+    if name in ONE_PIECE:
+        return build(TOPS[name](woman), (-0.28, 0.06, -0.22), (0.28, 1.52, 0.24), 0.0068)
+    if name == 'bighoodie':
+        return build(TOPS[name](woman), (-0.27, 0.82, -0.24), (0.27, 1.58, 0.25), 0.0062)
     return build(TOPS[name](woman), (-0.25, 0.90, -0.18), (0.25, 1.52, 0.22), 0.0062)
 
 # bottoms -----------------------------------------------------------
@@ -592,9 +710,35 @@ def bot_joggers(woman):
         return np.minimum(capsule(p, (-0.012, 0.98, z), (-0.02, 0.90, z + 0.01), 0.004, 0.004), capsule(p, (0.012, 0.98, z), (0.02, 0.91, z + 0.01), 0.004, 0.004))
     return {1: main, 2: rib, 3: strings}
 
-BOTTOMS = {'jeans': bot_jeans, 'cargo': bot_cargo, 'skirt': bot_skirt, 'shorts': bot_shorts, 'joggers': bot_joggers}
+def bot_tutu(woman):   # colorful layered tulle skirt (tiers: 1, 3, 5 = three colors)
+    def skin(p):
+        return cut_above(cut_below(legs(p, woman, 0.0, bottom=0.10), p, 0.10), p, 0.80)
+    def tier(top_y, bottom_y, r_bottom, phase):
+        def f(p):
+            y = p[:, 1]
+            q = p - np.array([0, 0, -0.005])
+            t = np.clip((top_y - y) / (top_y - bottom_y), 0, 1)
+            rx = 0.15 + (r_bottom - 0.15) * np.sqrt(t)
+            rz = 0.105 + (r_bottom * 0.78 - 0.105) * np.sqrt(t)
+            ang = np.arctan2(q[:, 0], q[:, 2])
+            r = np.sqrt((q[:, 0] / rx) ** 2 + (q[:, 2] / rz) ** 2)
+            puff = 0.007 * np.sin(ang * 11 + phase) * t
+            edge = bottom_y + 0.012 * np.sin(ang * 16 + phase)
+            d = np.maximum(np.abs((r - 1) * 0.12 + puff) - 0.016, np.maximum(edge - y, y - top_y))
+            return d
+        return f
+    t1, t2, t3 = tier(1.0, 0.85, 0.235, 0.0), tier(0.99, 0.80, 0.26, 1.3), tier(0.98, 0.75, 0.28, 2.6)
+    def band(p):
+        return np.maximum(shell(torso(p, woman, 0.012), 0.007), np.abs(p[:, 1] - 1.0) - 0.02)
+    def socks(p):
+        return np.maximum(legs(p, woman, 0.004, bottom=0.10), np.maximum(0.10 - p[:, 1], p[:, 1] - 0.20))
+    return {0: skin, 1: lambda p: np.minimum(t1(p), band(p)), 2: socks, 3: t2, 5: t3}
+
+BOTTOMS = {'jeans': bot_jeans, 'cargo': bot_cargo, 'skirt': bot_skirt, 'shorts': bot_shorts, 'joggers': bot_joggers, 'tutu': bot_tutu}
 
 def make_bottom(name, woman):
+    if name == 'tutu':
+        return build(BOTTOMS[name](woman), (-0.31, 0.06, -0.26), (0.31, 1.06, 0.26), 0.0055)
     return build(BOTTOMS[name](woman), (-0.27, 0.06, -0.18), (0.27, 1.06, 0.2), 0.0072)
 
 # accessories -------------------------------------------------------

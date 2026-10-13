@@ -8,8 +8,10 @@ public static class PM_Toon
 {
     // ----- options -----
     public static readonly string[] HairKeys = { "buzz", "crop", "quiff", "curly", "bob", "long", "ponytail", "spacebuns", "afro" };
-    public static readonly string[] TopKeys = { "tee", "hoodie", "denim", "crop", "puffer", "bomber" };
-    public static readonly string[] BottomKeys = { "jeans", "cargo", "skirt", "shorts", "joggers" };
+    public static readonly string[] TopKeys = { "tee", "hoodie", "denim", "crop", "puffer", "bomber", "shirt", "bighoodie", "silkdress", "kimono" };
+    public static readonly string[] BottomKeys = { "jeans", "cargo", "skirt", "shorts", "joggers", "tutu" };
+    // Dresses and the kimono are one piece (the legs are part of the mesh): no bottom is drawn with them.
+    public static bool OnePiece { get { string t = TopKeys[Top]; return t == "silkdress" || t == "kimono"; } }
     public static readonly string[] HatKeys = { null, "cap", "beanie", "bucket" };
     public static readonly string[] AccKeys = { "glasses", "sunglasses", "earrings", "necklace", "headphones", "apron" };
     static readonly bool[] HatFitsHair = { true, true, false, false, true, true, true, false, false };   // per hairstyle
@@ -57,10 +59,10 @@ public static class PM_Toon
     }
     public static readonly Preset[] Presets =
     {
-        new Preset { name = "נויה",  woman = true,  hair = 5, hairColor = 0, hat = 0, top = 3, topColor = 2, bottom = 2, bottomColor = 1, skin = 1, eyes = 2, accs = (1 << 2) | (1 << 3), shoes = 0 },
-        new Preset { name = "שירה",  woman = true,  hair = 7, hairColor = 4, hat = 0, top = 1, topColor = 3, bottom = 4, bottomColor = 4, skin = 0, eyes = 0, accs = 1 << 4, shoes = 0 },
-        new Preset { name = "מאיה",  woman = true,  hair = 8, hairColor = 0, hat = 0, top = 2, topColor = 0, bottom = 1, bottomColor = 2, skin = 4, eyes = 2, accs = (1 << 1) | (1 << 2), shoes = 1 },
-        new Preset { name = "איתי",  woman = false, hair = 2, hairColor = 1, hat = 0, top = 5, topColor = 1, bottom = 0, bottomColor = 0, skin = 2, eyes = 2, accs = 1 << 3, shoes = 0 },
+        new Preset { name = "נויה",  woman = true,  hair = 5, hairColor = 0, hat = 0, top = 8, topColor = 7, bottom = 2, bottomColor = 1, skin = 1, eyes = 2, accs = (1 << 2) | (1 << 3), shoes = 0 },
+        new Preset { name = "שירה",  woman = true,  hair = 7, hairColor = 4, hat = 0, top = 7, topColor = 3, bottom = 5, bottomColor = 5, skin = 0, eyes = 0, accs = 1 << 4, shoes = 0 },
+        new Preset { name = "מאיה",  woman = true,  hair = 8, hairColor = 0, hat = 0, top = 9, topColor = 7, bottom = 1, bottomColor = 2, skin = 4, eyes = 2, accs = (1 << 1) | (1 << 2), shoes = 1 },
+        new Preset { name = "איתי",  woman = false, hair = 2, hairColor = 1, hat = 0, top = 6, topColor = 0, bottom = 0, bottomColor = 1, skin = 2, eyes = 2, accs = 1 << 3, shoes = 0 },
         new Preset { name = "דניאל", woman = false, hair = 1, hairColor = 0, hat = 1, hatColor = 4, top = 1, topColor = 6, bottom = 1, bottomColor = 2, skin = 3, eyes = 2, accs = 1 << 0, shoes = 0 },
         new Preset { name = "עומר",  woman = false, hair = 0, hairColor = 2, hat = 2, hatColor = 1, top = 4, topColor = 5, bottom = 4, bottomColor = 1, skin = 1, eyes = 1, accs = 1 << 4, shoes = 1 },
     };
@@ -116,7 +118,7 @@ public static class PM_Toon
     // Cartoon proportions (same as tools/avatar/toon.py): the body is 0.9 tall, the head group is 1.18x around the neck base.
     public const float BodyY = 0.9f, HeadScale = 1.18f, NeckY = 1.40f;
     public static readonly float EyeHeight = NeckY * BodyY + (1.607f - NeckY) * HeadScale;   // 1.50 m in the model
-    static Material skin, hair, iris, mouth, white, dark, top1, top2, top3, top4, bot1, bot2, bot3, bot4, hat1, hat2, accMain, accSecond, gold, black;
+    static Material skin, hair, iris, mouth, white, dark, top1, top2, top3, top4, bot1, bot2, bot3, bot4, bot5, hat1, hat2, accMain, accSecond, gold, black;
 
     static Material Mat(Color c, float smooth, float metal = 0f)
     {
@@ -143,7 +145,7 @@ public static class PM_Toon
             skin = Mat(Color.white, 0.35f); hair = Mat(Color.white, 0.45f); iris = Mat(Color.white, 0.92f); mouth = Mat(new Color(0.72f, 0.24f, 0.30f), 0.6f);
             white = Mat(Color.white, 0.92f); dark = Mat(new Color(0.03f, 0.03f, 0.04f), 0.9f);
             top1 = Mat(Color.white, 0.25f); top2 = Mat(Color.white, 0.2f); top3 = Mat(Color.white, 0.55f); top4 = Mat(new Color(0.1f, 0.09f, 0.08f), 0.4f);
-            bot1 = Mat(Color.white, 0.2f); bot2 = Mat(Color.white, 0.2f); bot3 = Mat(new Color(0.85f, 0.70f, 0.32f), 0.8f, 0.7f); bot4 = Mat(new Color(0.12f, 0.10f, 0.09f), 0.45f);
+            bot1 = Mat(Color.white, 0.2f); bot2 = Mat(Color.white, 0.2f); bot3 = Mat(new Color(0.85f, 0.70f, 0.32f), 0.8f, 0.7f); bot4 = Mat(new Color(0.12f, 0.10f, 0.09f), 0.45f); bot5 = Mat(Color.white, 0.3f);
             hat1 = Mat(Color.white, 0.25f); hat2 = Mat(Color.white, 0.25f);
             accMain = Mat(new Color(0.95f, 0.35f, 0.45f), 0.6f); accSecond = Mat(new Color(0.08f, 0.08f, 0.10f), 0.95f);
             gold = Mat(new Color(0.96f, 0.78f, 0.36f), 0.85f, 0.9f); black = Mat(new Color(0.06f, 0.06f, 0.07f), 0.7f);
@@ -156,9 +158,19 @@ public static class PM_Toon
         Color[] tc = TopColors[TopColor];
         Col(top1, tc[0]); Col(top2, tc[1]); Col(top3, tc[2]);
         string tk = TopKeys[Top];
-        Tex(top1, tk == "denim" ? "tex_denim" : tk == "hoodie" || tk == "crop" ? "tex_knit" : null, tk == "denim" ? 1.2f : 2f);
-        top1.SetFloat("_Smoothness", tk == "puffer" ? 0.65f : tk == "bomber" ? 0.5f : 0.22f);
+        Col(top4, new Color(0.1f, 0.09f, 0.08f));
+        Tex(top1, tk == "denim" ? "tex_denim" : tk == "hoodie" || tk == "bighoodie" || tk == "crop" ? "tex_knit" : tk == "kimono" ? "tex_sakura" : null, tk == "denim" ? 1.2f : tk == "kimono" ? 1f : 2f);
+        top1.SetFloat("_Smoothness", tk == "puffer" ? 0.65f : tk == "bomber" ? 0.5f : tk == "silkdress" ? 0.88f : tk == "kimono" ? 0.5f : 0.22f);
+        top1.SetFloat("_Metallic", tk == "silkdress" ? 0.15f : 0f);
         if (tk == "denim") Col(top1, Color.Lerp(tc[0], new Color(0.35f, 0.48f, 0.72f), 0.65f));   // denim stays denim-ish
+        if (tk == "shirt") Col(top3, tc[1]);                                                          // buttons
+        if (tk == "kimono")
+        {
+            Col(top1, Color.white);   // the sakura picture keeps its own colors
+            Col(top2, tc[1]);         // collar
+            Col(top3, tc[0]);         // obi
+            Col(top4, tc[2]);         // cord
+        }
         Col(bot1, BottomColors[BottomColor]);
         string bk = BottomKeys[Bottom];
         Tex(bot1, bk == "jeans" || bk == "shorts" ? "tex_denim" : bk == "skirt" ? "tex_plaid" : bk == "cargo" ? "tex_chino" : "tex_knit", bk == "skirt" ? 1.5f : 1.2f);
@@ -167,6 +179,18 @@ public static class PM_Toon
         Col(bot3, joggers ? new Color(0.97f, 0.97f, 0.97f) : new Color(0.85f, 0.70f, 0.32f));
         bot3.SetFloat("_Metallic", joggers ? 0f : 0.7f);
         if (bk == "joggers") Col(bot2, Color.Lerp(BottomColors[BottomColor], Color.black, 0.15f));
+        if (bk == "tutu")   // three tulle layers in three colors
+        {
+            Tex(bot1, null, 1f);
+            Color c = BottomColors[BottomColor];
+            float h, sat, v;
+            Color.RGBToHSV(c, out h, out sat, out v);
+            // pastel neighbours of the chosen color (white/black/beige: pink and mint)
+            Color c2 = sat < 0.25f ? new Color(0.98f, 0.66f, 0.80f) : Color.HSVToRGB((h + 0.14f) % 1f, 0.42f, 1f);
+            Color c3 = sat < 0.25f ? new Color(0.66f, 0.92f, 0.86f) : Color.HSVToRGB((h + 0.86f) % 1f, 0.42f, 1f);
+            Col(bot3, c2); bot3.SetFloat("_Metallic", 0f);
+            Col(bot5, c3);
+        }
         Color[] hc = TopColors[HatColor];
         Col(hat1, hc[0]); Col(hat2, hc[1]);
     }
@@ -193,7 +217,7 @@ public static class PM_Toon
         if (HasAcc(1)) Part(headGroup, "toon_acc_sunglasses", headLayer, Woman, black, black, accSecond, gold, black);
         if (HasAcc(2)) Part(headGroup, "toon_acc_earrings", headLayer, Woman, gold, gold, gold, gold, gold);
         Part(bodyGroup, "toon_top_" + TopKeys[Top] + "_" + g, 0, false, skin, top1, top2, top3, top4);
-        Part(bodyGroup, "toon_bottom_" + BottomKeys[Bottom] + "_" + g, 0, false, skin, bot1, bot2, bot3, bot4);
+        if (!OnePiece) Part(bodyGroup, "toon_bottom_" + BottomKeys[Bottom] + "_" + g, 0, false, skin, bot1, bot2, bot3, bot4, bot5);
         Material[] shoes = PM_Avatar.ShoeMaterials();
         Part(parent, PM_Avatar.ShoeKey(), 0, false, shoes);
         if (HasAcc(3)) Part(bodyGroup, "toon_acc_necklace", 0, false, gold, gold, gold, gold, gold);

@@ -4,8 +4,8 @@ import toon
 from toon import *
 from render import render, sheet
 HAIR = ["buzz", "crop", "quiff", "curly", "bob", "long", "ponytail", "spacebuns", "afro"]
-TOPS = ["tee", "hoodie", "denim", "crop", "puffer", "bomber"]
-BOTS = ["jeans", "cargo", "skirt", "shorts", "joggers"]
+TOPS = ["tee", "hoodie", "denim", "crop", "puffer", "bomber", "shirt", "bighoodie", "silkdress", "kimono"]
+BOTS = ["jeans", "cargo", "skirt", "shorts", "joggers", "tutu"]
 HATS = [None, "cap", "beanie", "bucket"]
 ACCS = ["glasses", "sunglasses", "earrings", "necklace", "headphones", "apron"]
 SHOES = ["shoes_sneaker", "shoes_boot", "shoes_classic"]
@@ -17,10 +17,10 @@ TC = [[(0.97,0.97,0.97),(0.12,0.12,0.14),(0.10,0.85,0.90)],[(0.10,0.10,0.12),(0.
       [(0.36,0.45,0.26),(0.90,0.86,0.74),(0.98,0.80,0.30)],[(0.80,0.12,0.18),(0.97,0.97,0.97),(0.98,0.86,0.30)]]
 BC = [(0.25,0.36,0.62),(0.10,0.10,0.12),(0.80,0.72,0.56),(0.38,0.42,0.30),(0.95,0.95,0.95),(0.72,0.62,0.92)]
 # name, woman, hair, hairColor, hat, hatColor, top, topColor, bottom, bottomColor, skin, eyes, accs, shoes
-PRESETS = [("noya", 1, 5, 0, 0, 1, 3, 2, 2, 1, 1, 2, (1 << 2) | (1 << 3), 0),
-           ("shira", 1, 7, 4, 0, 1, 1, 3, 4, 4, 0, 0, 1 << 4, 0),
-           ("maya", 1, 8, 0, 0, 1, 2, 0, 1, 2, 4, 2, (1 << 1) | (1 << 2), 1),
-           ("itay", 0, 2, 1, 0, 1, 5, 1, 0, 0, 2, 2, 1 << 3, 0),
+PRESETS = [("noya", 1, 5, 0, 0, 1, 8, 7, 2, 1, 1, 2, (1 << 2) | (1 << 3), 0),
+           ("shira", 1, 7, 4, 0, 1, 7, 3, 5, 5, 0, 0, 1 << 4, 0),
+           ("maya", 1, 8, 0, 0, 1, 9, 7, 1, 2, 4, 2, (1 << 1) | (1 << 2), 1),
+           ("itay", 0, 2, 1, 0, 1, 6, 0, 0, 1, 2, 2, 1 << 3, 0),
            ("daniel", 0, 1, 0, 1, 4, 1, 6, 1, 2, 3, 2, 1 << 0, 0),
            ("omer", 0, 0, 2, 2, 1, 4, 5, 4, 1, 1, 1, 1 << 4, 1)]
 SHOE_COLS = [[(0.95,0.95,0.96),(0.85,0.86,0.88),(0.1,0.95,1.0)],[(0.45,0.27,0.14),(0.12,0.1,0.09),(0.78,0.62,0.4)],[(0.07,0.07,0.08),(0.22,0.13,0.07),(0.8,0.8,0.82)]]
@@ -62,11 +62,31 @@ def figure(pr):
                 'apron': [sk, (0.07, 0.24, 0.29), TC[tcol][1], gold, black, black]}[a]
         add(load(nm), cols, 'h' if a in ('glasses', 'sunglasses', 'earrings') else 'b', {3: 0.9, 2: 0.9}, a in ('glasses', 'sunglasses', 'earrings'))
     tc = TC[tcol]
-    t1 = tc[0] if TOPS[top] != 'denim' else tuple(np.array(tc[0]) * 0.35 + np.array([0.35, 0.48, 0.72]) * 0.65)
-    add(load('toon_top_%s_%s' % (TOPS[top], g)), [sk, t1, tc[1], tc[2], (0.1, 0.09, 0.08), (1, 1, 1)], 'b', {1: 0.6 if TOPS[top] == 'puffer' else 0.3})
+    tk = TOPS[top]
+    t1 = tc[0] if tk != 'denim' else tuple(np.array(tc[0]) * 0.35 + np.array([0.35, 0.48, 0.72]) * 0.65)
+    cols = [sk, t1, tc[1], tc[2], (0.1, 0.09, 0.08), (1, 1, 1)]
+    if tk == 'shirt': cols[3] = tc[1]
+    m = load('toon_top_%s_%s' % (tk, g))
+    if tk == 'kimono':
+        from PIL import Image
+        tex = np.asarray(Image.open(os.path.join(os.path.dirname(OUT), '..', 'tex', 'tex_sakura.png')).convert('RGB'), float) / 255
+        v, n, subs = m
+        uv = box_uv(v, n) % 1.0
+        vc = tex[((1 - uv[:, 1]) * 511).astype(int), (uv[:, 0] * 511).astype(int)]
+        cols = [sk, vc, tc[1], tc[0], tc[2], (1, 1, 1)]
+    add(m, cols, 'b', {1: 0.85 if tk == 'silkdress' else 0.6 if tk == 'puffer' else 0.3})
     b3 = (0.97, 0.97, 0.97) if BOTS[bot] == 'joggers' else (0.85, 0.70, 0.32)
     b2 = tuple(np.array(BC[bcol]) * 0.85) if BOTS[bot] == 'joggers' else (0.97, 0.97, 0.97)
-    add(load('toon_bottom_%s_%s' % (BOTS[bot], g)), [sk, BC[bcol], b2, b3, (0.12, 0.10, 0.09), (1, 1, 1)], 'b')
+    b5 = (1, 1, 1)
+    if BOTS[bot] == 'tutu':
+        import colorsys
+        h, l, sat = colorsys.rgb_to_hls(*BC[bcol])
+        hh, ss, vv = colorsys.rgb_to_hsv(*BC[bcol])
+        if ss < 0.25: b3, b5 = (0.98, 0.66, 0.80), (0.66, 0.92, 0.86)
+        else:
+            b3 = colorsys.hsv_to_rgb((hh + 0.14) % 1, 0.42, 1.0); b5 = colorsys.hsv_to_rgb((hh + 0.86) % 1, 0.42, 1.0)
+    if tk not in ('silkdress', 'kimono'):
+        add(load('toon_bottom_%s_%s' % (BOTS[bot], g)), [sk, BC[bcol], b2, b3, (0.12, 0.10, 0.09), b5], 'b')
     add(load(SHOES[shoes]), SHOE_COLS[shoes] + [(1, 1, 1)] * 3, 's')
     return P
 

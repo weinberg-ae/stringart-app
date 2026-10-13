@@ -139,9 +139,10 @@ public static class PM_Content
     public static readonly string[] ToonTabs = { "דמויות", "שיער", "בגדים", "אביזרים", "עור ועיניים" };
     public static readonly string[] ToonHair = { "קצוץ", "קצר", "בלורית", "תלתלים", "קארה", "ארוך", "קוקו", "באנים", "אפרו" };
     public static readonly string[] ToonHairColors = { "שחור", "חום", "בלונד", "ג'ינג'י", "ורוד", "כחול", "סגול", "כסוף" };
-    public static readonly string[] ToonTops = { "טישרט", "קפוצ'ון", "מעיל ג'ינס", "קרופ", "פאפר", "בומבר" };
+    public static readonly string[] ToonTops = { "טישרט", "קפוצ'ון", "מעיל ג'ינס", "קרופ", "פאפר", "בומבר", "מכופתרת", "אוברסייז", "שמלת משי", "קימונו סקורה" };
     public static readonly string[] ToonTopColors = { "לבן", "שחור", "ורוד", "לילך", "טורקיז", "כתום", "זית", "אדום" };
-    public static readonly string[] ToonBottoms = { "ג'ינס", "דגמ\"ח", "חצאית", "שורטס", "טרנינג" };
+    public static readonly string[] ToonBottoms = { "ג'ינס", "דגמ\"ח", "חצאית", "שורטס", "טרנינג", "טוטו" };
+    public const string ToonOnePiece = "שמלה וקימונו — פריט אחד, בלי מכנסיים.";
     public static readonly string[] ToonBottomColors = { "כחול", "שחור", "בז'", "זית", "לבן", "לילך" };
     public static readonly string[] ToonHats = { "בלי כובע", "מצחייה", "כובע גרב", "כובע טמבל" };
     public static readonly string[] ToonAccs = { "משקפיים", "משקפי שמש", "עגילים", "שרשרת", "אוזניות", "סינר" };

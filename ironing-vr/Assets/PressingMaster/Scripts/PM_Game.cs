@@ -260,7 +260,7 @@ public class PM_Game : MonoBehaviour
             tabs.Add(Btn((i == tab ? "• " : "") + PM_Content.ToonTabs[i], () => ShowToonChoice(k)));
         }
         panel.SetButtonGrid(5, tab, 0.18f, 0.16f, false, tabs.ToArray());
-        float[] y = { 0.04f, -0.07f, -0.18f, -0.29f };
+        float[] y = tab == 2 ? new[] { 0.05f, -0.05f, -0.15f, -0.25f, -0.35f } : new[] { 0.04f, -0.07f, -0.18f, -0.29f };
         int row = 0;
         Action<string[], int, int, Action<int>> Row = (labels, from, count, pick) =>
         {
@@ -271,7 +271,7 @@ public class PM_Game : MonoBehaviour
                 items.Add(Btn(labels[i], () => { pick(k); ShowToonChoice(toonTab, false); }));
             }
             int per = Mathf.Max(items.Count, 1);
-            float w = per >= 6 ? 0.145f : per == 5 ? 0.18f : 0.2f;
+            float w = Mathf.Min(0.2f, (1.05f - (per - 1) * 0.04f) / per);   // the row fits the screen width
             if (row < y.Length) panel.SetButtonGrid(per, -1, w, y[row], true, items.ToArray());
             row++;
         };
@@ -299,9 +299,10 @@ public class PM_Game : MonoBehaviour
                 Row(Mark(PM_Content.ToonHairColors, PM_Toon.HairColor), 4, 4, i => { PM_Toon.HairColor = i; PM_Toon.Save(); });
                 break;
             case 2:
-                Row(Mark(PM_Content.ToonTops, PM_Toon.Top), 0, 6, i => { PM_Toon.Top = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonTops, PM_Toon.Top), 0, 5, i => { PM_Toon.Top = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonTops, PM_Toon.Top), 5, 5, i => { PM_Toon.Top = i; PM_Toon.Save(); });
                 Row(Mark(PM_Content.ToonTopColors, PM_Toon.TopColor), 0, 8, i => { PM_Toon.TopColor = i; PM_Toon.Save(); });
-                Row(Mark(PM_Content.ToonBottoms, PM_Toon.Bottom), 0, 5, i => { PM_Toon.Bottom = i; PM_Toon.Save(); });
+                Row(Mark(PM_Content.ToonBottoms, PM_Toon.Bottom), 0, 6, i => { PM_Toon.Bottom = i; PM_Toon.Save(); });
                 Row(Mark(PM_Content.ToonBottomColors, PM_Toon.BottomColor), 0, 6, i => { PM_Toon.BottomColor = i; PM_Toon.Save(); });
                 break;
             case 3:
@@ -321,10 +322,11 @@ public class PM_Game : MonoBehaviour
                 Row(Mark(PM_Content.ToonBodies, PM_Toon.Woman ? 0 : 1), 0, 2, i => { PM_Toon.Woman = i == 0; PM_Toon.Save(); });
                 break;
         }
-        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true,
+        panel.SetButtonGrid(2, 1, 0.3f, tab == 2 ? -0.47f : -0.42f, true,
             Btn(PM_Content.BtnHandsOnly, () => { PM_Avatar.ChooseCharacter(-1); ShowHandsChoice(); }),
             Btn(PM_Content.BtnContinue, ShowMenu));
         if (PM_Toon.HatHidden) panel.SetStatus(PM_Content.ToonHatHidden, new Color(1f, 0.63f, 0.25f));
+        else if (tab == 2 && PM_Toon.OnePiece) panel.SetStatus(PM_Content.ToonOnePiece, PM_Util.Cyan);
         AvatarPreview(3);
         if (remember && PM_Audio.I != null && tab == 0) PM_Audio.I.PlayVoice("avatar");
     }
