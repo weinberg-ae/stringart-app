@@ -369,7 +369,7 @@ public class PM_ToonArm : MonoBehaviour
     const int Rings = 26, Sides = 14;
     Mesh mesh;
     MeshRenderer mr;
-    Vector3[] verts;
+    Vector3[] verts, centers;
     bool left;
 
     public static PM_ToonArm Create(Transform parent, bool left)
@@ -435,7 +435,7 @@ public class PM_ToonArm : MonoBehaviour
     float Radius(int r, float t, float s)
     {
         float baseR = Mathf.Lerp(0.050f, 0.040f, Mathf.Clamp01(t / 0.5f));
-        if (t > 0.5f) baseR = Mathf.Lerp(0.040f, 0.031f, (t - 0.5f) / 0.5f);
+        if (t > 0.5f) baseR = Mathf.Lerp(0.040f, 0.0205f, Mathf.SmoothStep(0f, 1f, (t - 0.5f) / 0.5f));   // slims into the wrist of the hand
         bool cloth = t <= sleeveEnd && !(SleeveRing() >= 0 && r == SleeveRing() + 1);   // the extra ring starts the bare arm
         float rad = baseR + (cloth ? sleeveExtra : 0f);
         if (cloth && wide) rad += Mathf.Clamp01((t - 0.35f) / 0.65f) * 0.05f;            // kimono sleeve opens towards the wrist
@@ -464,11 +464,26 @@ public class PM_ToonArm : MonoBehaviour
         if (prevN.sqrMagnitude < 0.01f) prevN = outward;
         Matrix4x4 toLocal = transform.worldToLocalMatrix;
         int rc = Rings + 1;
+        // ring centres: the curve through the elbow; the last part turns into the line of the hand's forearm,
+        // so the arm always goes straight into the wrist (never sticks out at an angle)
+        Vector3 wf = wrist.forward;
+        float armLen = L1 + L2;
+        if (centers == null || centers.Length != rc) centers = new Vector3[rc];
         for (int r = 0; r < rc; r++)
         {
             float t = RingT(r);
-            Vector3 p = (1 - t) * (1 - t) * shoulder + 2 * (1 - t) * t * ctrl + t * t * w;
-            Vector3 tan = (2 * (1 - t) * (ctrl - shoulder) + 2 * t * (w - ctrl)).normalized;
+            Vector3 c = (1 - t) * (1 - t) * shoulder + 2 * (1 - t) * t * ctrl + t * t * w;
+            float bl = Mathf.SmoothStep(0f, 1f, (t - 0.78f) / 0.22f);
+            centers[r] = Vector3.Lerp(c, w - wf * ((1f - t) * armLen), bl);
+        }
+        for (int r = 0; r < rc; r++)
+        {
+            float t = RingT(r);
+            Vector3 p = centers[r];
+            Vector3 tan = centers[Mathf.Min(r + 1, rc - 1)] - centers[Mathf.Max(r - 1, 0)];
+            if (tan.sqrMagnitude < 1e-10f) tan = r > 0 ? centers[r] - centers[r - 1] : dir;
+            if (tan.sqrMagnitude < 1e-10f) tan = dir;
+            tan.Normalize();
             Vector3 n = (prevN - Vector3.Dot(prevN, tan) * tan).normalized;   // parallel transport: no twisting
             prevN = n;
             Vector3 b = Vector3.Cross(tan, n);

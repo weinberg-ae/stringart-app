@@ -2,6 +2,8 @@ using UnityEngine;
 
 // Steam hose from the boom to the iron. The hose of the model is static, so it is hidden
 // and replaced by this flexible one that always stays connected to the iron and sags naturally.
+// Runs after the iron has moved this frame (otherwise the hose end lags behind the iron = looks disconnected).
+[DefaultExecutionOrder(300)]
 public class PM_Hose : MonoBehaviour
 {
     Transform iron;
@@ -17,7 +19,8 @@ public class PM_Hose : MonoBehaviour
         go.transform.SetParent(table, false);
         var h = go.AddComponent<PM_Hose>();
         h.iron = iron;
-        h.ironLocalEnd = iron.InverseTransformPoint(ironEndWorld);
+        // the end goes a little into the iron's body, so the joint never shows a gap
+        h.ironLocalEnd = iron.InverseTransformPoint(Vector3.Lerp(ironEndWorld, PM_Util.WorldBounds(iron).center, 0.15f));
         h.anchor = table.InverseTransformPoint(anchorWorld);
         h.length = Vector3.Distance(anchorWorld, ironEndWorld) * 1.25f + 0.35f;
         var pts = new Vector3[Segments];
@@ -26,13 +29,17 @@ public class PM_Hose : MonoBehaviour
         h.core.useWorldSpace = true;
         h.shine.useWorldSpace = true;
         h.core.numCapVertices = 4;
-        h.LateUpdate();
+        h.Shape();
         return h;
     }
 
-    void LateUpdate()
+    void LateUpdate() { Shape(); }
+    void OnEnable() { Application.onBeforeRender += Shape; }
+    void OnDisable() { Application.onBeforeRender -= Shape; }
+
+    void Shape()
     {
-        if (iron == null) return;
+        if (iron == null || core == null) return;
         Vector3 a = transform.parent != null ? transform.parent.TransformPoint(anchor) : anchor;
         Vector3 b = iron.TransformPoint(ironLocalEnd);
         float d = Vector3.Distance(a, b);

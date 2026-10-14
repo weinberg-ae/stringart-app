@@ -54,6 +54,8 @@ public class PM_DesktopCamera : MonoBehaviour
                 {
                     PM_Fabric f = h.collider.GetComponent<PM_Fabric>();
                     if (f != null) { PM_Game.I.DesktopIron(f, h.textureCoord, h.point); break; }
+                    PM_Gown g = h.collider.GetComponent<PM_Gown>();
+                    if (g != null) { PM_Game.I.DesktopSteam(g, h.point); break; }
                 }
             }
         }

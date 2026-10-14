@@ -296,6 +296,7 @@ public class PM_Iron : MonoBehaviour
         transform.position = followPos;
         transform.rotation = followRot;
         KeepOutOfBody();
+        KeepOutOfGown();
         KeepAboveSurface();
     }
 
@@ -303,6 +304,7 @@ public class PM_Iron : MonoBehaviour
     {
         if (c.isTrigger || c.transform.IsChildOf(transform)) return false;
         if (c.GetComponentInParent<PM_Clickable>() != null || c.GetComponentInParent<PM_Hotspot>() != null) return false;
+        if (c.GetComponent<PM_Gown>() != null) return false;   // the gown is steamed from the side (see KeepOutOfGown)
         return c.GetComponent<CharacterController>() == null;
     }
 
@@ -343,6 +345,30 @@ public class PM_Iron : MonoBehaviour
     }
 
     public float soleExtra;   // a silicone shoe under the sole lifts the iron a little
+
+    // The iron cannot go into the gown on the dress form: pushed back out of the cloth.
+    Collider[] ownColliders;
+    void KeepOutOfGown()
+    {
+        PM_Gown g = PM_Gown.Instance;
+        if (g == null || g.Collider == null || !g.isActiveAndEnabled) return;
+        Collider gc = g.Collider;
+        if (!PM_Util.WorldBounds(transform).Intersects(gc.bounds)) return;
+        if (ownColliders == null) ownColliders = GetComponentsInChildren<Collider>(true);
+        Vector3 total = Vector3.zero;
+        foreach (Collider c in ownColliders)
+        {
+            if (c == null || !c.enabled || c.isTrigger) continue;
+            Vector3 dir; float dist;
+            if (Physics.ComputePenetration(c, c.transform.position + total, c.transform.rotation, gc, gc.transform.position, gc.transform.rotation, out dir, out dist))
+                total += dir * dist;
+        }
+        if (total.sqrMagnitude > 0f)
+        {
+            transform.position += total;
+            followPos += total;
+        }
+    }
 
     // The iron never goes into the player's own body (the cartoon body stands under the eyes).
     void KeepOutOfBody()
@@ -508,15 +534,22 @@ public class PM_Iron : MonoBehaviour
         Touching = null;
         if (!Held) return;
         Vector3 down = DownWorld;
-        if (Vector3.Dot(down, Vector3.down) < 0.6f) return; // sole must face the board
-        RaycastHit[] hits = Physics.RaycastAll(sole - down * 0.05f, down, 0.09f);
-        foreach (RaycastHit h in hits)
+        if (Vector3.Dot(down, Vector3.down) < 0.45f) return; // sole must face the board (a curved pad tilts it a little)
+        // The middle of the sole first, then four points around it: on a small curved pad (chest, collar)
+        // the iron still irons when it is a little off the middle or moves diagonally.
+        for (int k = 0; k < 5 && Touching == null; k++)
         {
-            var f = h.collider.GetComponent<PM_Fabric>();
-            if (f == null) continue;
-            Touching = f;
-            TouchUV = h.textureCoord;
-            break;
+            Vector3 lp = localSole;
+            if (k > 0) lp += new Vector3(((k & 1) == 0 ? -1 : 1) * soleHalf.x * 0.75f, 0f, (k < 3 ? -1 : 1) * soleHalf.y * 0.75f);
+            Vector3 wp = transform.TransformPoint(lp);
+            foreach (RaycastHit h in Physics.RaycastAll(wp - down * 0.05f, down, 0.10f))
+            {
+                var f = h.collider.GetComponent<PM_Fabric>();
+                if (f == null) continue;
+                Touching = f;
+                TouchUV = h.textureCoord;
+                break;
+            }
         }
         if (Touching != null) PM_Clickable.Haptic(holder, Steaming ? 0.3f : 0.15f, 0.05f);
     }

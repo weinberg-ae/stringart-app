@@ -636,11 +636,11 @@ public static class PM_Content
     // ---------- Exam ----------
     public const string ExamTitle = "מבחן";
     public const string ExamBody =
-        "תקבלו 3 בדים בלי שם. לכל בד — 40 שניות.\n" +
-        "זהו את הבד לפי המראה ולפי תוצאת מבחן השריפה, בחרו טמפרטורה, החליטו על קיטור — וגהצו.\n" +
-        "טעות בטמפרטורה עלולה לשרוף את הבד!\n" +
-        "ציון: עד 100 נקודות. ציון 90 ומעלה — פרס: פריט גיהוץ חדש!\n" +
-        "העמדה כבר חמה ומוכנה — לחצו על \"הבא\" כדי להתחיל.";
+        "תקבלו 3 בדים בלי שם. לכל בד — 75 שניות.\n" +
+        "זהו את הבד לפי המראה ותוצאת מבחן השריפה, בחרו טמפרטורה, החליטו על קיטור — וגהצו.\n" +
+        "בד מושלם — ממשיכים לבד. אחרי טעות — לחצו \"למשימה הבאה\".\n" +
+        "בסוף: 4 שאלות בונוס. המבחנה ליד המסך מתמלאת בנקודות.\n" +
+        "ציון 90 ומעלה — פרס: פריט גיהוץ חדש!";
     public const string ExamFabricTitle = "בד מספר {0}";
     public const string ExamFabricBody = "מראה: {0}\nמבחן שריפה: {1}\nבחרו טמפרטורה וקיטור — וגהצו.";
     public const string ExamResultTitle = "תוצאות המבחן";
@@ -649,6 +649,12 @@ public static class PM_Content
     public const string ExamLineTime = "בד {0}: {1} — הזמן נגמר";
     public static readonly string[] Ranks = { "דרגה: מתחילים — נסו שוב", "דרגה: מתלמד", "דרגה: מקצועי", "דרגה: מאסטר גיהוץ" };
     public const string ExamPts = " · {0} נק'";
+    public const string ExamLineSkip = "בד {0}: {1} — דילגתם";
+    public const string ExamTip = "הטמפרטורה הנכונה: {0}";
+    public const string ExamQuizTitle = "שאלת בונוס {0} · {1} נק'";
+    public const string ExamQuizLine = "שאלות בונוס: {0} מתוך {1} · {2} נק'";
+    public const string BtnNextTask = "למשימה הבאה";
+    public const string BtnExamResult = "לציון";
     public const string ExamGrade = "ציון סופי: {0}";
     public const string ExamRewardLine = "ציון 90 ומעלה — מגיע לכם פריט גיהוץ חדש!";
     public const string BtnReward = "בחירת פרס";

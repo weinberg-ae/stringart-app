@@ -55,6 +55,7 @@ public class PM_Station : MonoBehaviour
     public Vector3 Right { get; private set; }
     public Vector3 BoardCenter { get; private set; }
     public float BoardTopY { get; private set; }
+    public Bounds BoardBounds { get; private set; }
     public Quaternion BoardRotation { get; private set; }
     public Vector3 PanelPos { get; private set; }
 
@@ -178,6 +179,7 @@ public class PM_Station : MonoBehaviour
         Table.position += delta;
 
         bb = PM_Util.WorldBounds(board);
+        BoardBounds = bb;
         BoardCenter = bb.center;
         BoardTopY = bb.max.y;
         BoardRotation = Quaternion.LookRotation(f, Vector3.up);
@@ -435,7 +437,9 @@ public class PM_Station : MonoBehaviour
         targets[PM_Target.PointPresser] = new List<Transform> { pp };
         Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.56f, 0.73f, 0.95f), new Vector3(0.38f, 0f, -0.11f), 0f);
         targets[PM_Target.ChestPad] = new List<Transform> { chestPad };
-        Transform sh = Tool("PM_Shoulder", "tool_shoulder", new Color(0.42f, 0.62f, 0.93f), new Vector3(-0.42f, 0f, 0.13f), 0f);
+        // the shoulder presser is a big tool (twice the size of the first model), at the end of the board
+        Transform sh = Tool("PM_Shoulder", "tool_shoulder", new Color(0.42f, 0.62f, 0.93f), new Vector3(-0.50f, 0f, 0.15f), 0f);
+        sh.localScale = Vector3.one * 2f;
         targets[PM_Target.Shoulder] = new List<Transform> { sh };
         clapper = Tool("PM_Clapper", "tool_clapper", Color.white, new Vector3(0.58f, 0f, 0.02f), 90f);
         targets[PM_Target.Clapper] = new List<Transform> { clapper };
@@ -494,6 +498,8 @@ public class PM_Station : MonoBehaviour
         var mats = new Material[m.subMeshCount];
         for (int i = 0; i < mats.Length; i++) mats[i] = i == 0 ? cm : i == 1 ? woodMat : dark;
         r.sharedMaterials = mats;
+        // Solid: the iron rests on the tool and glides over its curved top instead of going through it.
+        vis.AddComponent<MeshCollider>().sharedMesh = m;
         return t;
     }
 
@@ -553,7 +559,7 @@ public class PM_Station : MonoBehaviour
             Vector3 along = BoardRotation * Vector3.right, across = BoardRotation * Vector3.forward;
             float len = Mathf.Abs(along.x) * shelf.size.x + Mathf.Abs(along.z) * shelf.size.z;
             float wid = Mathf.Abs(across.x) * shelf.size.x + Mathf.Abs(across.z) * shelf.size.z;
-            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.25f, (wid - 0.03f) / 0.44f), 0.3f, 0.72f);
+            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.45f, (wid - 0.03f) / 0.52f), 0.3f, 0.72f);
             tools.localScale = Vector3.one * sc;
             tools.position = new Vector3(shelf.center.x, shelf.max.y + 0.004f, shelf.center.z);
         }

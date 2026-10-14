@@ -356,6 +356,10 @@ public class PM_HandData
 {
     public Vector3[] v, n; public Vector2[] uv; public BoneWeight[] w; public int[] skin, nails;
     public Vector3[] joints, axes; public int[] parents;
+    public Vector3 wrist = new Vector3(0.012f, -0.006f, -0.15f);
+    // corrective shapes for the curled fingers ("grip", "index"): frames of sparse deltas
+    public class Frame { public float weight; public Vector3[] dv, dn; }
+    public readonly List<KeyValuePair<string, Frame[]>> shapes = new List<KeyValuePair<string, Frame[]>>();
     static readonly Dictionary<string, PM_HandData> cache = new Dictionary<string, PM_HandData>();
 
     public static PM_HandData Get(string key, bool left)
@@ -373,10 +377,13 @@ public class PM_HandData
     static PM_HandData Parse(byte[] b, bool left)
     {
         var r = new System.IO.BinaryReader(new System.IO.MemoryStream(b));
-        r.ReadInt32();
+        int magic = r.ReadInt32();
         int vc = r.ReadInt32(), sc = r.ReadInt32(), nc = r.ReadInt32(), jc = r.ReadInt32();
         float sx = left ? -1f : 1f;
         var d = new PM_HandData { joints = new Vector3[jc], axes = new Vector3[jc], parents = new int[jc] };
+        bool v2 = magic == 0x504D4832;
+        if (v2) d.wrist = new Vector3(r.ReadSingle() * sx, r.ReadSingle(), r.ReadSingle());
+        else d.wrist = new Vector3(0.012f * sx, -0.006f, -0.15f);
         for (int i = 0; i < jc; i++)
         {
             d.parents[i] = r.ReadInt32();
@@ -398,6 +405,26 @@ public class PM_HandData
         d.skin = new int[sc]; for (int i = 0; i < sc; i++) d.skin[i] = r.ReadInt32();
         d.nails = new int[nc]; for (int i = 0; i < nc; i++) d.nails[i] = r.ReadInt32();
         if (left) { Flip(d.skin); Flip(d.nails); }   // mirroring turns the triangles inside out
+        if (v2)
+        {
+            int ns = r.ReadInt32();
+            for (int k = 0; k < ns; k++)
+            {
+                string name = System.Text.Encoding.ASCII.GetString(r.ReadBytes(r.ReadInt32()));
+                var frames = new Frame[r.ReadInt32()];
+                for (int fi = 0; fi < frames.Length; fi++)
+                {
+                    var fr = new Frame { weight = r.ReadSingle(), dv = new Vector3[vc], dn = new Vector3[vc] };
+                    int cnt = r.ReadInt32();
+                    var ids = new int[cnt];
+                    for (int i = 0; i < cnt; i++) ids[i] = r.ReadInt32();
+                    for (int i = 0; i < cnt; i++) fr.dv[ids[i]] = new Vector3(r.ReadSingle() * sx, r.ReadSingle(), r.ReadSingle());
+                    for (int i = 0; i < cnt; i++) fr.dn[ids[i]] = new Vector3(r.ReadSingle() * sx, r.ReadSingle(), r.ReadSingle());
+                    frames[fi] = fr;
+                }
+                d.shapes.Add(new KeyValuePair<string, Frame[]>(name, frames));
+            }
+        }
         return d;
     }
 
@@ -416,6 +443,8 @@ public class PM_Hand : MonoBehaviour
     Transform[] bones;
     Vector3[] axes;
     float grip, trigger;
+    SkinnedMeshRenderer smr;
+    int gripShape = -1, indexShape = -1;
 
     public static PM_Hand Create(Transform parent, bool left, string key, bool live)
     {
@@ -463,6 +492,8 @@ public class PM_Hand : MonoBehaviour
         mesh.subMeshCount = 2;
         mesh.SetTriangles(d.skin, 0);
         mesh.SetTriangles(d.nails, 1);
+        foreach (var sh in d.shapes)
+            foreach (var fr in sh.Value) mesh.AddBlendShapeFrame(sh.Key, fr.weight, fr.dv, fr.dn, null);
         mesh.RecalculateBounds();
 
         var smr = gameObject.AddComponent<SkinnedMeshRenderer>();
@@ -472,18 +503,20 @@ public class PM_Hand : MonoBehaviour
         smr.sharedMaterials = PM_Avatar.HandMaterials();
         smr.updateWhenOffscreen = true;
         smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        this.smr = smr;
+        gripShape = mesh.GetBlendShapeIndex("grip");
+        indexShape = mesh.GetBlendShapeIndex("index");
 
-        float s = left ? -1f : 1f;
         Wrist = new GameObject("Wrist").transform;
         Wrist.SetParent(transform, false);
-        Wrist.localPosition = d.joints[0] + new Vector3(0.012f * s, -0.006f, -0.15f);
+        Wrist.localPosition = d.wrist;   // the arm ends here, inside the short forearm of the hand
         if (live && !PM_Avatar.IsToon)   // (the cartoon body has its own arms and sleeves)
         {
             // Shirt cuff over the end of the forearm.
             var cuff = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             Destroy(cuff.GetComponent<Collider>());
             cuff.transform.SetParent(transform, false);
-            cuff.transform.localPosition = new Vector3(0.012f * s, -0.006f, -0.185f);
+            cuff.transform.localPosition = d.wrist + new Vector3(0f, 0f, -0.03f);
             cuff.transform.localRotation = Quaternion.Euler(90, 0, 0);
             cuff.transform.localScale = new Vector3(0.062f, 0.03f, 0.058f);
             var cr = cuff.GetComponent<Renderer>();
@@ -506,8 +539,16 @@ public class PM_Hand : MonoBehaviour
                 bones[b].localRotation = Quaternion.AngleAxis(maxA[j] * c, axes[b]);
             }
         }
-        bones[2].localRotation = Quaternion.AngleAxis(18f * g, axes[2]);
-        bones[3].localRotation = Quaternion.AngleAxis(28f * g, axes[3]);
+        // the thumb turns in towards the fingers (opposition) and bends
+        bones[1].localRotation = Quaternion.AngleAxis(45f * g, axes[1]);
+        bones[2].localRotation = Quaternion.AngleAxis(24f * g, axes[2]);
+        bones[3].localRotation = Quaternion.AngleAxis(34f * g, axes[3]);
+        // corrective shapes keep the skin smooth on the bent knuckles
+        if (smr != null)
+        {
+            if (gripShape >= 0) smr.SetBlendShapeWeight(gripShape, Mathf.Clamp01(g) * 100f);
+            if (indexShape >= 0) smr.SetBlendShapeWeight(indexShape, Mathf.Clamp01(t) * 100f);
+        }
     }
 
     void Update()

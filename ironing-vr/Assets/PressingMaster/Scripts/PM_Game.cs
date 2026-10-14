@@ -19,7 +19,7 @@ public class PM_Game : MonoBehaviour
     [Tooltip("If a Humanoid avatar appears in the scene (for example loaded by the Genies Avatar SDK), it becomes the player's body.")]
     public bool useSceneAvatar = true;
 
-    enum State { Avatar, Menu, Learning, ExamIntro, ExamFabric, ExamResult, Quiz, QuizResult }
+    enum State { Avatar, Menu, Learning, ExamIntro, ExamFabric, ExamQuiz, ExamResult, Quiz, QuizResult }
 
     PM_Station station;
     public PM_WaterTank Tank { get { return station != null ? station.Tank : null; } }
@@ -62,7 +62,13 @@ public class PM_Game : MonoBehaviour
     int examIndex, examScore;
     readonly List<int> examPoints = new List<int>();
     float examTime;
-    bool examFinishedFabric;
+    bool examFinishedFabric, examSuccess;
+    const float ExamSeconds = 75f;
+    const int ExamQuestions = 4, QuestionPts = 25;
+    PM_ScoreTube tube;
+    readonly List<PM_HotspotInfo> examQuiz = new List<PM_HotspotInfo>();
+    int examQuizIndex, examQuizRight;
+    bool examQuizAnswered;
 
     // Quizzes
     int quizKind;    // 0 = temperatures, 1 = fiber families
@@ -92,25 +98,27 @@ public class PM_Game : MonoBehaviour
         PM_Narrator.Create(panel.transform, new Vector3(-0.6f, 0.22f, -0.02f));
         card = PM_Panel.Create(null, "PM_InfoCard", 620, 520, 40, 28, 36, false);
         card.gameObject.SetActive(false);
-        // Dress form (tailor's mannequin) front-left of the player; it comes closer for the steaming task.
-        // Keep clear of the station: measure how far it reaches to the player's left.
-        float leftmost = -0.9f;
-        if (station.Table != null)
+        // Dress form (tailor's mannequin) wearing a satin gown. At home it stands front-left, out of the way;
+        // for the steaming task it comes right next to the narrow end of the board (within reach, not touching it).
+        Bounds bb = station.BoardBounds;
+        if (bb.size.sqrMagnitude < 1e-4f && station.Table != null) bb = PM_Util.WorldBounds(station.Table);
+        float boardLeft = 0f, boardFwd = 0f;
+        for (int i = 0; i < 4; i++)
         {
-            Bounds tb = PM_Util.WorldBounds(station.Table);
-            for (int i = 0; i < 8; i++)
-            {
-                Vector3 c = new Vector3((i & 1) == 0 ? tb.min.x : tb.max.x, tb.center.y, (i & 4) == 0 ? tb.min.z : tb.max.z);
-                leftmost = Mathf.Min(leftmost, Vector3.Dot(c - station.PlayerPos, station.Right));
-            }
-            leftmost = Mathf.Max(leftmost, -1.6f);
+            Vector3 c = new Vector3((i & 1) == 0 ? bb.min.x : bb.max.x, bb.center.y, (i & 2) == 0 ? bb.min.z : bb.max.z);
+            boardLeft = Mathf.Min(boardLeft, Vector3.Dot(c - station.PlayerPos, station.Right));
         }
-        formHome = station.PlayerPos + station.Forward * 1.15f + station.Right * (leftmost - 0.55f);
-        formTask = station.PlayerPos + station.Forward * 0.45f + station.Right * (leftmost - 0.42f);
+        boardFwd = Vector3.Dot(bb.center - station.PlayerPos, station.Forward);
+        boardLeft = Mathf.Clamp(boardLeft, -1.2f, -0.3f);
+        formTask = station.PlayerPos + station.Forward * Mathf.Clamp(boardFwd - 0.02f, 0.30f, 0.75f) + station.Right * (boardLeft - 0.31f);
+        formHome = station.PlayerPos + station.Forward * 1.15f + station.Right * (boardLeft - 0.70f);
         form = PM_Garment.Show("mannequin", formHome, 1.6f, station.PlayerPos + Vector3.up * 1.6f, null, 0.3f, false);
         if (form != null)
         {
             form.spinSpeed = 0f;
+            FaceForm();
+            gown = PM_Gown.Create(form.transform);
+            if (gown != null) gown.Wrinkle(1f);
             station.SetTarget(PM_Target.DressForm, new List<Transform> { form.transform });
         }
         BuildHotspots();
@@ -292,7 +300,7 @@ public class PM_Game : MonoBehaviour
         state = State.Avatar;
         ClearStepVisuals();
         PM_Toon.Load();
-        panel.SetContent(PM_Content.ToonTitle, PM_Content.ToonBody, "");
+        panel.SetContent(PM_Content.ToonTitle, "", "");   // no body text: the rows of choices fill the screen
         panel.SetAccent(PM_Util.Violet);
         var tabs = new List<KeyValuePair<string, Action>>();
         for (int i = 0; i < PM_Content.ToonTabs.Length; i++)
@@ -731,8 +739,8 @@ public class PM_Game : MonoBehaviour
             else if (fabric == null || fabric.info.type != s.fabric || fabric.dome > 0f || fabric.sizeZ < 0.2f) { SpawnFabric(s.fabric, stepIndex); AddFabricHotspots(); }
         }
         else RemoveFabric();
-        if (form != null) form.transform.position = s.action == PM_Action.SteamOnForm ? formTask : formHome;
-        if (s.action == PM_Action.SteamOnForm) SpawnFormFabric(s.fabric);
+        if (form != null) { form.transform.position = s.action == PM_Action.SteamOnForm ? formTask : formHome; FaceForm(); }
+        if (s.action == PM_Action.SteamOnForm && gown != null) gown.Wrinkle(1f);
 
         if (s.target != PM_Target.None && s.target != PM_Target.Fabric)
             highlight.Show(station.Targets(s.target), PM_Util.Cyan, true);
@@ -786,7 +794,7 @@ public class PM_Game : MonoBehaviour
         PM_Step s = steps[stepIndex];
         stepDone = false;
         dwell = 0f;
-        if (s.action == PM_Action.SteamOnForm) { SpawnFormFabric(s.fabric); panel.SetStatus("", Color.white); return; }
+        if (s.action == PM_Action.SteamOnForm) { if (gown != null) gown.Wrinkle(1f); panel.SetStatus("", Color.white); return; }
         if (s.target != PM_Target.Fabric) return;
         if (s.toolTask > 0) SpawnToolFabric(s.fabric, s.toolTask);
         else { SpawnFabric(s.fabric, stepIndex + UnityEngine.Random.Range(1, 99)); AddFabricHotspots(); }
@@ -815,7 +823,7 @@ public class PM_Game : MonoBehaviour
             }
             case State.Avatar: { int t = toonTab; return avatarPage == 2 ? (Action)ShowBodyChoice : avatarPage == 3 ? (Action)ShowStyleChoice : avatarPage == 4 ? (Action)(() => ShowToonChoice(t)) : avatarPage == 5 ? ShowGenderChoice : (Action)ShowHandsChoice; }
             case State.Quiz: { int k = quizKind; return () => StartQuiz(k); }
-            case State.ExamIntro: case State.ExamFabric: case State.ExamResult: return StartExam;
+            case State.ExamIntro: case State.ExamFabric: case State.ExamQuiz: case State.ExamResult: return StartExam;
             default: return ShowMenu;
         }
     }
@@ -864,7 +872,8 @@ public class PM_Game : MonoBehaviour
             case PM_Action.SteamOnForm:
                 if (HandleSpit(dt)) break;
                 ProcessFormSteam(dt);
-                if (fabric != null && fabric.Done) { Celebrate(); Complete(PM_Content.StDone); }
+                if (gown != null && gown.Done) { gown.FinishSmooth(); Celebrate(); Complete(PM_Content.StDone); }
+                else if (gown == null) Complete(PM_Content.StDone);
                 break;
             case PM_Action.FillWater:
             {
@@ -970,185 +979,46 @@ public class PM_Game : MonoBehaviour
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
     }
 
-    // A wrinkled cotton dress worn by the dress form: fitted to the form's torso, flared skirt below.
-    void SpawnFormFabric(PM_FabricType t)
+    PM_Gown gown;
+
+    // The form always turns its front to the player.
+    void FaceForm()
     {
-        RemoveFabric();
         if (form == null) return;
-        Vector3 fwd = station.PlayerPos - formTask; fwd.y = 0; fwd.Normalize();
-        Vector3 right = Vector3.Cross(Vector3.up, fwd);
-        // Measure the form: half width (along right) and half depth (along fwd) in 24 height bands.
-        const int Bands = 24;
-        var rx = new float[Bands]; var rz = new float[Bands];
-        Bounds fb = PM_Util.WorldBounds(form.transform);
-        Vector3 axis = fb.center;
-        bool measured = false;
-        foreach (MeshFilter mf in form.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null || !mf.sharedMesh.isReadable) continue;
-            measured = true;
-            Vector3[] vs = mf.sharedMesh.vertices;
-            Transform tr = mf.transform;
-            for (int i = 0; i < vs.Length; i++)
-            {
-                Vector3 p = tr.TransformPoint(vs[i]);
-                int bi = Mathf.Clamp(Mathf.FloorToInt((p.y - fb.min.y) / fb.size.y * Bands), 0, Bands - 1);
-                Vector3 d = p - axis;
-                rx[bi] = Mathf.Max(rx[bi], Mathf.Abs(Vector3.Dot(d, right)));
-                rz[bi] = Mathf.Max(rz[bi], Mathf.Abs(Vector3.Dot(d, fwd)));
-            }
-        }
-        if (!measured)   // mesh not readable: use the outer size of the form for the upper half
-            for (int i = Bands / 2; i < Bands; i++) { rx[i] = fb.extents.x * 0.8f; rz[i] = fb.extents.z * 0.8f; }
-        // Torso = the upper bands that are wide (the pole and the stand are thin).
-        int top = Bands - 1, bottom = Bands - 1;
-        while (top > 0 && rx[top] < 0.07f) top--;
-        bottom = top;
-        while (bottom > 0 && rx[bottom - 1] > 0.07f) bottom--;
-        float band = fb.size.y / Bands;
-        // The form's mesh is coarse: smooth the radii (max of neighbours, then average) so the dress has no rings.
-        rx = SmoothProfile(rx); rz = SmoothProfile(rz);
-        float yTop = fb.min.y + (top + 0.6f) * band, yTorso = fb.min.y + bottom * band;
-        if (top - bottom < 3) { yTop = fb.min.y + fb.size.y * 0.92f; yTorso = fb.min.y + fb.size.y * 0.55f; }
-        float yHem = Mathf.Max(fb.min.y + 0.1f, yTorso - 0.38f);
-        float rxT = Mathf.Max(0.09f, rx[Mathf.Max(bottom, 0)]), rzT = Mathf.Max(0.07f, rz[Mathf.Max(bottom, 0)]);
-        System.Func<float, float, Vector3> shape = (u, w) =>
-        {
-            float y = Mathf.Lerp(yHem, yTop, w);
-            float ax, az;
-            if (y >= yTorso)
-            {
-                int bi = Mathf.Clamp(Mathf.FloorToInt((y - fb.min.y) / band), 0, Bands - 1);
-                ax = Mathf.Max(rx[bi], 0.06f) * 1.06f + 0.012f;
-                az = Mathf.Max(rz[bi], 0.05f) * 1.06f + 0.012f;
-                // Narrow shoulders at the very top (the neckline stays open).
-                float k = Mathf.InverseLerp(yTop - 0.05f, yTop, y);
-                ax = Mathf.Lerp(ax, ax * 0.75f, k); az = Mathf.Lerp(az, az * 0.7f, k);
-            }
-            else
-            {
-                float f = (yTorso - y) / Mathf.Max(0.01f, yTorso - yHem);   // skirt flares out
-                ax = (rxT * 1.06f + 0.012f) + f * 0.13f;
-                az = (rzT * 1.06f + 0.012f) + f * 0.11f;
-            }
-            float a = u * Mathf.PI * 2f;
-            Vector3 world = new Vector3(axis.x, y, axis.z) + right * (Mathf.Cos(a) * ax) + fwd * (Mathf.Sin(a) * az);
-            return world - new Vector3(axis.x, 0f, axis.z);
-        };
-        PM_FabricInfo info = PM_Content.Fabric(t).Clone();
-        info.color = new Color(0.55f, 0.72f, 0.92f);
-        float circ = Mathf.PI * (rxT + rzT) * 1.2f;
-        fabric = PM_Fabric.CreateShaped(info, new Vector3(axis.x, 0f, axis.z), shape, circ, yTop - yHem, 57);
-        // The fitted shell is only the invisible "steam target"; what you see is a real dress (the exam's silk dress)
-        // worn by the form, with wrinkles that the steam smooths out.
-        foreach (Renderer r in fabric.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
-        DressTheForm(axis, yTorso, yTop, yHem, rxT, rzT);
-        SetDressWrinkles(1f);
+        Vector3 d = station.PlayerPos - form.transform.position; d.y = 0f;
+        if (d.sqrMagnitude > 0.0001f) form.transform.rotation = Quaternion.LookRotation(d.normalized, Vector3.up);
     }
 
-    PM_Garment formDress;
-    Material formDressMat;
-    static Texture2D wrinkles;
-
-    void DressTheForm(Vector3 axis, float yTorso, float yTop, float yHem, float rxT, float rzT)
+    // Keyboard/mouse test: Shift + left mouse on the gown steams it.
+    public void DesktopSteam(PM_Gown g, Vector3 point)
     {
-        if (formDress != null) return;   // already dressed (it stays on the form)
-        formDress = PM_Garment.Show("silk", new Vector3(axis.x, yHem, axis.z), (yTop - yHem) + 0.03f, station.PlayerPos + Vector3.up * 1.6f, null, 0.55f, false);
-        if (formDress == null) return;
-        formDress.spinSpeed = 0f;
-        // Not thinner than the form's torso (the form must not poke through).
-        Bounds db = PM_Util.WorldBounds(formDress.transform);
-        float need = Mathf.Max(rxT, rzT) * 2f * 1.08f, have = Mathf.Min(db.size.x, db.size.z);
-        if (have > 0.01f && have < need)
-        {
-            float k = need / have;
-            Transform spin = formDress.transform.GetChild(0);
-            spin.localScale = new Vector3(spin.localScale.x * k, spin.localScale.y, spin.localScale.z * k);
-        }
-        formDress.transform.SetParent(form.transform, true);   // goes back home with the form
-        foreach (Renderer r in formDress.GetComponentsInChildren<Renderer>(true)) { formDressMat = r.sharedMaterial; break; }
+        if (g != gown || state != State.Learning || steps[stepIndex].action != PM_Action.SteamOnForm) return;
+        if (KeyHeld(Key.LeftShift)) gown.Steam(point, 0.09f, Time.deltaTime);
+        desktopTime = Time.time;
+        panel.SetStatus(KeyHeld(Key.LeftShift) ? string.Format(PM_Content.StProgress, Mathf.RoundToInt(gown.Progress * 100f)) : PM_Content.StFormSteam, PM_Util.Cyan);
     }
 
-    // Crumpled-fabric normal map (built once), strong while wrinkled, gone when the steaming is done.
-    void SetDressWrinkles(float amount)
-    {
-        if (formDressMat == null) return;
-        if (wrinkles == null) wrinkles = MakeWrinkles(256);
-        formDressMat.SetTexture("_BumpMap", wrinkles);
-        formDressMat.SetTextureScale("_BumpMap", new Vector2(3f, 3f));
-        formDressMat.SetFloat("_BumpScale", 1.8f * amount);
-        if (amount > 0.01f) formDressMat.EnableKeyword("_NORMALMAP"); else formDressMat.DisableKeyword("_NORMALMAP");
-    }
-
-    static Texture2D MakeWrinkles(int n)
-    {
-        var h = new float[n * n];
-        var rnd = new System.Random(5);
-        for (int k = 0; k < 9; k++)
-        {
-            float ang = (float)rnd.NextDouble() * Mathf.PI, fx = Mathf.Cos(ang), fy = Mathf.Sin(ang);
-            int freq = 2 + rnd.Next(6);
-            float ph = (float)rnd.NextDouble() * 6f;
-            for (int y = 0; y < n; y++)
-                for (int x = 0; x < n; x++)
-                {
-                    float u = (float)x / n, v = (float)y / n;
-                    float warp = 0.08f * Mathf.Sin((u * 3 + v * 2) * Mathf.PI * 2f + k);
-                    h[y * n + x] += Mathf.Pow(Mathf.Abs(Mathf.Sin(((Mathf.Round(fx * freq) * u + Mathf.Round(fy * freq) * v) + warp) * Mathf.PI * 2f + ph)), 3f) / (1 + k * 0.3f);
-                }
-        }
-        var tex = new Texture2D(n, n, TextureFormat.RGBA32, true, true);
-        var px = new Color32[n * n];
-        for (int y = 0; y < n; y++)
-            for (int x = 0; x < n; x++)
-            {
-                float dx = h[y * n + (x + 1) % n] - h[y * n + (x + n - 1) % n];
-                float dy = h[((y + 1) % n) * n + x] - h[((y + n - 1) % n) * n + x];
-                Vector3 nn = new Vector3(-dx * 2f, -dy * 2f, 1f).normalized;
-                byte nx = (byte)Mathf.Clamp((nn.x * 0.5f + 0.5f) * 255f, 0, 255), ny = (byte)Mathf.Clamp((nn.y * 0.5f + 0.5f) * 255f, 0, 255);
-                px[y * n + x] = new Color32(255, ny, 255, nx);   // works for both RG and AG normal unpacking
-            }
-        tex.SetPixels32(px);
-        tex.wrapMode = TextureWrapMode.Repeat;
-        tex.Apply(true);
-        return tex;
-    }
-
-    static float[] SmoothProfile(float[] a)
-    {
-        int n = a.Length;
-        var m = new float[n]; var r = new float[n];
-        for (int i = 0; i < n; i++) m[i] = Mathf.Max(a[Mathf.Max(0, i - 1)], Mathf.Max(a[i], a[Mathf.Min(n - 1, i + 1)]));
-        for (int i = 0; i < n; i++) r[i] = (m[Mathf.Max(0, i - 1)] + m[i] + m[Mathf.Min(n - 1, i + 1)]) / 3f;
-        return r;
-    }
-
-    // Vertical steaming: steam from 1–6 cm smooths the garment; touching it does nothing (and is wrong).
+    // Vertical steaming: steam from 1–8 cm smooths the gown where it reaches; touching it does nothing (and is wrong).
     void ProcessFormSteam(float dt)
     {
-        if (fabric == null) return;
+        if (gown == null) return;
+        if (Time.time - desktopTime < 0.15f) return;   // the mouse test is handled in DesktopSteam
         PM_Iron iron = station.Iron;
-        bool mouse = Time.time - desktopTime < 0.15f;
-        if (mouse)
-        {
-            if (KeyHeld(Key.LeftShift)) { fabric.Iron(desktopUV, 0.08f, dt, 1.2f, 0f, 0f, 0.4f); SetDressWrinkles(1f - fabric.Progress); }
-            panel.SetStatus(KeyHeld(Key.LeftShift) ? string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)) : PM_Content.StFormSteam, PM_Util.Cyan);
-            return;
-        }
         if (iron == null || !iron.Held) return;
         Vector3 dir = iron.DownWorld;
         RaycastHit hit = default(RaycastHit);
         bool found = false;
-        foreach (RaycastHit h in Physics.RaycastAll(iron.SoleWorld - dir * 0.02f, dir, 0.25f))
-            if (h.collider.GetComponent<PM_Fabric>() == fabric) { hit = h; found = true; break; }
+        float best = float.MaxValue;
+        foreach (RaycastHit h in Physics.RaycastAll(iron.SoleWorld - dir * 0.03f, dir, 0.25f))
+            if (h.collider == gown.Collider && h.distance < best) { hit = h; best = h.distance; found = true; }
         if (!found) return;
-        float gap = hit.distance - 0.02f;
-        if (gap < 0.008f) { panel.SetStatus(PM_Content.StFormPress, PM_Util.Yellow); iron.Buzz(0.2f, 0.05f); return; }
-        if (gap > 0.08f) { panel.SetStatus(PM_Content.StFormFar, PM_Util.Yellow); return; }
+        float gap = hit.distance - 0.03f;
+        if (gap < 0.006f) { panel.SetStatus(PM_Content.StFormPress, PM_Util.Yellow); iron.Buzz(0.2f, 0.05f); return; }
+        if (gap > 0.09f) { panel.SetStatus(PM_Content.StFormFar, PM_Util.Yellow); return; }
         if (!iron.Steaming) { panel.SetStatus(PM_Content.StFormSteam, PM_Util.Yellow); return; }
-        fabric.Iron(hit.textureCoord, 0.08f, dt, 1.2f, 0f, 0f, 0.35f);
-        SetDressWrinkles(1f - fabric.Progress);
-        panel.SetStatus(string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)), PM_Util.Cyan);
+        // the steam cloud widens with the distance
+        gown.Steam(hit.point, 0.06f + gap * 0.6f, dt);
+        panel.SetStatus(string.Format(PM_Content.StProgress, Mathf.RoundToInt(gown.Progress * 100f)), PM_Util.Cyan);
     }
 
     void RemoveFabric()
@@ -1274,6 +1144,12 @@ public class PM_Game : MonoBehaviour
     void OnModeClicked(int m)
     {
         // Temperature quiz: the station buttons answer the question.
+        if (state == State.ExamQuiz && quizKind == 0)
+        {
+            PM_Look.ButtonPulse(station.ButtonCenter(m), PM_Util.ModeColor(m), -station.Forward);
+            AnswerExamQuestion(m - 1);
+            return;
+        }
         if (state == State.Quiz && quizKind == 0)
         {
             PM_Look.ButtonPulse(station.ButtonCenter(m), PM_Util.ModeColor(m), -station.Forward);
@@ -1282,6 +1158,9 @@ public class PM_Game : MonoBehaviour
         }
         if (!station.Powered) { panel.SetStatus(PM_Content.StNeedPower, PM_Util.Red); if (PM_Audio.I != null) PM_Audio.I.Play("error", 0.6f); return; }
         station.SetMode(m);
+        // In the exam only the CHOICE is tested: the iron is at the chosen temperature at once
+        // (no hidden waiting for it to cool down from the previous fabric).
+        if (state == State.ExamFabric) station.MakeReady();
         modeClickedThisStep = true;
         PM_Look.ButtonPulse(station.ButtonCenter(m), PM_Util.ModeColor(m), -station.Forward);
         panel.SetStatus(string.Format(PM_Content.StModeSet, PM_Content.ModeDots[m], PM_Content.ModeTemp[m]), PM_Util.ModeColor(m));
@@ -1298,6 +1177,7 @@ public class PM_Game : MonoBehaviour
         examLines.Clear();
         examScore = 0;
         examPoints.Clear();
+        examQuizRight = 0;
         var plant = new[] { PM_FabricType.Cotton, PM_FabricType.Linen };
         var animal = new[] { PM_FabricType.Wool, PM_FabricType.Silk };
         examList.Add(plant[UnityEngine.Random.Range(0, 2)]);
@@ -1308,9 +1188,19 @@ public class PM_Game : MonoBehaviour
             int j = UnityEngine.Random.Range(0, i + 1);
             PM_FabricType tmp = examList[i]; examList[i] = examList[j]; examList[j] = tmp;
         }
+        if (tube == null) tube = PM_ScoreTube.Create(panel.transform, new Vector3(0.66f, -0.30f, 0f));
+        tube.Set(0f, 0f);
         panel.SetContent(PM_Content.ExamTitle, PM_Content.ExamBody, "");
         panel.SetButtons(1, Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnNext, () => StartExamFabric(0)));
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("exam_intro");
+    }
+
+    // The most points of the whole exam: 100 for each fabric + the bonus questions.
+    int ExamMax { get { return examList.Count * 100 + ExamQuestions * QuestionPts; } }
+    int ExamSum { get { int s = 0; foreach (int p in examPoints) s += p; return s + examQuizRight * QuestionPts; } }
+    void UpdateTube(float possible)
+    {
+        if (tube != null) tube.Set(ExamSum / (float)ExamMax, possible / ExamMax);
     }
 
     void StartExamFabric(int i)
@@ -1319,14 +1209,37 @@ public class PM_Game : MonoBehaviour
         station.RefreshButtons();
         state = State.ExamFabric;
         examIndex = i;
-        examTime = 40f;
+        examTime = ExamSeconds;
         examFinishedFabric = false;
+        examSuccess = false;
+        station.MakeReady();     // hot, water and pressure ready: only the choice of temperature is tested
         station.SetMode(0);
+        dwell = 0f;
         PM_FabricInfo info = PM_Content.Fabric(examList[i]);
         SpawnFabric(info.type, 100 + i * 7);
         panel.SetContent(string.Format(PM_Content.ExamFabricTitle, i + 1),
             string.Format(PM_Content.ExamFabricBody, info.cue, info.burn), (i + 1) + "/" + examList.Count);
-        panel.SetButtons(Btn(PM_Content.BtnMenu, ShowMenu));
+        ExamButtons();
+        UpdateTube(0f);
+    }
+
+    void ExamButtons()
+    {
+        panel.SetButtons(examFinishedFabric ? 1 : -1, Btn(PM_Content.BtnMenu, ShowMenu), Btn(PM_Content.BtnNextTask, NextExamTask));
+    }
+
+    // "למשימה הבאה": after a result, or to give up on this fabric (its progress still counts a little).
+    void NextExamTask()
+    {
+        if (state != State.ExamFabric) return;
+        if (!examFinishedFabric && fabric != null)
+        {
+            int pts = Mathf.RoundToInt(50f * fabric.Progress);
+            examPoints.Add(pts);
+            examLines.Add(string.Format(PM_Content.ExamLineSkip, examIndex + 1, fabric.info.name) + string.Format(PM_Content.ExamPts, pts));
+        }
+        if (examIndex + 1 < examList.Count) StartExamFabric(examIndex + 1);
+        else StartExamQuiz();
     }
 
     void UpdateExam(float dt)
@@ -1334,44 +1247,93 @@ public class PM_Game : MonoBehaviour
         if (fabric == null) return;
         if (examFinishedFabric)
         {
+            // a perfect fabric goes on by itself; after a mistake the player reads the result and presses "next"
             doneTimer += dt;
-            if (doneTimer > 3f)
-            {
-                if (examIndex + 1 < examList.Count) StartExamFabric(examIndex + 1);
-                else ShowExamResult();
-            }
+            if (examSuccess && doneTimer > 2.5f) NextExamTask();
             return;
         }
         examTime -= dt;
         bool ironing = HandleSpit(dt) || ProcessIroning(dt, true);
         if (!ironing) panel.SetStatus(string.Format(PM_Content.StTime, Mathf.CeilToInt(Mathf.Max(0f, examTime))), PM_Util.Cyan);
+        UpdateTube(55f * fabric.Progress);
 
         PM_FabricInfo info = fabric.info;
         string n = (examIndex + 1).ToString();
         if (fabric.Damage >= 0.25f)
         {
             string why = info.type == PM_FabricType.Polyester && fabric.Damage > 0 ? PM_Content.StMelted : PM_Content.StBurned;
-            int pts = Mathf.RoundToInt(10f * fabric.Progress);
+            int pts = Mathf.RoundToInt(15f * fabric.Progress);
             examPoints.Add(pts);
             examLines.Add(string.Format(PM_Content.ExamLineBurn, n, info.name, why) + string.Format(PM_Content.ExamPts, pts));
-            FinishExamFabric(why, PM_Util.Red, "error");
+            FinishExamFabric(why + " — " + string.Format(PM_Content.ExamTip, PM_Content.ModeLabel(info.mode)), PM_Util.Red, "error", false);
         }
         else if (fabric.Done)
         {
             examScore++;
             // 60 for a finished fabric + up to 25 for speed + up to 15 for care (no scorch at all)
-            int pts = Mathf.Clamp(Mathf.RoundToInt(60f + 25f * Mathf.Clamp01(examTime / 40f) + 15f * (1f - Mathf.Clamp01(fabric.Damage / 0.25f))), 0, 100);
+            int pts = Mathf.Clamp(Mathf.RoundToInt(60f + 25f * Mathf.Clamp01(examTime / ExamSeconds) + 15f * (1f - Mathf.Clamp01(fabric.Damage / 0.25f))), 0, 100);
             examPoints.Add(pts);
-            examLines.Add(string.Format(PM_Content.ExamLineOk, n, info.name, Mathf.RoundToInt(40f - examTime)) + string.Format(PM_Content.ExamPts, pts));
-            FinishExamFabric(PM_Content.StDone + " (" + info.name + ")", PM_Util.Green, "ding");
+            examLines.Add(string.Format(PM_Content.ExamLineOk, n, info.name, Mathf.RoundToInt(ExamSeconds - examTime)) + string.Format(PM_Content.ExamPts, pts));
+            FinishExamFabric(PM_Content.StDone + " (" + info.name + ") +" + pts, PM_Util.Green, "ding", true);
         }
         else if (examTime <= 0f)
         {
             int pts = Mathf.RoundToInt(55f * fabric.Progress);
             examPoints.Add(pts);
             examLines.Add(string.Format(PM_Content.ExamLineTime, n, info.name) + string.Format(PM_Content.ExamPts, pts));
-            FinishExamFabric(PM_Content.StTimeUp + " (" + info.name + ")", PM_Util.Red, "error");
+            FinishExamFabric(PM_Content.StTimeUp + " (" + info.name + ")", PM_Util.Red, "error", false);
         }
+    }
+
+    // ---- bonus questions at the end of the exam (temperature / fiber family): points into the same tube ----
+    void StartExamQuiz()
+    {
+        RemoveFabric();
+        examQuiz.Clear();
+        examQuiz.AddRange(PM_Content.FiberHotspots());
+        for (int i = examQuiz.Count - 1; i > 0; i--)
+        {
+            int j = UnityEngine.Random.Range(0, i + 1);
+            PM_HotspotInfo tmp = examQuiz[i]; examQuiz[i] = examQuiz[j]; examQuiz[j] = tmp;
+        }
+        if (examQuiz.Count > ExamQuestions) examQuiz.RemoveRange(ExamQuestions, examQuiz.Count - ExamQuestions);
+        examQuizIndex = 0;
+        ShowExamQuestion();
+    }
+
+    void ShowExamQuestion()
+    {
+        state = State.ExamQuiz;
+        examQuizAnswered = false;
+        quizKind = examQuizIndex % 2;          // temperature, family, temperature, family
+        PM_HotspotInfo f = examQuiz[examQuizIndex];
+        panel.SetContent(string.Format(PM_Content.ExamQuizTitle, examQuizIndex + 1, QuestionPts),
+            QuizQuestion(f), (examQuizIndex + 1) + "/" + examQuiz.Count);
+        panel.SetAccent(PM_Util.Yellow);
+        string[] o = quizKind == 0 ? PM_Content.QuizTempOptions : PM_Content.QuizFamilyOptions;
+        panel.SetButtons(-1, Btn(o[0], () => AnswerExamQuestion(0)), Btn(o[1], () => AnswerExamQuestion(1)), Btn(o[2], () => AnswerExamQuestion(2)));
+        UpdateTube(0f);
+    }
+
+    void AnswerExamQuestion(int choice)
+    {
+        if (state != State.ExamQuiz || examQuizAnswered) return;
+        examQuizAnswered = true;
+        PM_HotspotInfo f = examQuiz[examQuizIndex];
+        int correct = quizKind == 0 ? Mathf.Clamp(f.mode - 1, 0, 2) : FamilyIndex(f.fiberGroup);
+        string[] o = quizKind == 0 ? PM_Content.QuizTempOptions : PM_Content.QuizFamilyOptions;
+        bool right = choice == correct;
+        if (right) examQuizRight++;
+        panel.SetStatus(right ? PM_Content.QuizRight + " +" + QuestionPts : string.Format(PM_Content.QuizWrong, o[correct]), right ? PM_Util.Green : PM_Util.Red);
+        if (PM_Audio.I != null) PM_Audio.I.Play(right ? "ding" : "error", 0.7f);
+        UpdateTube(0f);
+        bool last = examQuizIndex + 1 >= examQuiz.Count;
+        panel.SetButtons(0, Btn(last ? PM_Content.BtnExamResult : PM_Content.BtnNext, () =>
+        {
+            if (state != State.ExamQuiz) return;
+            examQuizIndex++;
+            if (examQuizIndex < examQuiz.Count) ShowExamQuestion(); else ShowExamResult();
+        }));
     }
 
     void Celebrate()
@@ -1381,21 +1343,22 @@ public class PM_Game : MonoBehaviour
         PM_Look.Burst(fabric.transform.position + Vector3.up * 0.05f, PM_Util.ModeColor(fabric.info.mode));
     }
 
-    void FinishExamFabric(string msg, Color c, string sound)
+    void FinishExamFabric(string msg, Color c, string sound, bool success)
     {
         if (sound == "ding") Celebrate();
         examFinishedFabric = true;
+        examSuccess = success;
         doneTimer = 0f;
         panel.SetStatus(msg, c);
+        ExamButtons();
+        UpdateTube(0f);
         if (PM_Audio.I != null) PM_Audio.I.Play(sound, 0.8f);
     }
 
     int ExamGrade()
     {
-        if (examPoints.Count == 0) return 0;
-        int sum = 0;
-        foreach (int p in examPoints) sum += p;
-        return Mathf.RoundToInt(sum / (float)examList.Count);
+        if (ExamMax <= 0) return 0;
+        return Mathf.Clamp(Mathf.RoundToInt(ExamSum * 100f / ExamMax), 0, 100);
     }
 
     void ShowExamResult()
@@ -1404,7 +1367,9 @@ public class PM_Game : MonoBehaviour
         RemoveFabric();
         int grade = ExamGrade();
         int rank = grade >= 90 ? 3 : grade >= 75 ? 2 : grade >= 55 ? 1 : 0;
-        string body = string.Join("\n", examLines.ToArray()) + "\n\n" + string.Format(PM_Content.ExamGrade, grade) + "\n" + PM_Content.Ranks[rank];
+        string body = string.Join("\n", examLines.ToArray()) + "\n" + string.Format(PM_Content.ExamQuizLine, examQuizRight, ExamQuestions, examQuizRight * QuestionPts)
+                      + "\n\n" + string.Format(PM_Content.ExamGrade, grade) + "\n" + PM_Content.Ranks[rank];
+        UpdateTube(0f);
         if (grade >= 90) body += "\n" + PM_Content.ExamRewardLine;
         panel.SetContent(PM_Content.ExamResultTitle, body, grade + "/100");
         if (grade >= 90)
@@ -1469,6 +1434,16 @@ public class PM_Game : MonoBehaviour
         }
         if (station != null && station.Iron != null) station.Iron.simulateSteam = KeyHeld(Key.LeftShift);
         PM_Rewards.Tick(station, dt);
+        if (form != null)
+        {
+            bool exam = state == State.ExamIntro || state == State.ExamFabric || state == State.ExamQuiz || state == State.ExamResult;
+            if (form.gameObject.activeSelf == exam) form.gameObject.SetActive(!exam);   // no dress form in the exam
+        }
+        if (tube != null)
+        {
+            bool showTube = state == State.ExamIntro || state == State.ExamFabric || state == State.ExamQuiz || state == State.ExamResult;
+            if (tube.gameObject.activeSelf != showTube) tube.Show(showTube);
+        }
         switch (state)
         {
             case State.Learning: UpdateLearning(dt); break;
