@@ -91,6 +91,20 @@ public static class PM_Util
         return WorldBounds(new[] { t });
     }
 
+    // Only the solid model (mesh renderers): no particles (steam), lines or our own add-ons (PM_...).
+    public static Bounds MeshBounds(Transform t)
+    {
+        bool has = false;
+        Bounds b = new Bounds(t.position, Vector3.zero);
+        foreach (Renderer r in t.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
+            if (r.name.StartsWith("PM_")) continue;
+            if (!has) { b = r.bounds; has = true; } else b.Encapsulate(r.bounds);
+        }
+        return b;
+    }
+
     public static Shader LitShader()
     {
         Shader s = Shader.Find("Universal Render Pipeline/Lit");

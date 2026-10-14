@@ -175,23 +175,30 @@ public static class PM_Avatar
         if (origin == null || origin.CameraFloorOffsetObject == null) return false;
         Transform offset = origin.CameraFloorOffsetObject.transform;
         Transform left = null, right = null;
-        foreach (Transform c in offset.GetComponentsInChildren<Transform>(true))
-        {
-            if (c.parent != offset) continue;
-            string n = c.name.ToLower();
-            if (!n.Contains("controller") && !n.Contains("hand")) continue;
-            if (!c.gameObject.activeInHierarchy) continue;
-            // "Left Controller" rather than "Left Controller Teleport Stabilized Origin": the shortest name wins.
-            if (n.Contains("left") && (left == null || c.name.Length < left.name.Length)) left = c;
-            else if (n.Contains("right") && (right == null || c.name.Length < right.name.Length)) right = c;
-        }
+        trackedParts.Clear();
+        // Prefer the controller objects ("Left Controller") over hand-tracking ones ("Left Hand"):
+        // with Quest controllers the controller is what moves. Every such object is remembered: all their
+        // models are hidden (a rig can have both, e.g. after a package added hand tracking).
+        for (int pass = 0; pass < 2; pass++)
+            foreach (Transform c in offset.GetComponentsInChildren<Transform>(true))
+            {
+                if (c.parent != offset) continue;
+                string n = c.name.ToLower();
+                if (!n.Contains("controller") && !n.Contains("hand")) continue;
+                if (pass == 0) { if (!trackedParts.Contains(c)) trackedParts.Add(c); }
+                if (!c.gameObject.activeInHierarchy) continue;
+                if (pass == 0 && !n.Contains("controller")) continue;     // first look only at controllers
+                if (pass == 1 && left != null && right != null) break;
+                // "Left Controller" rather than "Left Controller Teleport Stabilized Origin": the shortest name wins.
+                if (n.Contains("left") && (left == null || (pass == 0 && c.name.Length < left.name.Length))) left = c;
+                else if (n.Contains("right") && (right == null || (pass == 0 && c.name.Length < right.name.Length))) right = c;
+            }
         if (left == null || right == null) return false;
         int handKind = IsToon ? (PM_Toon.Woman ? 1 : 0) : HandType;
         if (PM_HandData.Get(HandKey(handKind), false) == null) return true;   // no hand files: keep the controllers
         Clear();
-        HideControllerModel(left);
-        HideControllerModel(right);
         ctrlL = left; ctrlR = right; xrRoot = origin.transform;
+        HideControllers();
         if (Character == SceneCharacter && adopted != null && AdoptSceneCharacter)
         {
             adopted.SetActive(true);   // the Genies body stays; no extra hands
@@ -230,6 +237,17 @@ public static class PM_Avatar
         leftHand = rightHand = null; body = null; humanoid = null;
     }
 
+    static readonly List<Transform> trackedParts = new List<Transform>();
+
+    // Controller models must never show next to our hands (some appear late, when tracking starts).
+    public static void HideControllers()
+    {
+        if (ctrlL == null && ctrlR == null) return;
+        if (ctrlL != null) HideControllerModel(ctrlL);
+        if (ctrlR != null) HideControllerModel(ctrlR);
+        foreach (Transform t in trackedParts) if (t != null) HideControllerModel(t);
+    }
+
     static void HideControllerModel(Transform controller)
     {
         foreach (Renderer r in controller.GetComponentsInChildren<Renderer>(true))
@@ -244,8 +262,7 @@ public static class PM_Avatar
     public static void CheckSceneCharacter()
     {
         // Controller models may be spawned only after tracking starts: keep them hidden.
-        if (ctrlL != null) HideControllerModel(ctrlL);
-        if (ctrlR != null) HideControllerModel(ctrlR);
+        HideControllers();
         if (!AdoptSceneCharacter || Character != SceneCharacter || humanoid != null || ctrlL == null || ctrlR == null) return;
         GameObject go = adopted;
         if (go != null) go.SetActive(true);
@@ -332,7 +349,7 @@ public class PM_AvatarRig : MonoBehaviour
     bool built;
     float nextTry;
     public void Rebuild() { built = false; nextTry = 0f; }
-    float nextScan, infoAt = -1f;
+    float nextScan, nextHide, infoAt = -1f;
     bool infoWritten;
     void Update()
     {
@@ -343,10 +360,12 @@ public class PM_AvatarRig : MonoBehaviour
             if (infoAt < 0f) { if (Time.frameCount % 30 == 0 && PM_Humanoid.FindSceneCharacter() != null) infoAt = Time.unscaledTime + 8f; }
             else if (Time.unscaledTime > infoAt) { infoWritten = true; PM_Humanoid.WriteInfo(PM_Humanoid.FindSceneCharacter() ?? PM_Avatar.AdoptedAnimator); }
         }
+        if (Time.unscaledTime > nextHide) { nextHide = Time.unscaledTime + 0.25f; PM_Avatar.HideControllers(); }
         if (built && Time.unscaledTime > nextScan) { nextScan = Time.unscaledTime + 1f; PM_Avatar.CheckSceneCharacter(); }
         if (built || Time.unscaledTime < nextTry) return;
         nextTry = Time.unscaledTime + 0.5f;
-        built = PM_Avatar.TryBuild();
+        try { built = PM_Avatar.TryBuild(); }
+        catch (System.Exception e) { Debug.LogError("[PM] Ошибка при создании рук: " + e); nextTry = Time.unscaledTime + 3f; }
         if (built) Debug.Log("[PM] Руки и тело аватара созданы.");
     }
 }

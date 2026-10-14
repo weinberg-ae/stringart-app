@@ -298,9 +298,9 @@ public class PM_ToonBody : MonoBehaviour
         a = b = Vector3.zero; r = 0f;
         if (instance == null || !instance.isActiveAndEnabled) return false;
         Transform f = instance.figure;
-        a = f.TransformPoint(new Vector3(0f, 0.92f * PM_Toon.BodyY, 0f));
-        b = f.TransformPoint(new Vector3(0f, 1.32f * PM_Toon.BodyY, 0f));
-        r = (PM_Toon.Woman ? 0.13f : 0.15f) * instance.scale;
+        a = f.TransformPoint(new Vector3(0f, 0.55f * PM_Toon.BodyY, 0f));      // thighs
+        b = f.TransformPoint(new Vector3(0f, 1.36f * PM_Toon.BodyY, 0f));      // chest
+        r = (PM_Toon.Woman ? 0.16f : 0.18f) * instance.scale;                  // body + clothes + a little air
         return true;
     }
     public static Vector3 Forward { get { return instance != null ? instance.figure.forward : Vector3.forward; } }

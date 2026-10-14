@@ -308,10 +308,10 @@ public class PM_Iron : MonoBehaviour
         return c.GetComponent<CharacterController>() == null;
     }
 
-    void KeepAboveSurface()
+    // Highest surface under the sole points: lift (meters, >0 = the sole is below it) and its mean normal.
+    bool MeasureSurface(out float lift, out Vector3 normal)
     {
-        float lift = -1f;
-        Vector3 normal = Vector3.zero;
+        lift = -1f; normal = Vector3.zero;
         int hitsCount = 0;
         for (int i = 0; i < 5; i++)
         {
@@ -328,14 +328,23 @@ public class PM_Iron : MonoBehaviour
             lift = Mathf.Max(lift, best + soleExtra - wp.y);
             normal += bn; hitsCount++;
         }
-        if (hitsCount == 0) return;
+        if (hitsCount == 0) return false;
         normal.Normalize();
-        // Close to the surface: the soleplate turns flat onto it (stable gliding, no tipping over).
-        if (lift > -0.03f)
+        return true;
+    }
+
+    void KeepAboveSurface()
+    {
+        float lift; Vector3 normal;
+        if (!MeasureSurface(out lift, out normal)) return;
+        // Close to the surface: the soleplate turns flat onto it — fully flat when it touches,
+        // so the whole sole lies on the fabric (no end hanging in the air).
+        if (lift > -0.04f)
         {
-            float k = Mathf.Clamp01(1f - (-lift) / 0.03f) * 0.85f;
+            float k = Mathf.Clamp01(1f - (-lift - 0.005f) / 0.035f);
             Quaternion flat = Quaternion.FromToRotation(DownWorld, -normal) * transform.rotation;
             transform.rotation = Quaternion.Slerp(transform.rotation, flat, k);
+            if (!MeasureSurface(out lift, out normal)) return;   // turning moved the sole: measure again
         }
         if (lift > 0f)
         {
@@ -370,23 +379,34 @@ public class PM_Iron : MonoBehaviour
         }
     }
 
-    // The iron never goes into the player's own body (the cartoon body stands under the eyes).
+    // The iron never goes into the player's own body (the cartoon body stands under the eyes):
+    // all corners of the iron are checked (not only its centre), from the thighs up to the chest.
     void KeepOutOfBody()
     {
         Vector3 a, b; float r;
         if (!PM_ToonBody.Capsule(out a, out b, out r)) return;
-        Vector3 c = transform.TransformPoint((localMin + localMax) * 0.5f);
-        float ironR = 0.07f;
-        Vector3 ab = b - a;
-        float t = Mathf.Clamp01(Vector3.Dot(c - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f));
-        Vector3 q = a + ab * t;
-        Vector3 d = c - q; d.y = 0f;
-        float dist = d.magnitude, need = r + ironR;
-        if (dist >= need) return;
-        Vector3 dir = dist > 0.001f ? d / dist : (PM_ToonBody.Forward);
-        Vector3 push = dir * (need - dist);
-        transform.position += push;
-        followPos += push;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            float worst = 0f; Vector3 push = Vector3.zero;
+            for (int i = 0; i < 9; i++)
+            {
+                Vector3 lp = i == 8 ? (localMin + localMax) * 0.5f
+                    : new Vector3((i & 1) == 0 ? localMin.x : localMax.x, (i & 2) == 0 ? localMin.y : localMax.y, (i & 4) == 0 ? localMin.z : localMax.z);
+                Vector3 p = transform.TransformPoint(lp);
+                Vector3 ab = b - a;
+                float t = Vector3.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f);
+                if (t < -0.05f || t > 1.05f) continue;            // above the head or below the knees: free
+                Vector3 q = a + ab * Mathf.Clamp01(t);
+                Vector3 d = p - q; d.y = 0f;
+                float dist = d.magnitude, pen = r - dist;
+                if (pen <= worst) continue;
+                worst = pen;
+                push = (dist > 0.001f ? d / dist : PM_ToonBody.Forward) * pen;
+            }
+            if (worst <= 0f) return;
+            transform.position += push;
+            followPos += push;
+        }
     }
 
     // Silicone shoe (an exam reward): a soft blue cover under the soleplate.
@@ -471,7 +491,10 @@ public class PM_Iron : MonoBehaviour
             if (!n.Contains("controller") && !n.Contains("hand")) continue;
             int side = n.Contains("left") ? 0 : n.Contains("right") ? 1 : -1;
             if (side < 0) continue;
-            if (res[side] == null || c.name.Length < res[side].name.Length) res[side] = c;
+            // a controller object beats a hand-tracking one; then the shortest name
+            bool isCtrl = n.Contains("controller");
+            bool curCtrl = res[side] != null && res[side].name.ToLower().Contains("controller");
+            if (res[side] == null || (isCtrl && !curCtrl) || (isCtrl == curCtrl && c.name.Length < res[side].name.Length)) res[side] = c;
         }
         return res;
     }

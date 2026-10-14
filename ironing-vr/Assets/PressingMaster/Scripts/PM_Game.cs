@@ -657,6 +657,7 @@ public class PM_Game : MonoBehaviour
         if (openHs == h && card.gameObject.activeSelf) { CloseCard(); return; }
         foreach (PM_FiberScreen f in fiberScreens) if (f != null) f.SetExpanded(false);   // one window at a time
         openHs = h;
+        spitCardReason = 0;
         h.SetVisited(true);
         card.gameObject.SetActive(true);
         card.SetContent(h.info.title, h.info.body, "");
@@ -1035,8 +1036,41 @@ public class PM_Game : MonoBehaviour
         PM_Iron iron = station.Iron;
         if (iron == null || !iron.spitting) return false;
         PM_WaterTank t = station.Tank;
-        panel.SetStatus(t != null && t.Overfilled ? PM_Content.StSpitOverfill : PM_Content.StSpitNotReady, PM_Util.Red);
+        int reason = t != null && t.Overfilled ? 1 : !station.PressureOk ? 2 : 3;
+        if (reason == 3)
+            panel.SetStatus(string.Format(PM_Content.StSpitCold, Mathf.RoundToInt(station.IronTemp), Mathf.RoundToInt(station.TargetTemp)), PM_Util.Red);
+        else panel.SetStatus(reason == 1 ? PM_Content.StSpitOverfill : PM_Content.StSpitNotReady, PM_Util.Red);
+        if (spitCardReason != reason) ShowSpitCard(reason);
+        spitOk = 0f;
         return true;   // the drops themselves stain the fabric where they land (PM_Drops)
+    }
+
+    // Why the iron spits water (and leaves brown marks): an explanation window while it happens.
+    int spitCardReason;
+    float spitOk;
+    void ShowSpitCard(int reason)
+    {
+        spitCardReason = reason;
+        CloseCard();
+        card.gameObject.SetActive(true);
+        card.SetContent(PM_Content.SpitTitle, PM_Content.SpitBodies[reason - 1], "");
+        card.SetAccent(PM_Util.Red);
+        card.SetButtons(Btn(PM_Content.BtnClose, () => { CloseCard(); }));
+        Vector3 head = Camera.main != null ? Camera.main.transform.position : station.PlayerPos + Vector3.up * 1.6f;
+        card.Place(station.PanelPos + station.Right * 0.9f + Vector3.down * 0.05f, head);
+        if (PM_Audio.I != null) PM_Audio.I.Play("error", 0.7f);
+    }
+
+    // The iron is ready again: the explanation closes by itself.
+    void UpdateSpitCard(float dt)
+    {
+        if (spitCardReason == 0) return;
+        if (station.WillSpit) { spitOk = 0f; return; }
+        spitOk += dt;
+        if (spitOk < 1.5f) return;
+        spitCardReason = 0;
+        if (openHs == null) CloseCard();
+        panel.SetStatus(PM_Content.StSpitFixed, PM_Util.Green);
     }
 
     // Returns true while ironing happens this frame.
@@ -1444,6 +1478,7 @@ public class PM_Game : MonoBehaviour
             bool showTube = state == State.ExamIntro || state == State.ExamFabric || state == State.ExamQuiz || state == State.ExamResult;
             if (tube.gameObject.activeSelf != showTube) tube.Show(showTube);
         }
+        UpdateSpitCard(dt);
         switch (state)
         {
             case State.Learning: UpdateLearning(dt); break;

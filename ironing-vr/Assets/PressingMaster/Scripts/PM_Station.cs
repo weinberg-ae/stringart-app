@@ -201,7 +201,7 @@ public class PM_Station : MonoBehaviour
     // Find it (a tall part touching the top of the iron), hide it and connect a flexible hose instead.
     void BuildHose()
     {
-        Bounds ib = PM_Util.WorldBounds(Iron.transform);
+        Bounds ib = PM_Util.MeshBounds(Iron.transform);   // the iron itself (the steam particles are not part of it)
         Bounds probe = ib;
         probe.Expand(new Vector3(0.04f, 0.06f, 0.04f));
         Renderer best = null;

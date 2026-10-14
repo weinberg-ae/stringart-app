@@ -20,7 +20,24 @@ public class PM_Hose : MonoBehaviour
         var h = go.AddComponent<PM_Hose>();
         h.iron = iron;
         // the end goes a little into the iron's body, so the joint never shows a gap
-        h.ironLocalEnd = iron.InverseTransformPoint(Vector3.Lerp(ironEndWorld, PM_Util.WorldBounds(iron).center, 0.15f));
+        Bounds ib = PM_Util.MeshBounds(iron);
+        Vector3 inside = Vector3.Lerp(ironEndWorld, ib.center, 0.12f);
+        // A rubber sleeve on the iron where the hose goes in (it moves with the iron): the hose starts at its far end.
+        Vector3 outDir = (anchorWorld - inside); outDir.y = Mathf.Max(outDir.y, outDir.magnitude * 0.6f); outDir.Normalize();
+        var sleeve = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        sleeve.name = "PM_HoseSleeve";
+        Object.Destroy(sleeve.GetComponent<Collider>());
+        sleeve.transform.SetParent(iron, true);
+        sleeve.transform.position = inside + outDir * 0.022f;
+        sleeve.transform.rotation = Quaternion.FromToRotation(Vector3.up, outDir);
+        sleeve.transform.localScale = Vector3.one;
+        Vector3 ls = sleeve.transform.lossyScale;
+        sleeve.transform.localScale = new Vector3(0.03f / ls.x, 0.025f / ls.y, 0.03f / ls.z);
+        var sm = new Material(PM_Util.LitShader());
+        Color rubber = new Color(0.16f, 0.17f, 0.2f);
+        sm.SetColor("_BaseColor", rubber); sm.SetColor("_Color", rubber); sm.SetFloat("_Smoothness", 0.3f);
+        sleeve.GetComponent<Renderer>().sharedMaterial = sm;
+        h.ironLocalEnd = iron.InverseTransformPoint(inside + outDir * 0.045f);
         h.anchor = table.InverseTransformPoint(anchorWorld);
         h.length = Vector3.Distance(anchorWorld, ironEndWorld) * 1.25f + 0.35f;
         var pts = new Vector3[Segments];
