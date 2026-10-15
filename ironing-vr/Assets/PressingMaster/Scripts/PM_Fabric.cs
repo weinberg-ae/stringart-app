@@ -236,8 +236,11 @@ public class PM_Fabric : MonoBehaviour
 
     // Called by the iron every frame while it touches the fabric.
     // smoothRate: 0..1 multiplier of smoothing speed. scorchRate / spotRate: damage per second (0 = none).
-    public void Iron(Vector2 uv, float radiusMeters, float dt, float smoothRate, float scorchRate, float spotRate, float heatLevel = 0.6f)
+    // dry = a hot iron WITHOUT steam passes here: plain water spots dry out (brown limescale stays).
+    public bool DriedNow { get; private set; }
+    public void Iron(Vector2 uv, float radiusMeters, float dt, float smoothRate, float scorchRate, float spotRate, float heatLevel = 0.6f, bool dry = false)
     {
+        DriedNow = false;
         int cx = Mathf.RoundToInt(uv.x * (Res - 1));
         int cy = Mathf.RoundToInt(uv.y * (Res - 1));
         int rx = Mathf.Max(2, Mathf.RoundToInt(radiusMeters / sizeX * Res));
@@ -267,6 +270,12 @@ public class PM_Fabric : MonoBehaviour
                 float hTarget = heatLevel * fall;
                 if (heat[i] < hTarget) { heat[i] = Mathf.Min(hTarget, heat[i] + dt * 2.5f); heatActive = true; }
                 bool hurt = false;
+                if (dry && spots[i] > 0f && lime[i] <= 0f && spotRate <= 0f)
+                {
+                    spots[i] = Mathf.Max(0f, spots[i] - dt * 1.5f * fall);
+                    if (spots[i] <= 0f) { albedo[i] = Damaged(i); dirtyA = true; }
+                    DriedNow = true;
+                }
                 if (scorchRate > 0f) { scorch[i] = Mathf.Min(1f, scorch[i] + scorchRate * dt * fall); hurt = true; }
                 if (spotRate > 0f && Random.value < spotRate * dt * 3f) { spots[i] = 1f; hurt = true; }
                 if (hurt) { albedo[i] = Damaged(i); dirtyA = true; }
@@ -287,7 +296,8 @@ public class PM_Fabric : MonoBehaviour
             int cx = Mathf.RoundToInt(uv.x * (Res - 1) + Mathf.Cos(a) * r * rx);
             int cy = Mathf.RoundToInt(uv.y * (Res - 1) + Mathf.Sin(a) * r * ry);
             bool brown = Random.value < limeChance;
-            int dr = Random.Range(1, 4);
+            int dr = brown ? Random.Range(2, 5) : Random.Range(1, 4);
+            if (brown) Damage = Mathf.Clamp01(Damage + 0.012f);   // limescale stays; plain water dries
             for (int y = cy - dr; y <= cy + dr; y++)
                 for (int x = cx - dr; x <= cx + dr; x++)
                 {
@@ -300,14 +310,13 @@ public class PM_Fabric : MonoBehaviour
                 }
         }
         dirtyA = true;
-        Damage = Mathf.Clamp01(Damage + drops * (0.004f + limeChance * 0.006f));
     }
 
     Color32 Damaged(int i)
     {
         Color c = baseAlbedo[i];
-        if (spots[i] > 0f) c = Color.Lerp(c, c * 0.7f, 0.6f);
-        if (lime[i] > 0f) c = Color.Lerp(c, new Color(0.55f, 0.38f, 0.18f), 0.75f * lime[i]);
+        if (spots[i] > 0f) c = Color.Lerp(c, c * 0.62f, 0.7f * spots[i]);
+        if (lime[i] > 0f) c = Color.Lerp(c, new Color(0.5f, 0.32f, 0.12f), 0.85f * lime[i]);
         float s = scorch[i];
         if (s > 0f)
         {

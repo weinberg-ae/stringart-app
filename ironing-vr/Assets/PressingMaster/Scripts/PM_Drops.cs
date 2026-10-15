@@ -25,7 +25,7 @@ public class PM_Drops : MonoBehaviour
                 foreach (RaycastHit h in Physics.RaycastAll(p + nrm * 0.02f, -nrm, 0.05f))
                 {
                     if (h.collider.gameObject != other) continue;
-                    fabric.Splash(h.textureCoord, 0.01f, 1, tank != null ? tank.Limescale * 0.5f : 0.15f);
+                    fabric.Splash(h.textureCoord, 0.01f, 1, tank != null ? Mathf.Clamp01(0.25f + tank.Limescale * 0.5f) : 0.4f);   // a cold iron spits scale too
                     break;
                 }
             }

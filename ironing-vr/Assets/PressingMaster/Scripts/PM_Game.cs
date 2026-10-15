@@ -1240,7 +1240,8 @@ public class PM_Game : MonoBehaviour
             msgColor = PM_Util.Red;
         }
 
-        fabric.Iron(uv, radius, dt, rate, scorch, spots, mode / 3f);
+        fabric.Iron(uv, radius, dt, rate, scorch, spots, mode / 3f, !steaming && mode >= 1);
+        if (fabric.DriedNow && msg == null) { msg = PM_Content.StDrying; msgColor = PM_Util.Cyan; }
         if (msg == null) { msg = string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)); msgColor = PM_Util.Cyan; }
         Status(msg, msgColor);
         return true;
