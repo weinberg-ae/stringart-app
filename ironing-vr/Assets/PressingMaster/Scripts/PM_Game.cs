@@ -1121,26 +1121,33 @@ public class PM_Game : MonoBehaviour
         }
         else
         {
-            // A silk bra cup sitting on the round end of the cup pad: a dome with a vertical and a cross seam
-            // and a firm band along its edge (as in the reference photo).
+            // A bra cup (as in the reference photos): a half-moon shaped shell of thin fabric — a rounded lower edge
+            // (the underwire line) and an almost straight upper edge with points at both ends — lying on the dome
+            // of the cup pad and following its curve. One seam across, a firmer band along the lower edge.
             float sc = tr.lossyScale.x;
             Quaternion rot = tr.rotation;
             Vector3 c0 = tr.TransformPoint(new Vector3(-0.10f, 0.205f, 0f));   // centre of the dome of the pad (tools3d.py CUP_C)
             Vector3 R = new Vector3(0.085f, 0.105f, 0.080f) * sc;               // its radii (CUP_R)
-            const float thMax = 76f * Mathf.Deg2Rad;
+            float A = 0.074f * sc, B = 0.066f * sc, C = 0.018f * sc;
             System.Func<float, float, Vector3> shape = (u, w) =>
             {
-                float ph = u * Mathf.PI * 2f, th = w * thMax;
-                float sx = Mathf.Sin(th) * Mathf.Cos(ph), sy = Mathf.Cos(th), sz = Mathf.Sin(th) * Mathf.Sin(ph);
-                float off = 0.006f * sc;
-                off += 0.012f * sc * Mathf.Max(0f, Mathf.Cos(ph)) * w * w;                 // over the join with the tail
-                float seamV = Mathf.Exp(-Mathf.Pow(Mathf.Sin(ph) / 0.05f, 2f));            // seam from the top down (front/back)
-                float seamH = Mathf.Exp(-Mathf.Pow((w - 0.55f) / 0.03f, 2f));              // seam across the cup
-                off += 0.0018f * sc * (seamV + seamH);
-                off += 0.004f * sc * Mathf.Clamp01((w - 0.9f) / 0.1f);                     // the band at the edge
-                return rot * new Vector3(sx * (R.x + off), sy * (R.y + off), sz * (R.z + off));
+                float X = Mathf.Lerp(-A, A, u);
+                float k = Mathf.Sqrt(Mathf.Max(0f, 1f - (X / A) * (X / A)));
+                float zLow = -B * k, zUp = C * k;                           // lower curved edge .. upper edge
+                float Z = Mathf.Lerp(zLow, zUp, w) + 0.012f * sc;
+                float q = 1f - (X / R.x) * (X / R.x) - (Z / R.z) * (Z / R.z);
+                float Y = R.y * Mathf.Sqrt(Mathf.Max(0.02f, q));           // on the dome
+                float tx = Mathf.Clamp01(X / A);
+                float off = 0.004f * sc + 0.016f * sc * tx * tx                                  // over the join with the tail
+                          + 0.0025f * sc * Mathf.Clamp01(1f - w / 0.12f)          // band at the lower edge
+                          + 0.0015f * sc * Mathf.Exp(-Mathf.Pow((w - 0.5f) / 0.04f, 2f));      // seam across
+                Vector3 n = new Vector3(X / (R.x * R.x), Y / (R.y * R.y), Z / (R.z * R.z)).normalized;
+                return rot * (new Vector3(X, Y, Z) + n * off);
             };
-            fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.52f * sc, 0.15f * sc, 43);   // (around, top-to-edge: for the iron size on the cloth)
+            fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.16f * sc, 0.09f * sc, 43);
+            fabric.LaceLook();
+            var fr = fabric.GetComponent<Renderer>();
+            if (fr != null) fr.material.SetFloat("_Cull", 0f);   // thin cloth: both sides visible
         }
         Vector3 gpos = GarmentPos();
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);

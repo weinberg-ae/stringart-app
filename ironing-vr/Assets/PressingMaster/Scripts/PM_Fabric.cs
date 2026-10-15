@@ -312,6 +312,28 @@ public class PM_Fabric : MonoBehaviour
         dirtyA = true;
     }
 
+    // Light bridal look (for the bra cup): ivory tulle with a fine net and soft lace swirls, still a fabric texture.
+    public void LaceLook()
+    {
+        Color ivory = new Color(0.97f, 0.94f, 0.89f);
+        float baseLum = Mathf.Max(0.05f, (info.color.r + info.color.g + info.color.b) / 3f);
+        for (int y = 0; y < Res; y++)
+            for (int x = 0; x < Res; x++)
+            {
+                int i = y * Res + x;
+                Color old = baseAlbedo[i];
+                float shade = Mathf.Clamp((old.r + old.g + old.b) / 3f / baseLum, 0.85f, 1.1f);
+                int xx = x + ((y / 4) % 2) * 2;
+                float net = (xx % 4 == 0 || y % 4 == 0) ? 0.93f : 1.02f;                  // tulle net
+                float sw = Mathf.Abs(Mathf.Sin(x * 0.09f + 3f * Mathf.Sin(y * 0.05f)) * Mathf.Sin(y * 0.08f + 2f * Mathf.Sin(x * 0.06f)));
+                float lace = sw < 0.07f ? 1.07f : 1f;                                      // lace threads
+                Color c = ivory * net * lace * shade; c.a = 1f;
+                baseAlbedo[i] = c;
+                albedo[i] = Damaged(i);
+            }
+        dirtyA = true;
+    }
+
     Color32 Damaged(int i)
     {
         Color c = baseAlbedo[i];
