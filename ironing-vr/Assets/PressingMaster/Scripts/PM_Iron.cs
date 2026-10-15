@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
@@ -364,11 +365,13 @@ public class PM_Iron : MonoBehaviour
         if (ownColliders == null) ownColliders = GetComponentsInChildren<Collider>(true);
         Vector3 c = transform.TransformPoint((localMin + localMax) * 0.5f);
         Vector3 half = (localMax - localMin) * 0.5f;
-        int n = Physics.OverlapBoxNonAlloc(c, half, near, transform.rotation, ~0, QueryTriggerInteraction.Ignore);
+        int n = Physics.OverlapBoxNonAlloc(c, half, near, transform.rotation, ~0, QueryTriggerInteraction.Collide);
         for (int k = 0; k < n; k++)
         {
             Collider o = near[k];
-            if (o == null || !IsSurface(o) || o.GetComponent<PM_Fabric>() != null || o.GetComponent<PM_Gown>() != null) continue;
+            if (o == null) continue;
+            bool solid = o.isTrigger ? o.GetComponent<PM_Solid>() != null : IsSurface(o);
+            if (!solid || o.GetComponent<PM_Fabric>() != null || o.GetComponent<PM_Gown>() != null) continue;
             foreach (Collider mine in ownColliders)
             {
                 if (mine == null || !mine.enabled || mine.isTrigger) continue;
@@ -437,25 +440,96 @@ public class PM_Iron : MonoBehaviour
     }
 
     // Silicone shoe (an exam reward): a soft blue cover under the soleplate.
+    // Silicone shoe: a cover in the shape of the soleplate (pointed front, straight back) with a low rim,
+    // perforated all over so the steam still comes through.
     public GameObject AddSiliconeShoe()
     {
         Vector3 size = localMax - localMin;
         Vector3 side = Vector3.Cross(localDown, tipLocal).normalized;
-        float len = Mathf.Abs(Vector3.Dot(size, tipLocal.normalized)) * 1.04f;
-        float wid = Mathf.Abs(Vector3.Dot(size, side)) * 1.08f;
-        var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        go.name = "PM_SiliconeShoe";
-        Destroy(go.GetComponent<Collider>());
+        float L = Mathf.Abs(Vector3.Dot(size, tipLocal.normalized)) * 1.0f;
+        float W = Mathf.Abs(Vector3.Dot(size, side)) * 1.02f;
+        var go = new GameObject("PM_SiliconeShoe");
         go.transform.SetParent(transform, false);
-        go.transform.localRotation = Quaternion.LookRotation(tipLocal, -localDown);
-        go.transform.localPosition = localSole + localDown * 0.002f;
-        go.transform.localScale = new Vector3(wid, 0.022f, len);
+        go.transform.localRotation = Quaternion.LookRotation(tipLocal, -localDown);   // z = to the tip, y = up into the iron
+        go.transform.localPosition = localSole;
+        go.AddComponent<MeshFilter>().sharedMesh = ShoeMesh(L, W);
         var m = new Material(PM_Util.LitShader());
-        Color c = new Color(0.25f, 0.62f, 0.85f);
-        m.SetColor("_BaseColor", c); m.SetColor("_Color", c); m.SetFloat("_Smoothness", 0.55f);
-        go.GetComponent<Renderer>().sharedMaterial = m;
-        soleExtra = 0.009f;
+        m.SetTexture("_BaseMap", ShoeTexture()); m.SetTexture("_MainTex", ShoeTexture());
+        m.SetColor("_BaseColor", Color.white); m.SetFloat("_Smoothness", 0.45f);
+        go.AddComponent<MeshRenderer>().sharedMaterial = m;
+        soleExtra = 0.007f;
         return go;
+    }
+
+    // Outline of a soleplate (x = across, z = along: rear -L/2 .. tip +L/2): straight back with round corners,
+    // narrowing to a point at the front. t = 0..1 goes once around.
+    static Vector2 SolePoint(float t, float L, float W)
+    {
+        float s = t * 2f;                       // 0..1 right side rear->tip, 1..2 left side tip->rear
+        float zn = s <= 1f ? s : 2f - s;
+        float hw = W * 0.5f * Mathf.Min(1f, Mathf.Sqrt(Mathf.Max(0f, zn) / 0.06f));
+        if (zn > 0.45f) hw *= Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Pow((zn - 0.45f) / 0.55f, 1.7f)), 0.6f);
+        float x = s <= 1f ? hw : -hw;
+        return new Vector2(x, -L * 0.5f + zn * L);
+    }
+
+    static Mesh ShoeMesh(float L, float W)
+    {
+        const int N = 64;
+        const float bottom = -0.006f, lip = 0.008f, grow = 0.003f;
+        var v = new List<Vector3>(); var uv = new List<Vector2>(); var tri = new List<int>();
+        // bottom: centre + outline (faces down)
+        v.Add(new Vector3(0f, bottom, 0f)); uv.Add(new Vector2(0.5f, 0.5f));
+        for (int i = 0; i < N; i++)
+        {
+            Vector2 p = SolePoint(i / (float)N, L, W);
+            v.Add(new Vector3(p.x, bottom, p.y)); uv.Add(new Vector2(p.x / W + 0.5f, p.y / L + 0.5f));
+        }
+        for (int i = 0; i < N; i++) { tri.Add(0); tri.Add(1 + i); tri.Add(1 + (i + 1) % N); }
+        // rim: from the bottom edge up around the sole sides
+        int b0 = v.Count;
+        for (int i = 0; i < N; i++)
+        {
+            Vector2 p = SolePoint(i / (float)N, L, W);
+            float pm = Mathf.Sqrt(p.x * p.x + p.y * p.y);
+            Vector2 o = pm > 1e-5f ? new Vector2(p.x / pm * grow, p.y / pm * grow) : new Vector2(0f, 0f);
+            v.Add(new Vector3(p.x + o.x, bottom, p.y + o.y)); uv.Add(new Vector2(0.02f, 0.02f));
+            v.Add(new Vector3(p.x + o.x, lip, p.y + o.y)); uv.Add(new Vector2(0.02f, 0.02f));
+        }
+        for (int i = 0; i < N; i++)
+        {
+            int a0 = b0 + i * 2, a1 = a0 + 1, c0 = b0 + ((i + 1) % N) * 2, c1 = c0 + 1;
+            tri.Add(a0); tri.Add(a1); tri.Add(c0); tri.Add(c0); tri.Add(a1); tri.Add(c1);
+            tri.Add(a0); tri.Add(c0); tri.Add(a1); tri.Add(c0); tri.Add(c1); tri.Add(a1);   // both sides
+        }
+        var m = new Mesh { name = "PM_SiliconeShoe" };
+        m.vertices = v.ToArray(); m.uv = uv.ToArray(); m.SetTriangles(tri.ToArray(), 0);
+        // the bottom must face down
+        Vector3 n = Vector3.Cross(v[tri[1]] - v[tri[0]], v[tri[2]] - v[tri[0]]);
+        if (n.y > 0f) { for (int i = 0; i < N * 3; i += 3) { int t = tri[i + 1]; tri[i + 1] = tri[i + 2]; tri[i + 2] = t; } m.SetTriangles(tri.ToArray(), 0); }
+        m.RecalculateNormals(); m.RecalculateBounds();
+        return m;
+    }
+
+    static Texture2D shoeTex;
+    // Light blue silicone with steam holes in rows all over the surface.
+    static Texture2D ShoeTexture()
+    {
+        if (shoeTex != null) return shoeTex;
+        const int w = 256, h = 512;
+        var px = new Color32[w * h];
+        Color32 sil = new Color32(70, 160, 220, 255), hole = new Color32(18, 28, 40, 255), rim = new Color32(50, 130, 190, 255);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float cx = (x % 22) - 11f, cy = (y % 22) - 11f;
+                if (((y / 22) & 1) == 1) cx = ((x + 11) % 22) - 11f;   // staggered rows
+                bool isHole = cx * cx + cy * cy < 16f && x > 14 && x < w - 14 && y > 14 && y < h - 14;
+                px[y * w + x] = isHole ? hole : (cx * cx + cy * cy < 30f ? rim : sil);
+            }
+        shoeTex = new Texture2D(w, h, TextureFormat.RGBA32, true);
+        shoeTex.SetPixels32(px); shoeTex.Apply(true);
+        return shoeTex;
     }
 
     public Vector3 SoleWorld { get { return transform.TransformPoint(localSole); } }

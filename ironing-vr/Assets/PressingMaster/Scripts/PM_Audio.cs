@@ -14,6 +14,9 @@ public class PM_Audio : MonoBehaviour
     readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
     readonly float[] samples = new float[256];
     public float VoiceLevel { get; private set; }   // 0..1, loudness of the narrator right now
+    const float MusicVol = 0.3f;
+    AudioSource sewing;
+    float nextSew = 12f;
 
     void Awake()
     {
@@ -25,15 +28,17 @@ public class PM_Audio : MonoBehaviour
         ambient = gameObject.AddComponent<AudioSource>();
         ambient.playOnAwake = false;
         ambient.loop = true;
-        ambient.volume = 0.35f;
+        ambient.volume = 0.1f;    // the factory noise only far in the background
         boiler = gameObject.AddComponent<AudioSource>();
         boiler.playOnAwake = false;
         boiler.loop = true;
-        boiler.volume = 0.25f;
+        boiler.volume = 0.12f;
         music = gameObject.AddComponent<AudioSource>();
         music.playOnAwake = false;
         music.loop = true;
-        music.volume = 0.16f;
+        sewing = gameObject.AddComponent<AudioSource>();
+        sewing.playOnAwake = false;
+        music.volume = MusicVol;
     }
 
     void Start()
@@ -77,7 +82,7 @@ public class PM_Audio : MonoBehaviour
         if (c == null) return false;
         voice.clip = c;
         voice.Play();
-        music.volume = 0.08f;   // music steps back while the narrator speaks
+        music.volume = MusicVol * 0.45f;   // music steps back while the narrator speaks
         return true;
     }
 
@@ -93,6 +98,13 @@ public class PM_Audio : MonoBehaviour
             VoiceLevel = Mathf.Lerp(VoiceLevel, Mathf.Clamp01(Mathf.Sqrt(sum / samples.Length) * 6f), 0.4f);
         }
         else VoiceLevel = Mathf.Lerp(VoiceLevel, 0f, 0.2f);
-        if (music != null && !voice.isPlaying && music.volume < 0.16f) music.volume = Mathf.MoveTowards(music.volume, 0.16f, Time.deltaTime * 0.05f);
+        if (music != null && !voice.isPlaying && music.volume < MusicVol) music.volume = Mathf.MoveTowards(music.volume, MusicVol, Time.deltaTime * 0.05f);
+        // now and then a sewing machine somewhere in the workshop
+        if (Time.time > nextSew)
+        {
+            nextSew = Time.time + Random.Range(25f, 55f);
+            AudioClip c = Clip(Random.value < 0.5f ? "sewing_1" : "sewing_2");
+            if (c != null && sewing != null && !voice.isPlaying) sewing.PlayOneShot(c, Random.Range(0.18f, 0.28f));
+        }
     }
 }

@@ -291,8 +291,8 @@ public class PM_Panel : MonoBehaviour
         root.transform.localPosition = localPos;
         var bc = root.AddComponent<BoxCollider>();
         bc.size = new Vector3(w, h, 0.05f);
-        var mat = PM_Util.NeonMaterial(c, 1.2f);
-        mat.SetColor("_BaseColor", c * 0.35f);
+        var mat = PM_Util.NeonMaterial(c, 0.35f);
+        mat.SetColor("_BaseColor", c * 0.55f);
         var mid = GameObject.CreatePrimitive(PrimitiveType.Cube);
         Destroy(mid.GetComponent<Collider>());
         mid.transform.SetParent(root.transform, false);
@@ -316,7 +316,7 @@ public class PM_Panel : MonoBehaviour
         var rt = canvasGo.GetComponent<RectTransform>();
         rt.sizeDelta = new Vector2(w * 1000, h * 1000);
         rt.localScale = Vector3.one * 0.001f;
-        var t = MakeText(canvasGo.transform, "Text", 0, 6, w * 1000, h * 1000 - 10, 48, Color.white);
+        var t = MakeText(canvasGo.transform, "Text", 0, 6, w * 1000, h * 1000 - 10, 44, new Color(0.06f, 0.04f, 0.1f));
         t.alignment = TextAlignmentOptions.Center;
         t.text = PM_Hebrew.VisualLine(label);
         var click = PM_Clickable.Add(root, action);
@@ -384,7 +384,7 @@ public class PM_PillGlow : MonoBehaviour
     void Update()
     {
         if (mat == null) return;
-        float k = (hover != null && hover()) ? 3f : 1.1f + 0.6f * (0.5f + 0.5f * Mathf.Sin(Time.time * 3f));
+        float k = (hover != null && hover()) ? 0.9f : 0.25f + 0.2f * (0.5f + 0.5f * Mathf.Sin(Time.time * 2.5f));
         mat.SetColor("_EmissionColor", c * k);
     }
 }

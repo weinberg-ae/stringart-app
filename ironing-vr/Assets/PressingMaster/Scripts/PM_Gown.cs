@@ -101,9 +101,9 @@ public class PM_Gown : MonoBehaviour
         Color champagne = new Color(0.93f, 0.84f, 0.74f);
         var satin = new Material(PM_Util.LitShader());
         satin.SetColor("_BaseColor", champagne); satin.SetColor("_Color", champagne);
-        satin.SetFloat("_Smoothness", 0.86f); satin.SetFloat("_Metallic", 0.08f);
+        satin.SetFloat("_Smoothness", 0.6f); satin.SetFloat("_Metallic", 0f);   // soft sheen, no glare
         var lining = new Material(satin);
-        lining.SetFloat("_Smoothness", 0.7f);
+        lining.SetFloat("_Smoothness", 0.5f);
         var jewel = new Material(PM_Util.LitShader());
         Color silver = new Color(0.82f, 0.85f, 0.9f);
         jewel.SetColor("_BaseColor", silver); jewel.SetColor("_Color", silver);

@@ -201,7 +201,7 @@ public static class PM_Avatar
         }
         // The hands are not children of the rig's controller objects (a rig may switch them on and off,
         // e.g. controller <-> hand tracking): each hand sits on its own anchor that follows the device itself.
-        Transform anchorL = PM_HandAnchor.Get(offset, true, trackedParts), anchorR = PM_HandAnchor.Get(offset, false, trackedParts);
+        Transform anchorL = PM_HandAnchor.Get(offset, true, left), anchorR = PM_HandAnchor.Get(offset, false, right);
         left = anchorL; right = anchorR;
         if (IsToon)
         {
@@ -816,15 +816,15 @@ public class PM_Body : MonoBehaviour
     }
 }
 
-// Follows one controller (grip pose) straight from the XR device, in the rig's tracking space.
-// If the device gives no pose, it copies whichever of the rig's left/right objects is active.
+// Follows the rig's controller object exactly as before (same position and turn as the controller),
+// but it is our own object: when the rig switches the controller object off (controller <-> hand tracking),
+// the hand does not disappear — it stays where the controller was last seen, and follows again when it is back.
 [DefaultExecutionOrder(-50)]
 public class PM_HandAnchor : MonoBehaviour
 {
-    XRNode node;
-    readonly List<Transform> sources = new List<Transform>();
+    Transform source;
 
-    public static Transform Get(Transform offset, bool left, List<Transform> rigParts)
+    public static Transform Get(Transform offset, bool left, Transform controller)
     {
         string nm = left ? "PM_HandAnchorL" : "PM_HandAnchorR";
         Transform t = offset.Find(nm);
@@ -835,10 +835,7 @@ public class PM_HandAnchor : MonoBehaviour
             go.transform.SetParent(offset, false);
             a = go.AddComponent<PM_HandAnchor>();
         }
-        a.node = left ? XRNode.LeftHand : XRNode.RightHand;
-        a.sources.Clear();
-        foreach (Transform p in rigParts)
-            if (p != null && p.name.ToLower().Contains(left ? "left" : "right")) a.sources.Add(p);
+        a.source = controller;
         a.Follow();
         return a.transform;
     }
@@ -846,23 +843,11 @@ public class PM_HandAnchor : MonoBehaviour
     void OnEnable() { Application.onBeforeRender += Follow; }
     void OnDisable() { Application.onBeforeRender -= Follow; }
     void Update() { Follow(); }
+    void LateUpdate() { Follow(); }
 
     void Follow()
     {
-        InputDevice d = InputDevices.GetDeviceAtXRNode(node);
-        Vector3 p; Quaternion r;
-        bool tracked = true;
-        if (d.isValid && d.TryGetFeatureValue(CommonUsages.isTracked, out tracked) && !tracked) { }
-        else if (d.isValid && d.TryGetFeatureValue(CommonUsages.devicePosition, out p) && d.TryGetFeatureValue(CommonUsages.deviceRotation, out r))
-        {
-            transform.localPosition = p;
-            transform.localRotation = r;
-            return;
-        }
-        // no device pose: the active rig object of this side (shortest name = the main one)
-        Transform best = null;
-        foreach (Transform s in sources)
-            if (s != null && s.gameObject.activeInHierarchy && (best == null || s.name.Length < best.name.Length)) best = s;
-        if (best != null) transform.SetPositionAndRotation(best.position, best.rotation);
+        if (source == null || !source.gameObject.activeInHierarchy) return;   // keep the last pose
+        transform.SetPositionAndRotation(source.position, source.rotation);
     }
 }

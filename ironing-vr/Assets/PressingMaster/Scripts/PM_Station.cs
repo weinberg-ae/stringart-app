@@ -97,7 +97,8 @@ public class PM_Station : MonoBehaviour
         BuildSleeve();
         BuildTools();
         // Water tank (sight glass + fill / drain) at the right side of the station.
-        Tank = PM_WaterTank.Create(PlayerPos + Right * 1.32f + Forward * 0.62f + Vector3.up * 1.36f, PlayerPos + Vector3.up * 1.6f);
+        // beside the mirror, clear of the points of light of the station
+        Tank = PM_WaterTank.Create(PlayerPos + Right * 1.0f + Forward * 0.35f + Vector3.up * 1.45f, PlayerPos + Vector3.up * 1.6f);
         targets[PM_Target.Water] = new List<Transform> { Tank.transform.GetChild(0) };
         Debug.Log("[PM] Станция готова.");
         return true;
@@ -214,7 +215,11 @@ public class PM_Station : MonoBehaviour
             Bounds b = r.bounds;
             if (b.size.x < 0.12f || b.size.y < 0.12f || b.size.z < 0.12f || b.size.magnitude > 2.2f) continue;
             if (b.max.y > BoardTopY + 0.05f) continue;    // not the tall boom / tank frame
-            r.gameObject.AddComponent<BoxCollider>();
+            // a trigger: the pointing ray goes through it (the points of light near it stay clickable),
+            // only the iron is pushed out of it (PM_Iron.KeepOutOfSolids)
+            var bc = r.gameObject.AddComponent<BoxCollider>();
+            bc.isTrigger = true;
+            r.gameObject.AddComponent<PM_Solid>();
             n++;
         }
         Debug.Log("[PM] Твёрдые части станции (утюг не проходит сквозь них): " + n);
@@ -250,6 +255,7 @@ public class PM_Station : MonoBehaviour
             if (dd > far) { far = dd; anchor = c; }
         }
         Vector3 end = ib.ClosestPoint(new Vector3(hb.center.x, hb.min.y, hb.center.z));
+        Vector3 hoseOut = (anchor - end).normalized;
         // The iron has a metal spring at the back of its handle where the hose goes in (its highest small part):
         // the hose is fixed to the top of that spring.
         Renderer coil = null;
@@ -265,11 +271,12 @@ public class PM_Station : MonoBehaviour
             back = back.sqrMagnitude > 1e-6f ? back.normalized : -Forward;
             float reach = Mathf.Abs(back.x) * cb.extents.x + Mathf.Abs(back.z) * cb.extents.z;
             end = new Vector3(cb.center.x, cb.max.y - 0.004f, cb.center.z) + back * reach * 0.7f;
+            hoseOut = (back * reach + Vector3.up * cb.size.y).normalized;   // the spring points up and back
             Debug.Log("[PM] Шланг крепится к пружине утюга: " + coil.name);
         }
         // Hide every static piece of hose that touched the iron (it would stay behind when the iron is lifted).
         foreach (Renderer r in others) { r.enabled = false; Debug.Log("[PM] Шланг модели заменён гибким: " + r.name); }
-        PM_Hose.Create(Table, anchor, Iron.transform, end);
+        PM_Hose.Create(Table, anchor, Iron.transform, end, hoseOut);
     }
 
     void BuildControls()
@@ -469,17 +476,22 @@ public class PM_Station : MonoBehaviour
 
         // Real pressing tools (meshes from tools/avatar/tools3d.py, as in the reference photos).
         // Two rows on the board; local X runs along the board.
-        Transform ham = Tool("PM_Donkey", "tool_donkey", new Color(0.98f, 0.80f, 0.85f), new Vector3(-0.40f, 0f, -0.11f), 0f);         // חמור (קבנצ'יק)
+        // Sizes as asked: the donkey twice the first model, collar board and chest pad +60%, shoulder presser 1.5x.
+        // Front row: donkey and chest pad; back row: collar board and the clapper.
+        Transform ham = Tool("PM_Donkey", "tool_donkey", new Color(0.98f, 0.80f, 0.85f), new Vector3(-0.30f, 0f, -0.06f), 0f);         // חמור (קבנצ'יק)
+        ham.localScale = Vector3.one * 2f;
         targets[PM_Target.Ham] = new List<Transform> { ham };
-        Transform pp = Tool("PM_PointPresser", "tool_collarboard", new Color(0.91f, 0.94f, 0.98f), new Vector3(0.0f, 0f, -0.11f), 0f); // צווארונים ופינות
+        Transform pp = Tool("PM_PointPresser", "tool_collarboard", new Color(0.91f, 0.94f, 0.98f), new Vector3(0.36f, 0f, 0.19f), 0f); // צווארונים ופינות
+        pp.localScale = Vector3.one * 1.6f;
         targets[PM_Target.PointPresser] = new List<Transform> { pp };
-        Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.56f, 0.73f, 0.95f), new Vector3(0.38f, 0f, -0.11f), 0f);
+        Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.56f, 0.73f, 0.95f), new Vector3(0.42f, 0f, -0.06f), 0f);
+        chestPad.localScale = Vector3.one * 1.6f;
         targets[PM_Target.ChestPad] = new List<Transform> { chestPad };
-        // the shoulder presser is a big tool (twice the size of the first model), at the end of the board
         Transform sh = Tool("PM_Shoulder", "tool_shoulder", new Color(0.42f, 0.62f, 0.93f), new Vector3(-0.50f, 0f, 0.15f), 0f);
-        sh.localScale = Vector3.one * 2f;   // on the board only in the tools lesson
+        sh.localScale = Vector3.one * 1.5f;   // stands on the floor under the board
         targets[PM_Target.Shoulder] = new List<Transform> { sh };
-        clapper = Tool("PM_Clapper", "tool_clapper", Color.white, new Vector3(0.58f, 0f, 0.02f), 90f);
+        clapper = Tool("PM_Clapper", "tool_clapper", Color.white, new Vector3(-0.32f, 0f, 0.2f), 0f);
+        clapper.localScale = Vector3.one * 1.3f;
         targets[PM_Target.Clapper] = new List<Transform> { clapper };
         clapper.gameObject.SetActive(PM_Rewards.Has(PM_Rewards.Clapper));
 
@@ -613,6 +625,7 @@ public class PM_Station : MonoBehaviour
             tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
             tools.localScale = Vector3.one;
             SwingSleeve(true);
+            ShoulderOnFloor();
             return;
         }
         if (hasShelf)
@@ -622,33 +635,36 @@ public class PM_Station : MonoBehaviour
             Vector3 along = BoardRotation * Vector3.right, across = BoardRotation * Vector3.forward;
             float len = Mathf.Abs(along.x) * shelf.size.x + Mathf.Abs(along.z) * shelf.size.z;
             float wid = Mathf.Abs(across.x) * shelf.size.x + Mathf.Abs(across.z) * shelf.size.z;
-            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.25f, (wid - 0.03f) / 0.44f), 0.45f, 0.8f);
+            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.36f, (wid - 0.03f) / 0.52f), 0.4f, 0.9f);
             tools.localScale = Vector3.one * sc;
             tools.position = new Vector3(shelf.center.x, shelf.max.y + 0.004f, shelf.center.z);
         }
         else tools.gameObject.SetActive(false);
-        // the shoulder presser: on the floor under the left part of the board
-        Transform sh = Targets(PM_Target.Shoulder).Count > 0 ? Targets(PM_Target.Shoulder)[0] : null;
-        if (sh != null)
-        {
-            sh.SetParent(toolOnBoard, false);
-            Bounds bb = BoardBounds.size.sqrMagnitude > 0f ? BoardBounds : new Bounds(BoardCenter, new Vector3(1.2f, 0.05f, 0.4f));
-            float halfLen = Mathf.Abs((BoardRotation * Vector3.right).x) * bb.extents.x + Mathf.Abs((BoardRotation * Vector3.right).z) * bb.extents.z;
-            sh.position = new Vector3(BoardCenter.x, PlayerPos.y + 0.002f, BoardCenter.z) - (BoardRotation * Vector3.right) * (halfLen - 0.30f);
-            sh.localRotation = Quaternion.identity;
-            sh.localScale = toolScale[sh];
-        }
+        ShoulderOnFloor();
         // the tool of the exercise goes up onto the board
         if (focus != PM_Target.None && Targets(focus).Count > 0)
         {
             Transform t = Targets(focus)[0];
-            Vector3 home = toolHome.ContainsKey(t) ? toolHome[t] : Vector3.zero;
             t.SetParent(toolOnBoard, false);
-            t.localPosition = new Vector3(home.x, 0f, home.z);
+            t.localPosition = new Vector3(0.12f, 0f, -0.02f);    // in the middle of the board, in front of the player
             t.localRotation = Quaternion.identity;
             t.localScale = toolScale.ContainsKey(t) ? toolScale[t] : Vector3.one;
             SwingSleeve(true);
         }
+    }
+
+    // The shoulder presser is tall: it always stands on the floor under the left part of the board.
+    void ShoulderOnFloor()
+    {
+        Transform sh = Targets(PM_Target.Shoulder).Count > 0 ? Targets(PM_Target.Shoulder)[0] : null;
+        if (sh == null || toolOnBoard == null) return;
+        sh.SetParent(toolOnBoard, false);
+        Bounds bb = BoardBounds.size.sqrMagnitude > 0f ? BoardBounds : new Bounds(BoardCenter, new Vector3(1.2f, 0.05f, 0.4f));
+        Vector3 along = BoardRotation * Vector3.right;
+        float halfLen = Mathf.Abs(along.x) * bb.extents.x + Mathf.Abs(along.z) * bb.extents.z;
+        sh.position = new Vector3(BoardCenter.x, PlayerPos.y + 0.002f, BoardCenter.z) - along * (halfLen - 0.30f);
+        sh.localRotation = Quaternion.identity;
+        sh.localScale = toolScale.ContainsKey(sh) ? toolScale[sh] : Vector3.one;
     }
 
     readonly Dictionary<Transform, Vector3> toolHome = new Dictionary<Transform, Vector3>();
@@ -884,3 +900,6 @@ public class PM_SleeveHandle : MonoBehaviour
         station.SetSleeveAngle(startAngle + Vector3.SignedAngle(startVec, cur, Vector3.up));
     }
 }
+
+// Marks a part of the station the iron must not go into (its collider is a trigger, so rays pass through).
+public class PM_Solid : MonoBehaviour { }

@@ -119,7 +119,7 @@ public class PM_Game : MonoBehaviour
             form.spinSpeed = 0f;
             FaceForm();
             gown = PM_Gown.Create(form.transform);
-            if (gown != null) gown.Wrinkle(1f);
+            if (gown != null) { gown.Wrinkle(1f); gown.gameObject.SetActive(false); }
             station.SetTarget(PM_Target.DressForm, new List<Transform> { form.transform });
         }
         BuildHotspots();
@@ -163,8 +163,8 @@ public class PM_Game : MonoBehaviour
             theory.Add(Btn(topic.label, () => StartTopic(topic)));
         }
         panel.SetButtonGrid(2, 0, 0.4f, 0.02f, false, theory.ToArray());
-        panel.SetButtonGrid(2, -1, 0.4f, -0.24f, true, Btn(PM_Content.BtnAvatar, ShowAvatarChoice), Btn(PM_Content.BtnRecenter, RecenterNow));
         ShowPracticeMain();
+        BuildWorldButtons();
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
     }
 
@@ -173,26 +173,91 @@ public class PM_Game : MonoBehaviour
     {
         practicePanel.SetContent(PM_Content.PracticeTitle, PM_Content.PracticeBody, "");
         practicePanel.SetAccent(PM_Util.Green);
-        var fabrics = new List<KeyValuePair<string, Action>>();
-        for (int i = 0; i < 4; i++) { int index = i; fabrics.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
-        practicePanel.SetButtonGrid(4, -1, 0.21f, 0.02f, false, fabrics.ToArray());
-        practicePanel.SetButtonGrid(1, 0, 0.5f, -0.10f, true, Btn(PM_Content.BtnPracticeGroup, ShowPracticeGroup));
-        practicePanel.SetButtonGrid(2, -1, 0.36f, -0.22f, true,
+        practicePanel.SetButtonGrid(1, -1, 0.62f, 0.04f, false, Btn(PM_Content.BtnPracticeFabrics, ShowPracticeFabrics));
+        practicePanel.SetButtonGrid(1, -1, 0.62f, -0.07f, true, Btn(PM_Content.BtnPracticeTools, ShowPracticeGroup));
+        practicePanel.SetButtonGrid(2, -1, 0.36f, -0.18f, true,
             Btn(PM_Content.BtnQuizTemp, () => StartQuiz(0)),
             Btn(PM_Content.BtnQuizFamily, () => StartQuiz(1)));
-        practicePanel.AddPillButton(PM_Content.BtnExamIron, StartExam, new Vector3(0f, -0.43f, -0.03f), 0.5f, 0.11f, PM_Util.Gold);
+        practicePanel.AddPillButton(PM_Content.BtnExamIron, StartExam, new Vector3(0f, -0.29f, -0.03f), 0.46f, 0.085f, PM_Util.Gold);
     }
 
-    // "תרגול מעשי": steaming on the form, polyester, collar, chest — in their own window.
+    // Ironing practice by fabric: cotton, linen, wool, silk, polyester.
+    void ShowPracticeFabrics()
+    {
+        practicePanel.SetContent(PM_Content.BtnPracticeFabrics, PM_Content.PracticeFabricsBody, "");
+        practicePanel.SetAccent(PM_Util.Green);
+        var items = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 5; i++) { int index = i; items.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
+        practicePanel.SetButtonGrid(3, -1, 0.26f, 0.04f, false, items.ToArray());
+        practicePanel.SetButtonGrid(1, -1, 0.3f, -0.3f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
+    }
+
+    // Practice with the pressing tools: collar, chest, steaming the dress on the form.
     void ShowPracticeGroup()
     {
-        practicePanel.SetContent(PM_Content.BtnPracticeGroup, PM_Content.PracticeGroupBody, "");
+        practicePanel.SetContent(PM_Content.BtnPracticeTools, PM_Content.PracticeGroupBody, "");
         practicePanel.SetAccent(PM_Util.Green);
-        int[] idx = { 7, 4, 5, 6 };
+        int[] idx = { 5, 6, 7 };
         var items = new List<KeyValuePair<string, Action>>();
         foreach (int i in idx) { int index = i; items.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
-        practicePanel.SetButtonGrid(2, -1, 0.36f, 0.04f, false, items.ToArray());
+        practicePanel.SetButtonGrid(3, -1, 0.28f, 0.04f, false, items.ToArray());
         practicePanel.SetButtonGrid(1, -1, 0.3f, -0.3f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
+    }
+
+    // "בחירת דמות" above the mirror and "מרכוז מקום" in the circle on the floor (they do not belong to the menu).
+    PM_Panel mirrorBtn;
+    GameObject floorBtn;
+    void BuildWorldButtons()
+    {
+        Vector3 head = station.PlayerPos + Vector3.up * 1.6f;
+        if (mirrorBtn == null)
+        {
+            mirrorBtn = PM_Panel.Create(null, "PM_MirrorButton", 520, 120, 40, 28, 30, false);
+            mirrorBtn.SetContent("", "", "");
+            mirrorBtn.SetAccent(PM_Util.Violet);
+            mirrorBtn.AddPillButton(PM_Content.BtnAvatar, ShowAvatarChoice, new Vector3(0f, 0f, -0.03f), 0.44f, 0.085f, PM_Util.Violet);
+            Vector3 mpos = station.PlayerPos + station.Right * 1.7f + station.Forward * 0.1f;
+            mirrorBtn.Place(mpos + Vector3.up * 2.12f, head);
+        }
+        if (floorBtn == null)
+        {
+            floorBtn = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            floorBtn.name = "PM_RecenterButton";
+            floorBtn.transform.position = station.PlayerPos + Vector3.up * 0.006f;
+            floorBtn.transform.localScale = new Vector3(0.34f, 0.004f, 0.34f);
+            var m = PM_Util.NeonMaterial(PM_Util.Cyan, 0.6f);
+            floorBtn.GetComponent<Renderer>().sharedMaterial = m;
+            var click = PM_Clickable.Add(floorBtn, RecenterNow);
+            click.onHover = h => m.SetColor("_EmissionColor", PM_Util.Cyan * (h ? 2.2f : 0.6f));
+            // label lying on the floor, readable from where the player stands
+            var lab = new GameObject("Label", typeof(RectTransform));
+            lab.transform.SetParent(null, false);
+            lab.transform.position = station.PlayerPos + Vector3.up * 0.012f + station.Forward * 0.25f;
+            lab.transform.rotation = Quaternion.LookRotation(Vector3.down, station.Forward);
+            var canvas = lab.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var rt = lab.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(400, 80);
+            rt.localScale = Vector3.one * 0.001f;
+            var t = new GameObject("Text", typeof(RectTransform)).AddComponent<TMPro.TextMeshProUGUI>();
+            t.transform.SetParent(lab.transform, false);
+            t.rectTransform.sizeDelta = new Vector2(400, 80);
+            PM_Panel.Prepare(t);
+            t.fontSize = 44; t.alignment = TMPro.TextAlignmentOptions.Center; t.color = PM_Util.Cyan; t.raycastTarget = false;
+            t.text = PM_Hebrew.VisualLine(PM_Content.BtnRecenter);
+        }
+    }
+
+    // While an info window of a point of light or a big fiber screen is open, the main windows step aside
+    // (no window shows through another one).
+    bool menuShown;
+    void UpdateCover()
+    {
+        bool cover = openHs != null && card != null && card.gameObject.activeSelf;
+        if (!cover) foreach (PM_FiberScreen f in fiberScreens) if (f != null && f.gameObject.activeSelf && f.Expanded) { cover = true; break; }
+        if (panel != null && panel.gameObject.activeSelf == cover) panel.gameObject.SetActive(!cover);
+        if (practicePanel != null && practicePanel.gameObject.activeSelf != (menuShown && !cover)) practicePanel.gameObject.SetActive(menuShown && !cover);
+        if (menuHeader != null && menuHeader.gameObject.activeSelf != (menuShown && !cover)) menuHeader.gameObject.SetActive(menuShown && !cover);
     }
 
     // Menu: main panel moves right, the practice panel and the title appear. Otherwise one panel in the middle.
@@ -206,6 +271,7 @@ public class PM_Game : MonoBehaviour
             menuHeader.SetContent(PM_Content.MenuTitle, PM_Content.MenuHeaderBody, "");
             menuHeader.SetAccent(PM_Util.Cyan);
         }
+        menuShown = menu;
         practicePanel.gameObject.SetActive(menu);
         menuHeader.gameObject.SetActive(menu);
         if (menu)
@@ -673,8 +739,15 @@ public class PM_Game : MonoBehaviour
     void ShowStationHotspots(bool station, bool fibers)
     {
         foreach (PM_Hotspot h in stationHs) if (h != null) h.gameObject.SetActive(station);
+        SetToolHotspots(false);
         foreach (PM_FiberScreen f in fiberScreens) if (f != null) { f.gameObject.SetActive(fibers); f.SetExpanded(false); }
         if (!station) CloseCard();
+    }
+
+    // The points of light of the pressing tools: only in the tools lesson (not in the menu, not in the exercises).
+    void SetToolHotspots(bool on)
+    {
+        foreach (PM_Hotspot h in toolHs) if (h != null) h.gameObject.SetActive(on);
     }
 
     void OpenCard(PM_Hotspot h)
@@ -689,7 +762,7 @@ public class PM_Game : MonoBehaviour
         card.SetAccent(h.info.accent);
         card.SetButtons(Btn(PM_Content.BtnClose, CloseCard), Btn(PM_Content.BtnRepeat, () => { if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id); }));
         Vector3 head = Camera.main != null ? Camera.main.transform.position : station.PlayerPos + Vector3.up * 1.6f;
-        card.Place(CardSlot(), head);
+        card.Place(ArcSlot(h.transform.position), head);
         if (cardLink == null)
         {
             cardLink = PM_Util.Line(null, "PM_CardLink", new[] { Vector3.zero, Vector3.zero }, PM_Util.Cyan, 0.003f, false);
@@ -699,6 +772,18 @@ public class PM_Game : MonoBehaviour
         cardHighlight.Clear();
         if (h.info.target != PM_Target.Fabric && h.parts.Count > 0) cardHighlight.Show(h.parts, h.info.accent, false);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
+    }
+
+    // Info windows of the points of light open on a half circle around the player ("half sun"),
+    // in the direction of their point, so they never pile up; the main window hides meanwhile.
+    Vector3 ArcSlot(Vector3 target)
+    {
+        Vector3 d = target - station.PlayerPos; d.y = 0f;
+        if (d.sqrMagnitude < 1e-4f) d = station.Forward;
+        float ang = Vector3.SignedAngle(station.Forward, d.normalized, Vector3.up);
+        ang = Mathf.Clamp(Mathf.Round(ang / 20f) * 20f, -60f, 60f);
+        Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * station.Forward;
+        return station.PlayerPos + dir * 1.05f + Vector3.up * 1.42f;
     }
 
     // Where info windows open: right of the main screen and a little in front of it.
@@ -733,6 +818,7 @@ public class PM_Game : MonoBehaviour
         station.ShowTools(false);
         ShowStationHotspots(false);
         RemoveFabric();
+        if (gown != null) gown.gameObject.SetActive(false);
         if (PM_Audio.I != null) PM_Audio.I.StopVoice();
     }
 
@@ -762,6 +848,7 @@ public class PM_Game : MonoBehaviour
         // In the fibers step the main window goes lower, so the fiber screens above stay visible.
         panel.Place(station.PanelPos + (s.group == PM_HotspotGroup.Fibers ? Vector3.up * 0.06f : Vector3.zero), station.PlayerPos + Vector3.up * 1.6f);
         ShowStationHotspots(stationStep, s.group == PM_HotspotGroup.Fibers);
+        SetToolHotspots(s.group == PM_HotspotGroup.Tools);
 
         if (s.target == PM_Target.Fabric)
         {
@@ -770,9 +857,12 @@ public class PM_Game : MonoBehaviour
         }
         else RemoveFabric();
         if (form != null) { form.transform.position = s.action == PM_Action.SteamOnForm ? formTask : formHome; FaceForm(); }
+        // the gown is on the form only in the steaming exercise; otherwise the form stands bare
+        if (gown != null) gown.gameObject.SetActive(s.action == PM_Action.SteamOnForm);
         if (s.action == PM_Action.SteamOnForm && gown != null) gown.Wrinkle(1f);
 
-        if (s.target != PM_Target.None && s.target != PM_Target.Fabric)
+        // (the dress form is not lit up: the glow hid the fabric)
+        if (s.target != PM_Target.None && s.target != PM_Target.Fabric && s.target != PM_Target.DressForm)
             highlight.Show(station.Targets(s.target), PM_Util.Cyan, true);
 
         panel.SetContent(s.title, s.body, (stepIndex + 1) + "/" + steps.Count);
@@ -801,7 +891,8 @@ public class PM_Game : MonoBehaviour
         fabricHs.Clear();
         if (fabric == null) return;
         List<PM_HotspotInfo> infos = PM_Content.FabricHotspots(fabric.info.type);
-        Vector3 c = fabric.transform.position + Vector3.up * 0.14f + station.Forward * 0.14f;
+        // high above the far half of the board: the iron never runs into them while ironing
+        Vector3 c = fabric.transform.position + Vector3.up * 0.42f + station.Forward * 0.12f;
         for (int i = 0; i < infos.Count; i++)
         {
             Vector3 pos = c + station.Right * (0.17f - 0.17f * i);
@@ -1013,22 +1104,26 @@ public class PM_Game : MonoBehaviour
             // A real collar (a curved band with pointed ends) lying on the collar board. It is not flat, so the
             // other hand can take it and turn / move it on the board to reach every part.
             Quaternion rot = tr.rotation;
+            float sc = tr.lossyScale.x;
             Vector3 c0 = tr.TransformPoint(new Vector3(-0.11f, 0.143f, 0f));
-            const float R = 0.11f, W = 0.07f;
+            float R = 0.11f * sc, W = 0.07f * sc;
             System.Func<float, float, Vector3> shape = (u, w) =>
             {
                 float a = Mathf.Lerp(-66f, 66f, u) * Mathf.Deg2Rad;
                 float r = R - W * 0.5f + W * w;
                 float tip = Mathf.Max(0f, Mathf.Abs(u - 0.5f) * 2f - 0.85f) / 0.15f;     // the collar points
                 a += Mathf.Sign(u - 0.5f) * tip * w * 0.18f;
-                float y = 0.003f + 0.007f * Mathf.Sin(Mathf.PI * w) + 0.004f * w;          // a soft roll along the fold line
+                float y = (0.003f + 0.007f * Mathf.Sin(Mathf.PI * w) + 0.004f * w) * sc;   // a soft roll along the fold line
                 return rot * new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
             };
-            fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.26f, W, 41);
+            fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.26f * sc, W, 41);
             PM_CollarHandle.Attach(fabric, tr);
         }
         else
-            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.022f, 0f)), station.BoardRotation, null, 43, 0.30f, 0.16f, 0.095f);
+        {
+            float sc = tr.lossyScale.x;
+            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.022f, 0f)), station.BoardRotation, null, 43, 0.30f * sc, 0.16f * sc, 0.095f * sc);
+        }
         Vector3 gpos = GarmentPos();
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
     }
@@ -1586,6 +1681,7 @@ public class PM_Game : MonoBehaviour
             if (tube.gameObject.activeSelf != showTube) tube.Show(showTube);
         }
         UpdateSpitCard(dt);
+        UpdateCover();
         switch (state)
         {
             case State.Learning: UpdateLearning(dt); break;

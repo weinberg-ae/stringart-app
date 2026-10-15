@@ -116,6 +116,9 @@ public static class PM_Content
     public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "חזה שמלה", "אידוי על בובה" };
     public const string BtnExamIron = "מבחן גיהוץ";
     public const string BtnPracticeGroup = "תרגול מעשי";
+    public const string BtnPracticeFabrics = "תרגול גיהוץ סוגי בדים";
+    public const string BtnPracticeTools = "תרגול שימוש באביזרי גיהוץ";
+    public const string PracticeFabricsBody = "בחרו בד: לכל בד טמפרטורה וקיטור משלו.";
     public const string PracticeGroupBody = "תרגילים עם כלי עזר ובגדים: בחרו תרגיל.";
     public const string BtnQuizTemp = "חידון טמפרטורות";
     public const string BtnQuizFamily = "חידון משפחות";

@@ -13,13 +13,16 @@ public class PM_Hose : MonoBehaviour
     LineRenderer core, shine;
     const int Segments = 28;
 
-    public static PM_Hose Create(Transform table, Vector3 anchorWorld, Transform iron, Vector3 ironEndWorld)
+    Vector3 ironLocalOut;   // direction the hose leaves the iron (along the spring)
+
+    public static PM_Hose Create(Transform table, Vector3 anchorWorld, Transform iron, Vector3 ironEndWorld, Vector3 outWorld)
     {
         var go = new GameObject("PM_Hose");
         go.transform.SetParent(table, false);
         var h = go.AddComponent<PM_Hose>();
         h.iron = iron;
-        h.ironLocalEnd = iron.InverseTransformPoint(ironEndWorld);   // the top of the iron's hose spring
+        h.ironLocalEnd = iron.InverseTransformPoint(ironEndWorld - outWorld.normalized * 0.01f);   // just inside the top of the spring
+        h.ironLocalOut = iron.InverseTransformDirection(outWorld.normalized);
         h.anchor = table.InverseTransformPoint(anchorWorld);
         h.length = Vector3.Distance(anchorWorld, ironEndWorld) * 1.25f + 0.35f;
         var pts = new Vector3[Segments];
@@ -44,11 +47,14 @@ public class PM_Hose : MonoBehaviour
         float d = Vector3.Distance(a, b);
         // Slack hose hangs down; a stretched hose is straight.
         float sag = d < length ? Mathf.Min(0.45f, Mathf.Sqrt(length * length - d * d) * 0.35f) : 0f;
-        Vector3 ctrl = (a + b) * 0.5f + Vector3.down * sag * 2f;
+        // Cubic curve: it leaves the iron straight along the spring, then hangs down towards the boom.
+        Vector3 outDir = iron.TransformDirection(ironLocalOut);
+        Vector3 p1 = a + (b - a) * 0.25f + Vector3.down * sag * 1.4f;
+        Vector3 p2 = b + outDir * Mathf.Clamp(d * 0.3f, 0.05f, 0.16f);
         for (int i = 0; i < Segments; i++)
         {
-            float t = i / (float)(Segments - 1);
-            Vector3 p = (1 - t) * (1 - t) * a + 2 * (1 - t) * t * ctrl + t * t * b;
+            float t = i / (float)(Segments - 1), u = 1f - t;
+            Vector3 p = u * u * u * a + 3f * u * u * t * p1 + 3f * u * t * t * p2 + t * t * t * b;
             core.SetPosition(i, p);
             shine.SetPosition(i, p + Vector3.up * 0.005f);
         }
