@@ -222,6 +222,17 @@ public class PM_Station : MonoBehaviour
             r.gameObject.AddComponent<PM_Solid>();
             n++;
         }
+        // the red iron rest pad as well (thin, so the size rule above skips it)
+        Transform rest = PM_Util.FindDeep(Table, RestPart);
+        if (rest != null)
+            foreach (MeshRenderer r in rest.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (r.GetComponent<PM_Solid>() != null) continue;
+                var bc = r.gameObject.AddComponent<BoxCollider>();
+                bc.isTrigger = true;
+                r.gameObject.AddComponent<PM_Solid>();
+                n++;
+            }
         Debug.Log("[PM] Твёрдые части станции (утюг не проходит сквозь них): " + n);
     }
 
@@ -484,8 +495,8 @@ public class PM_Station : MonoBehaviour
         Transform pp = Tool("PM_PointPresser", "tool_collarboard", new Color(0.91f, 0.94f, 0.98f), new Vector3(0.36f, 0f, 0.19f), 0f); // צווארונים ופינות
         pp.localScale = Vector3.one * 1.6f;
         targets[PM_Target.PointPresser] = new List<Transform> { pp };
-        Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.56f, 0.73f, 0.95f), new Vector3(0.42f, 0f, -0.06f), 0f);
-        chestPad.localScale = Vector3.one * 1.6f;
+        // chest / cup pad: the model is real size (as in the reference photo), not scaled
+        Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.56f, 0.73f, 0.95f), new Vector3(0.40f, 0f, -0.06f), 0f);
         targets[PM_Target.ChestPad] = new List<Transform> { chestPad };
         Transform sh = Tool("PM_Shoulder", "tool_shoulder", new Color(0.42f, 0.62f, 0.93f), new Vector3(-0.50f, 0f, 0.15f), 0f);
         sh.localScale = Vector3.one * 1.5f;   // stands on the floor under the board

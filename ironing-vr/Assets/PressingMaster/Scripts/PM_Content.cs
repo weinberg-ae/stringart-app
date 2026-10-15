@@ -113,7 +113,7 @@ public static class PM_Content
 
     // Practice: free choice of a fabric or a task; "הבא"/"הקודם" move freely between them.
     public static readonly string[] PracticeSteps = { "cotton", "linen", "wool", "silk", "polyester", "collar_task", "chest_task", "form_task" };
-    public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "חזה שמלה", "אידוי על בובה" };
+    public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "קאפ חזייה", "אידוי על בובה" };
     public const string BtnExamIron = "מבחן גיהוץ";
     public const string BtnPracticeGroup = "תרגול מעשי";
     public const string BtnPracticeFabrics = "תרגול גיהוץ סוגי בדים";
@@ -358,9 +358,9 @@ public static class PM_Content
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Cotton);
         collar.toolTask = 1;
         s.Add(collar);
-        var chest = new PM_Step("chest_task", "משימה: אזור החזה בשמלה על כרית החזה",
-            "חלק החזה של שמלת משי מונח על כרית החזה — הצורה המעוגלת שומרת על הנפח.\n" +
-            "משי: •• בלי קיטור, דרך מטלית. גהצו בתנועות קצרות לאורך הקימור.",
+        var chest = new PM_Step("chest_task", "משימה: קאפ של חזייה על גיהוצון הקאפ",
+            "קאפ תפור משמלת משי מונח על גיהוצון הקאפ — הצורה המעוגלת שומרת על הנפח שלו.\n" +
+            "משי: •• בלי קיטור, דרך מטלית. גהצו בתנועות קצרות לאורך הקימור, מהקודקוד אל השוליים.",
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Silk);
         chest.toolTask = 2;
         s.Add(chest);

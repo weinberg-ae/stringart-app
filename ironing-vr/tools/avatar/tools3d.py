@@ -20,17 +20,30 @@ def ell2(p, cx, cz, rx, rz):
     k = np.linalg.norm(q, axis=1)
     return (k - 1) * min(rx, rz)
 
-# 1. chest & cuff pad: pear shaped cushion on a thin wooden sole; the narrow end rises a little
+# 1. chest / cup pad (as the reference photo): a pear-shaped padded cushion, high and round at the big end
+#    (the bra cup sits on it), sloping to the narrow end; thin wooden top plate, a wooden post, long oval foot.
+#    Real size (it is not scaled in the game). The big-end dome is an exact ellipsoid: CUP_C, CUP_R
+#    (PM_Game puts the cup on it).
+CUP_C = (-0.10, 0.205, 0.0)
+CUP_R = (0.085, 0.105, 0.080)
 def chest_pad():
-    def outline(p):
-        return smin(ell2(p, -0.075, 0, 0.095, 0.075), ell2(p, 0.075, 0, 0.09, 0.045), 0.06)
+    def plate_outline(p):
+        return smin(ell2(p, -0.10, 0, 0.095, 0.088), ell2(p, 0.10, 0, 0.11, 0.055), 0.08)
     def pad(p):
-        x = p[:, 0]
-        rise = 0.025 * np.clip((x - 0.02) / 0.14, 0, 1) ** 2
-        q = p.copy(); q[:, 1] = q[:, 1] - rise
-        d = smin(ellipsoid(q, (-0.075, 0.018, 0), (0.10, 0.095, 0.078)), capsule(q, (-0.02, 0.018, 0), (0.15, 0.018, 0), 0.06, 0.042), 0.05)
-        return np.maximum(d, 0.02 - q[:, 1])
-    return {0: pad, 1: extrude(outline, 0.0, 0.02)}
+        y = p[:, 1]
+        big = ellipsoid(p, CUP_C, CUP_R)
+        # the tail: a long low dome towards the narrow end
+        tail = ellipsoid(p, (0.07, 0.205, 0.0), (0.16, 0.05, 0.056))
+        d = smin(big, tail, 0.06)
+        return np.maximum(d, 0.205 - y)          # flat underside on the plate
+    def wood(p):
+        plate = extrude(plate_outline, 0.19, 0.205, 0.004)(p)
+        post = roundbox(p, (-0.02, 0.105, 0), (0.035, 0.09, 0.03), 0.004)
+        post2 = roundbox(p, (0.04, 0.105, 0), (0.012, 0.09, 0.03), 0.003)
+        foot = extrude(lambda q: smin(ell2(q, -0.12, 0, 0.07, 0.06), ell2(q, 0.12, 0, 0.07, 0.06), 0.15), 0.0, 0.02, 0.005)(p)
+        foot = np.minimum(foot, roundbox(p, (0, 0.01, 0), (0.12, 0.01, 0.06), 0.005))
+        return np.minimum(np.minimum(plate, foot), np.minimum(post, post2))
+    return {0: pad, 1: wood}
 
 # 2. collar & corner board: padded board with a slot (two prongs), on a wooden cross stand that turns
 def collar_board():
@@ -98,6 +111,8 @@ def clapper():
 TOOLS = {'chestpad': chest_pad, 'collarboard': collar_board, 'donkey': donkey, 'shoulder': shoulder, 'clapper': clapper}
 
 def make(name):
+    if name == 'chestpad':
+        return build(TOOLS[name](), (-0.21, -0.005, -0.11), (0.23, 0.33, 0.11), 0.003, nsub=NS)
     return build(TOOLS[name](), (-0.2, -0.005, -0.12), (0.22, 0.26, 0.12), 0.003, nsub=NS)
 
 if __name__ == '__main__':
@@ -112,5 +127,5 @@ if __name__ == '__main__':
         print(nm, len(v))
         P = parts_for_render(m, [cols[nm], (0.86, 0.72, 0.58), (0.3, 0.3, 0.32)], {0: 0.15, 1: 0.35})
         for yaw in (35, 150):
-            ims.append(render(P, size=(360, 300), yaw=yaw, pitch=25, center=(0.01, 0.11, 0), height=0.40))
+            ims.append(render(P, size=(360, 300), yaw=yaw, pitch=25, center=(0.01, 0.15, 0), height=0.45))
     sheet(ims, os.path.join(OUT, 'tools.png'), cols=4)

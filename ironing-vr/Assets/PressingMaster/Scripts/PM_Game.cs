@@ -1121,8 +1121,26 @@ public class PM_Game : MonoBehaviour
         }
         else
         {
+            // A silk bra cup sitting on the round end of the cup pad: a dome with a vertical and a cross seam
+            // and a firm band along its edge (as in the reference photo).
             float sc = tr.lossyScale.x;
-            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.022f, 0f)), station.BoardRotation, null, 43, 0.30f * sc, 0.16f * sc, 0.095f * sc);
+            Quaternion rot = tr.rotation;
+            Vector3 c0 = tr.TransformPoint(new Vector3(-0.10f, 0.205f, 0f));   // centre of the dome of the pad (tools3d.py CUP_C)
+            Vector3 R = new Vector3(0.085f, 0.105f, 0.080f) * sc;               // its radii (CUP_R)
+            const float thMax = 76f * Mathf.Deg2Rad;
+            System.Func<float, float, Vector3> shape = (u, w) =>
+            {
+                float ph = u * Mathf.PI * 2f, th = w * thMax;
+                float sx = Mathf.Sin(th) * Mathf.Cos(ph), sy = Mathf.Cos(th), sz = Mathf.Sin(th) * Mathf.Sin(ph);
+                float off = 0.006f * sc;
+                off += 0.012f * sc * Mathf.Max(0f, Mathf.Cos(ph)) * w * w;                 // over the join with the tail
+                float seamV = Mathf.Exp(-Mathf.Pow(Mathf.Sin(ph) / 0.05f, 2f));            // seam from the top down (front/back)
+                float seamH = Mathf.Exp(-Mathf.Pow((w - 0.55f) / 0.03f, 2f));              // seam across the cup
+                off += 0.0018f * sc * (seamV + seamH);
+                off += 0.004f * sc * Mathf.Clamp01((w - 0.9f) / 0.1f);                     // the band at the edge
+                return rot * new Vector3(sx * (R.x + off), sy * (R.y + off), sz * (R.z + off));
+            };
+            fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.52f * sc, 0.15f * sc, 43);   // (around, top-to-edge: for the iron size on the cloth)
         }
         Vector3 gpos = GarmentPos();
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);

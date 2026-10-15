@@ -377,7 +377,7 @@ public class PM_Iron : MonoBehaviour
                 if (mine == null || !mine.enabled || mine.isTrigger) continue;
                 Vector3 dir; float dist;
                 if (!Physics.ComputePenetration(mine, mine.transform.position, mine.transform.rotation, o, o.transform.position, o.transform.rotation, out dir, out dist)) continue;
-                if (dir.y > 0.7f) continue;       // pushing up = lying on it: KeepAboveSurface does that smoothly
+                if (dir.y > 0.7f && !o.isTrigger) continue;   // lying on a real surface: KeepAboveSurface does that smoothly
                 Vector3 push = dir * dist;
                 transform.position += push;
                 followPos += push;
