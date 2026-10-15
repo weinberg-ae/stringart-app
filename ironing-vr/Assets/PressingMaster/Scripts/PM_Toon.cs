@@ -111,6 +111,7 @@ public static class PM_Toon
         Save();
     }
     public static bool HatHidden { get { return Hat > 0 && !HatFitsHair[Hair]; } }
+    public static bool HatAllowed { get { Load(); return HatFitsHair[Hair]; } }
     public static Color SkinColor { get { Load(); return Skins[Skin]; } }
 
     // ----- building -----

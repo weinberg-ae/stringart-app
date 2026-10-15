@@ -48,7 +48,7 @@ def collar_board():
         return np.minimum(np.minimum(legs, post), under)
     def screw(p):
         return sphere(p, (0, 0.142, 0), 0.006)
-    return {0: board, 1: stand, 2: screw}
+    return {0: board, 1: stand}   # (the screw on top looked like a dark blob)
 
 # 3. donkey (חמור / kabanchik): pink cushion on a wooden top plate, one pillar with a curved brace, oval foot
 def donkey():

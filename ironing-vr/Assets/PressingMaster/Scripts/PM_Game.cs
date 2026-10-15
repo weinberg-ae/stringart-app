@@ -64,9 +64,10 @@ public class PM_Game : MonoBehaviour
     float examTime;
     bool examFinishedFabric, examSuccess;
     const float ExamSeconds = 75f;
-    const int ExamQuestions = 4, QuestionPts = 25;
+    const int ExamQuestions = 8;   // bonus questions; together they are worth 100 points
     PM_ScoreTube tube;
-    readonly List<PM_HotspotInfo> examQuiz = new List<PM_HotspotInfo>();
+    class ExamQ { public int kind; public PM_HotspotInfo fiber; public int tool; public int[] order; }
+    readonly List<ExamQ> examQuiz = new List<ExamQ>();
     int examQuizIndex, examQuizRight;
     bool examQuizAnswered;
 
@@ -154,7 +155,7 @@ public class PM_Game : MonoBehaviour
         MenuLayout(true);
 
         panel.SetContent(PM_Content.TheoryTitle, PM_Content.TheoryBody, "");
-        panel.SetAccent(PM_Util.Cyan);
+        panel.SetAccent(PM_Util.Fuchsia);    // theory: fuchsia pink
         var theory = new List<KeyValuePair<string, Action>>();
         foreach (PM_Topic t in PM_Content.LearnTopics())
         {
@@ -163,21 +164,35 @@ public class PM_Game : MonoBehaviour
         }
         panel.SetButtonGrid(2, 0, 0.4f, 0.02f, false, theory.ToArray());
         panel.SetButtonGrid(2, -1, 0.4f, -0.24f, true, Btn(PM_Content.BtnAvatar, ShowAvatarChoice), Btn(PM_Content.BtnRecenter, RecenterNow));
+        ShowPracticeMain();
+        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
+    }
 
+    // Practice window: the fabrics, one "practical exercises" group, the quizzes and a big glowing exam button.
+    void ShowPracticeMain()
+    {
         practicePanel.SetContent(PM_Content.PracticeTitle, PM_Content.PracticeBody, "");
         practicePanel.SetAccent(PM_Util.Green);
-        var prac = new List<KeyValuePair<string, Action>>();
-        for (int i = 0; i < PM_Content.PracticeLabels.Length; i++)
-        {
-            int index = i;
-            prac.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index)));
-        }
-        practicePanel.SetButtonGrid(4, -1, 0.21f, 0.02f, false, prac.ToArray());
-        practicePanel.SetButtonGrid(3, -1, 0.29f, -0.24f, true,
-            Btn(PM_Content.BtnExamIron, StartExam),
+        var fabrics = new List<KeyValuePair<string, Action>>();
+        for (int i = 0; i < 4; i++) { int index = i; fabrics.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
+        practicePanel.SetButtonGrid(4, -1, 0.21f, 0.02f, false, fabrics.ToArray());
+        practicePanel.SetButtonGrid(1, 0, 0.5f, -0.10f, true, Btn(PM_Content.BtnPracticeGroup, ShowPracticeGroup));
+        practicePanel.SetButtonGrid(2, -1, 0.36f, -0.22f, true,
             Btn(PM_Content.BtnQuizTemp, () => StartQuiz(0)),
             Btn(PM_Content.BtnQuizFamily, () => StartQuiz(1)));
-        if (PM_Audio.I != null) PM_Audio.I.PlayVoice("menu");
+        practicePanel.AddPillButton(PM_Content.BtnExamIron, StartExam, new Vector3(0f, -0.43f, -0.03f), 0.5f, 0.11f, PM_Util.Gold);
+    }
+
+    // "תרגול מעשי": steaming on the form, polyester, collar, chest — in their own window.
+    void ShowPracticeGroup()
+    {
+        practicePanel.SetContent(PM_Content.BtnPracticeGroup, PM_Content.PracticeGroupBody, "");
+        practicePanel.SetAccent(PM_Util.Green);
+        int[] idx = { 7, 4, 5, 6 };
+        var items = new List<KeyValuePair<string, Action>>();
+        foreach (int i in idx) { int index = i; items.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
+        practicePanel.SetButtonGrid(2, -1, 0.36f, 0.04f, false, items.ToArray());
+        practicePanel.SetButtonGrid(1, -1, 0.3f, -0.3f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
     }
 
     // Menu: main panel moves right, the practice panel and the title appear. Otherwise one panel in the middle.
@@ -360,8 +375,17 @@ public class PM_Game : MonoBehaviour
                 {
                     var accs = new string[PM_Content.ToonAccs.Length];
                     for (int i = 0; i < accs.Length; i++) accs[i] = (PM_Toon.HasAcc(i) ? "• " : "") + PM_Content.ToonAccs[i];
-                    Row(Mark(PM_Content.ToonHats, PM_Toon.Hat), 0, 4, i => { PM_Toon.Hat = i; PM_Toon.Save(); });
-                    Row(Mark(PM_Content.ToonTopColors, PM_Toon.HatColor), 0, 8, i => { PM_Toon.HatColor = i; PM_Toon.Save(); });
+                    if (PM_Toon.HatAllowed)
+                    {
+                        Row(Mark(PM_Content.ToonHats, PM_Toon.Hat), 0, 4, i => { PM_Toon.Hat = i; PM_Toon.Save(); });
+                        Row(Mark(PM_Content.ToonTopColors, PM_Toon.HatColor), 0, 8, i => { PM_Toon.HatColor = i; PM_Toon.Save(); });
+                    }
+                    else
+                    {
+                        // this hairstyle does not take a hat: no hat buttons at all
+                        if (PM_Toon.Hat != 0) { PM_Toon.Hat = 0; PM_Toon.Save(); }
+                        row += 2;
+                    }
                     Row(accs, 0, 6, i => PM_Toon.ToggleAcc(i));
                     Row(Mark(PM_Content.ToonShoes, PM_Avatar.Shoes), 0, 3, i => PM_Avatar.ChooseShoes(i));
                     break;
@@ -372,10 +396,11 @@ public class PM_Game : MonoBehaviour
                 Row(Mark(PM_Content.TattooLabels, PM_Avatar.Tattoo), 0, 4, i => PM_Avatar.ChooseTattoo(i));
                 break;
         }
-        panel.SetButtonGrid(2, 1, 0.3f, tab == 2 ? -0.47f : -0.42f, true,
+        panel.SetButtonGrid(3, 2, 0.26f, tab == 2 ? -0.47f : -0.42f, true,
+            Btn(PM_Content.BtnBackToGender, ShowGenderChoice),
             Btn(PM_Content.BtnHandsOnly, () => { PM_Avatar.ChooseCharacter(-1); ShowHandsChoice(); }),
             Btn(PM_Content.BtnContinue, ShowMenu));
-        if (PM_Toon.HatHidden) panel.SetStatus(PM_Content.ToonHatHidden, new Color(1f, 0.63f, 0.25f));
+        if (tab == 3 && !PM_Toon.HatAllowed) panel.SetStatus(PM_Content.ToonNoHat, new Color(1f, 0.63f, 0.25f));
         else if (tab == 2 && PM_Toon.OnePiece) panel.SetStatus(PM_Content.ToonOnePiece, PM_Util.Cyan);
         AvatarPreview(3);
         if (remember && PM_Audio.I != null && tab == 0) PM_Audio.I.PlayVoice("avatar");
@@ -664,9 +689,7 @@ public class PM_Game : MonoBehaviour
         card.SetAccent(h.info.accent);
         card.SetButtons(Btn(PM_Content.BtnClose, CloseCard), Btn(PM_Content.BtnRepeat, () => { if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id); }));
         Vector3 head = Camera.main != null ? Camera.main.transform.position : station.PlayerPos + Vector3.up * 1.6f;
-        Vector3 pos = h.transform.position + Vector3.up * 0.32f - station.Forward * 0.18f;
-        pos.y = Mathf.Clamp(pos.y, station.PlayerPos.y + 1.1f, station.PlayerPos.y + 1.75f);
-        card.Place(pos, head);
+        card.Place(CardSlot(), head);
         if (cardLink == null)
         {
             cardLink = PM_Util.Line(null, "PM_CardLink", new[] { Vector3.zero, Vector3.zero }, PM_Util.Cyan, 0.003f, false);
@@ -676,6 +699,12 @@ public class PM_Game : MonoBehaviour
         cardHighlight.Clear();
         if (h.info.target != PM_Target.Fabric && h.parts.Count > 0) cardHighlight.Show(h.parts, h.info.accent, false);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
+    }
+
+    // Where info windows open: right of the main screen and a little in front of it.
+    Vector3 CardSlot()
+    {
+        return station.PanelPos + station.Right * 0.88f - station.Forward * 0.25f + Vector3.down * 0.04f;
     }
 
     void CloseCard()
@@ -726,12 +755,12 @@ public class PM_Game : MonoBehaviour
 
         highlight.Clear();
         station.RefreshButtons();
-        station.ShowTools(s.group == PM_HotspotGroup.Tools || s.toolTask > 0);
+        station.ShowTools(s.group == PM_HotspotGroup.Tools, s.toolTask == 1 ? PM_Target.PointPresser : s.toolTask == 2 ? PM_Target.ChestPad : PM_Target.None);
         CloseCard();
         // Only what belongs to this step is shown: fiber screens in the fibers step, points of light at the station steps.
         bool stationStep = System.Array.IndexOf(StationStepIds, s.id) >= 0;
         // In the fibers step the main window goes lower, so the fiber screens above stay visible.
-        panel.Place(station.PanelPos - (s.group == PM_HotspotGroup.Fibers ? Vector3.up * 0.38f : Vector3.zero), station.PlayerPos + Vector3.up * 1.6f);
+        panel.Place(station.PanelPos + (s.group == PM_HotspotGroup.Fibers ? Vector3.up * 0.06f : Vector3.zero), station.PlayerPos + Vector3.up * 1.6f);
         ShowStationHotspots(stationStep, s.group == PM_HotspotGroup.Fibers);
 
         if (s.target == PM_Target.Fabric)
@@ -959,12 +988,19 @@ public class PM_Game : MonoBehaviour
 
         // Garment made of this fabric, shown as a rotating exhibit left of the board (name hidden in the exam).
         PM_FabricInfo info = PM_Content.Fabric(t);
-        Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.3f + station.Forward * 0.05f;
+        Vector3 gpos = GarmentPos();
         string label = state == State.Learning ? info.garment : "?";
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, label, info.smoothness, true);
     }
 
     // Fabric lying on a pressing tool: 1 = shirt collar on the point presser, 2 = dress bodice on the ham.
+    // The floating garment of a fabric: to the right, behind the board, between the main screen and the water tank
+    // (away from the dress form on the left).
+    Vector3 GarmentPos()
+    {
+        return new Vector3(station.PlayerPos.x, station.PlayerPos.y + 0.8f, station.PlayerPos.z) + station.Right * 0.95f + station.Forward * 1.35f;
+    }
+
     void SpawnToolFabric(PM_FabricType t, int task)
     {
         RemoveFabric();
@@ -973,10 +1009,27 @@ public class PM_Game : MonoBehaviour
         if (tool.Count == 0) { SpawnFabric(t, 7); return; }
         Transform tr = tool[0];
         if (task == 1)
-            fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.142f, 0f)), station.BoardRotation, null, 41, 0.26f, 0.08f, 0.008f);
+        {
+            // A real collar (a curved band with pointed ends) lying on the collar board. It is not flat, so the
+            // other hand can take it and turn / move it on the board to reach every part.
+            Quaternion rot = tr.rotation;
+            Vector3 c0 = tr.TransformPoint(new Vector3(-0.11f, 0.143f, 0f));
+            const float R = 0.11f, W = 0.07f;
+            System.Func<float, float, Vector3> shape = (u, w) =>
+            {
+                float a = Mathf.Lerp(-66f, 66f, u) * Mathf.Deg2Rad;
+                float r = R - W * 0.5f + W * w;
+                float tip = Mathf.Max(0f, Mathf.Abs(u - 0.5f) * 2f - 0.85f) / 0.15f;     // the collar points
+                a += Mathf.Sign(u - 0.5f) * tip * w * 0.18f;
+                float y = 0.003f + 0.007f * Mathf.Sin(Mathf.PI * w) + 0.004f * w;          // a soft roll along the fold line
+                return rot * new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+            };
+            fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.26f, W, 41);
+            PM_CollarHandle.Attach(fabric, tr);
+        }
         else
             fabric = PM_Fabric.Create(info, tr.TransformPoint(new Vector3(-0.04f, 0.022f, 0f)), station.BoardRotation, null, 43, 0.30f, 0.16f, 0.095f);
-        Vector3 gpos = new Vector3(station.BoardCenter.x, station.PlayerPos.y + 0.85f, station.BoardCenter.z) - station.Right * 1.3f + station.Forward * 0.05f;
+        Vector3 gpos = GarmentPos();
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
     }
 
@@ -1012,14 +1065,22 @@ public class PM_Game : MonoBehaviour
         float best = float.MaxValue;
         foreach (RaycastHit h in Physics.RaycastAll(iron.SoleWorld - dir * 0.03f, dir, 0.25f))
             if (h.collider == gown.Collider && h.distance < best) { hit = h; best = h.distance; found = true; }
-        if (!found) return;
-        float gap = hit.distance - 0.03f;
-        if (gap < 0.006f) { panel.SetStatus(PM_Content.StFormPress, PM_Util.Yellow); iron.Buzz(0.2f, 0.05f); return; }
-        if (gap > 0.09f) { panel.SetStatus(PM_Content.StFormFar, PM_Util.Yellow); return; }
-        if (!iron.Steaming) { panel.SetStatus(PM_Content.StFormSteam, PM_Util.Yellow); return; }
+        float gap = found ? hit.distance - 0.03f : 9f;
+        if (!found || gap > 0.12f)
+        {
+            // the sole does not point at the dress: the side of the dress that faces the iron counts too
+            Vector3 axis = form.transform.position; axis.y = iron.SoleWorld.y;
+            Vector3 to = axis - iron.SoleWorld;
+            if (to.sqrMagnitude > 1e-6f)
+                foreach (RaycastHit h in Physics.RaycastAll(iron.SoleWorld - to.normalized * 0.02f, to.normalized, 0.4f))
+                    if (h.collider == gown.Collider && h.distance - 0.02f < gap) { hit = h; gap = h.distance - 0.02f; found = true; }
+        }
+        if (!found || gap > 0.12f) { Status(PM_Content.StFormFar, PM_Util.Yellow); return; }
+        if (gap < 0.006f) { Status(PM_Content.StFormPress, PM_Util.Yellow); iron.Buzz(0.2f, 0.05f); return; }
+        if (!iron.Steaming) { Status(PM_Content.StFormSteam, PM_Util.Yellow); return; }
         // the steam cloud widens with the distance
-        gown.Steam(hit.point, 0.06f + gap * 0.6f, dt);
-        panel.SetStatus(string.Format(PM_Content.StProgress, Mathf.RoundToInt(gown.Progress * 100f)), PM_Util.Cyan);
+        gown.Steam(hit.point, 0.08f + gap * 0.8f, dt);
+        Status(string.Format(PM_Content.StProgress, Mathf.RoundToInt(gown.Progress * 100f)), PM_Util.Cyan);
     }
 
     void RemoveFabric()
@@ -1031,6 +1092,17 @@ public class PM_Game : MonoBehaviour
     }
 
     // Water / limescale spat by the iron lands on the fabric under it. Returns true while spitting.
+    // The status line under the screen changes at most every half second (no flicker between two messages
+    // when the iron touches and leaves the fabric many times a second).
+    string statusText; float statusAt = -9f;
+    void Status(string text, Color c)
+    {
+        if (text == statusText && Time.time - statusAt < 3f) return;
+        if (Time.time - statusAt < 0.5f) return;
+        statusText = text; statusAt = Time.time;
+        panel.SetStatus(text, c);
+    }
+
     bool HandleSpit(float dt)
     {
         PM_Iron iron = station.Iron;
@@ -1038,8 +1110,8 @@ public class PM_Game : MonoBehaviour
         PM_WaterTank t = station.Tank;
         int reason = t != null && t.Overfilled ? 1 : !station.PressureOk ? 2 : 3;
         if (reason == 3)
-            panel.SetStatus(string.Format(PM_Content.StSpitCold, Mathf.RoundToInt(station.IronTemp), Mathf.RoundToInt(station.TargetTemp)), PM_Util.Red);
-        else panel.SetStatus(reason == 1 ? PM_Content.StSpitOverfill : PM_Content.StSpitNotReady, PM_Util.Red);
+            Status(string.Format(PM_Content.StSpitCold, Mathf.RoundToInt(station.IronTemp), Mathf.RoundToInt(station.TargetTemp)), PM_Util.Red);
+        else Status(reason == 1 ? PM_Content.StSpitOverfill : PM_Content.StSpitNotReady, PM_Util.Red);
         if (spitCardReason != reason) ShowSpitCard(reason);
         spitOk = 0f;
         return true;   // the drops themselves stain the fabric where they land (PM_Drops)
@@ -1057,7 +1129,7 @@ public class PM_Game : MonoBehaviour
         card.SetAccent(PM_Util.Red);
         card.SetButtons(Btn(PM_Content.BtnClose, () => { CloseCard(); }));
         Vector3 head = Camera.main != null ? Camera.main.transform.position : station.PlayerPos + Vector3.up * 1.6f;
-        card.Place(station.PanelPos + station.Right * 0.9f + Vector3.down * 0.05f, head);
+        card.Place(CardSlot(), head);
         if (PM_Audio.I != null) PM_Audio.I.Play("error", 0.7f);
     }
 
@@ -1070,7 +1142,7 @@ public class PM_Game : MonoBehaviour
         if (spitOk < 1.5f) return;
         spitCardReason = 0;
         if (openHs == null) CloseCard();
-        panel.SetStatus(PM_Content.StSpitFixed, PM_Util.Green);
+        Status(PM_Content.StSpitFixed, PM_Util.Green);
     }
 
     // Returns true while ironing happens this frame.
@@ -1095,15 +1167,15 @@ public class PM_Game : MonoBehaviour
         float radius = iron != null ? Mathf.Max(0.07f, iron.SoleRadius) : 0.09f;
 
         PM_FabricInfo info = fabric.info;
-        if (!station.Powered) { panel.SetStatus(PM_Content.StNeedPower, PM_Util.Red); return true; }
-        if (station.Mode == 0) { panel.SetStatus(PM_Content.StNoMode, PM_Util.Yellow); return true; }
+        if (!station.Powered) { Status(PM_Content.StNeedPower, PM_Util.Red); return true; }
+        if (station.Mode == 0) { Status(PM_Content.StNoMode, PM_Util.Yellow); return true; }
         // The real soleplate temperature counts, not only the button: a cold iron does not smooth,
         // and after switching to a lower setting the iron is still too hot for a while.
         int mode = station.EffectiveMode;
-        if (mode == 0) { panel.SetStatus(string.Format(PM_Content.StHeating, Mathf.RoundToInt(station.IronTemp)), PM_Util.Yellow); return true; }
+        if (mode == 0) { Status(string.Format(PM_Content.StHeating, Mathf.RoundToInt(station.IronTemp)), PM_Util.Yellow); return true; }
 
         // Learning: a ruined fabric must be replaced ("בד חדש").
-        if (!exam && fabric.Damage >= 0.25f) { panel.SetStatus(PM_Content.StRuined, PM_Util.Red); return true; }
+        if (!exam && fabric.Damage >= 0.25f) { Status(PM_Content.StRuined, PM_Util.Red); return true; }
 
         float rate = 1f, scorch = 0f, spots = 0f;
         string msg = null;
@@ -1170,8 +1242,7 @@ public class PM_Game : MonoBehaviour
 
         fabric.Iron(uv, radius, dt, rate, scorch, spots, mode / 3f);
         if (msg == null) { msg = string.Format(PM_Content.StProgress, Mathf.RoundToInt(fabric.Progress * 100f)); msgColor = PM_Util.Cyan; }
-        string timeText = exam ? "   " + string.Format(PM_Content.StTime, Mathf.CeilToInt(Mathf.Max(0f, examTime))) : "";
-        panel.SetStatus(msg + timeText, msgColor);
+        Status(msg, msgColor);
         return true;
     }
 
@@ -1230,8 +1301,9 @@ public class PM_Game : MonoBehaviour
     }
 
     // The most points of the whole exam: 100 for each fabric + the bonus questions.
-    int ExamMax { get { return examList.Count * 100 + ExamQuestions * QuestionPts; } }
-    int ExamSum { get { int s = 0; foreach (int p in examPoints) s += p; return s + examQuizRight * QuestionPts; } }
+    int ExamMax { get { return examList.Count * 100 + 100; } }
+    int QuizPts { get { return Mathf.RoundToInt(examQuizRight * 100f / ExamQuestions); } }
+    int ExamSum { get { int s = 0; foreach (int p in examPoints) s += p; return s + QuizPts; } }
     void UpdateTube(float possible)
     {
         if (tube != null) tube.Set(ExamSum / (float)ExamMax, possible / ExamMax);
@@ -1288,15 +1360,17 @@ public class PM_Game : MonoBehaviour
         }
         examTime -= dt;
         bool ironing = HandleSpit(dt) || ProcessIroning(dt, true);
-        if (!ironing) panel.SetStatus(string.Format(PM_Content.StTime, Mathf.CeilToInt(Mathf.Max(0f, examTime))), PM_Util.Cyan);
-        UpdateTube(55f * fabric.Progress);
+        if (!ironing) Status(PM_Content.StExamGo, PM_Util.Cyan);
+        // the time is shown in the corner of the screen, apart from the messages
+        panel.SetCounter(string.Format(PM_Content.StTime, Mathf.CeilToInt(Mathf.Max(0f, examTime))) + "   " + (examIndex + 1) + "/" + examList.Count);
+        UpdateTube(60f * fabric.Progress);
 
         PM_FabricInfo info = fabric.info;
         string n = (examIndex + 1).ToString();
         if (fabric.Damage >= 0.25f)
         {
             string why = info.type == PM_FabricType.Polyester && fabric.Damage > 0 ? PM_Content.StMelted : PM_Content.StBurned;
-            int pts = Mathf.RoundToInt(15f * fabric.Progress);
+            int pts = Mathf.RoundToInt(20f * fabric.Progress);
             examPoints.Add(pts);
             examLines.Add(string.Format(PM_Content.ExamLineBurn, n, info.name, why) + string.Format(PM_Content.ExamPts, pts));
             FinishExamFabric(why + " — " + string.Format(PM_Content.ExamTip, PM_Content.ModeLabel(info.mode)), PM_Util.Red, "error", false);
@@ -1304,15 +1378,15 @@ public class PM_Game : MonoBehaviour
         else if (fabric.Done)
         {
             examScore++;
-            // 60 for a finished fabric + up to 25 for speed + up to 15 for care (no scorch at all)
-            int pts = Mathf.Clamp(Mathf.RoundToInt(60f + 25f * Mathf.Clamp01(examTime / ExamSeconds) + 15f * (1f - Mathf.Clamp01(fabric.Damage / 0.25f))), 0, 100);
+            // 70 for a finished fabric + up to 20 for speed (full if done in the first half of the time) + up to 10 for care
+            int pts = Mathf.Clamp(Mathf.RoundToInt(70f + 20f * Mathf.Clamp01(examTime / (ExamSeconds * 0.5f)) + 10f * (1f - Mathf.Clamp01(fabric.Damage / 0.25f))), 0, 100);
             examPoints.Add(pts);
             examLines.Add(string.Format(PM_Content.ExamLineOk, n, info.name, Mathf.RoundToInt(ExamSeconds - examTime)) + string.Format(PM_Content.ExamPts, pts));
             FinishExamFabric(PM_Content.StDone + " (" + info.name + ") +" + pts, PM_Util.Green, "ding", true);
         }
         else if (examTime <= 0f)
         {
-            int pts = Mathf.RoundToInt(55f * fabric.Progress);
+            int pts = Mathf.RoundToInt(60f * fabric.Progress);
             examPoints.Add(pts);
             examLines.Add(string.Format(PM_Content.ExamLineTime, n, info.name) + string.Format(PM_Content.ExamPts, pts));
             FinishExamFabric(PM_Content.StTimeUp + " (" + info.name + ")", PM_Util.Red, "error", false);
@@ -1324,28 +1398,57 @@ public class PM_Game : MonoBehaviour
     {
         RemoveFabric();
         examQuiz.Clear();
-        examQuiz.AddRange(PM_Content.FiberHotspots());
-        for (int i = examQuiz.Count - 1; i > 0; i--)
+        var fibers = new List<PM_HotspotInfo>(PM_Content.FiberHotspots());
+        Shuffle(fibers);
+        var tools = new List<int>();
+        for (int i = 0; i < PM_Content.ToolQuestions.Length; i++) tools.Add(i);
+        Shuffle(tools);
+        // 3 temperature, 2 fiber family, 3 tools & station questions
+        int[] kinds = { 0, 2, 1, 0, 2, 1, 0, 2 };
+        int fi = 0, ti = 0;
+        foreach (int k in kinds)
         {
-            int j = UnityEngine.Random.Range(0, i + 1);
-            PM_HotspotInfo tmp = examQuiz[i]; examQuiz[i] = examQuiz[j]; examQuiz[j] = tmp;
+            var q = new ExamQ { kind = k };
+            if (k == 2) { q.tool = tools[ti++ % tools.Count]; var o = new List<int> { 0, 1, 2 }; Shuffle(o); q.order = o.ToArray(); }
+            else q.fiber = fibers[fi++ % fibers.Count];
+            examQuiz.Add(q);
         }
-        if (examQuiz.Count > ExamQuestions) examQuiz.RemoveRange(ExamQuestions, examQuiz.Count - ExamQuestions);
         examQuizIndex = 0;
         ShowExamQuestion();
+    }
+
+    static void Shuffle<T>(List<T> l)
+    {
+        for (int i = l.Count - 1; i > 0; i--) { int j = UnityEngine.Random.Range(0, i + 1); T t = l[i]; l[i] = l[j]; l[j] = t; }
+    }
+
+    string[] ExamOptions(ExamQ q)
+    {
+        if (q.kind == 0) return PM_Content.QuizTempOptions;
+        if (q.kind == 1) return PM_Content.QuizFamilyOptions;
+        string[] all = PM_Content.ToolQuestions[q.tool].options;
+        return new[] { all[q.order[0]], all[q.order[1]], all[q.order[2]] };
+    }
+
+    int ExamCorrect(ExamQ q)
+    {
+        if (q.kind == 0) return Mathf.Clamp(q.fiber.mode - 1, 0, 2);
+        if (q.kind == 1) return FamilyIndex(q.fiber.fiberGroup);
+        return System.Array.IndexOf(q.order, 0);   // option 0 of the bank is the right one
     }
 
     void ShowExamQuestion()
     {
         state = State.ExamQuiz;
         examQuizAnswered = false;
-        quizKind = examQuizIndex % 2;          // temperature, family, temperature, family
-        PM_HotspotInfo f = examQuiz[examQuizIndex];
-        panel.SetContent(string.Format(PM_Content.ExamQuizTitle, examQuizIndex + 1, QuestionPts),
-            QuizQuestion(f), (examQuizIndex + 1) + "/" + examQuiz.Count);
+        ExamQ q = examQuiz[examQuizIndex];
+        quizKind = q.kind == 2 ? 1 : q.kind;   // (the station buttons answer only temperature questions)
+        string text = q.kind == 2 ? PM_Content.ToolQuestions[q.tool].question : (q.kind == 0 ? string.Format(PM_Content.QuizTempQ, q.fiber.name) : string.Format(PM_Content.QuizFamilyQ, q.fiber.name));
+        panel.SetContent(string.Format(PM_Content.ExamQuizTitle, examQuizIndex + 1, Mathf.RoundToInt(100f / ExamQuestions)),
+            text, (examQuizIndex + 1) + "/" + examQuiz.Count);
         panel.SetAccent(PM_Util.Yellow);
-        string[] o = quizKind == 0 ? PM_Content.QuizTempOptions : PM_Content.QuizFamilyOptions;
-        panel.SetButtons(-1, Btn(o[0], () => AnswerExamQuestion(0)), Btn(o[1], () => AnswerExamQuestion(1)), Btn(o[2], () => AnswerExamQuestion(2)));
+        string[] o = ExamOptions(q);
+        panel.SetButtonGrid(1, -1, 0.75f, 0.0f, false, Btn(o[0], () => AnswerExamQuestion(0)), Btn(o[1], () => AnswerExamQuestion(1)), Btn(o[2], () => AnswerExamQuestion(2)));
         UpdateTube(0f);
     }
 
@@ -1353,13 +1456,15 @@ public class PM_Game : MonoBehaviour
     {
         if (state != State.ExamQuiz || examQuizAnswered) return;
         examQuizAnswered = true;
-        PM_HotspotInfo f = examQuiz[examQuizIndex];
-        int correct = quizKind == 0 ? Mathf.Clamp(f.mode - 1, 0, 2) : FamilyIndex(f.fiberGroup);
-        string[] o = quizKind == 0 ? PM_Content.QuizTempOptions : PM_Content.QuizFamilyOptions;
+        ExamQ q = examQuiz[examQuizIndex];
+        int correct = ExamCorrect(q);
+        string[] o = ExamOptions(q);
         bool right = choice == correct;
         if (right) examQuizRight++;
-        panel.SetStatus(right ? PM_Content.QuizRight + " +" + QuestionPts : string.Format(PM_Content.QuizWrong, o[correct]), right ? PM_Util.Green : PM_Util.Red);
+        statusAt = -9f;
+        panel.SetStatus(right ? PM_Content.QuizRight + " +" + Mathf.RoundToInt(100f / ExamQuestions) : string.Format(PM_Content.QuizWrong, o[correct]), right ? PM_Util.Green : PM_Util.Red);
         if (PM_Audio.I != null) PM_Audio.I.Play(right ? "ding" : "error", 0.7f);
+        if (right) PM_Look.ButtonPulse(panel.transform.position - panel.transform.up * 0.3f, PM_Util.Green, -panel.transform.forward);
         UpdateTube(0f);
         bool last = examQuizIndex + 1 >= examQuiz.Count;
         panel.SetButtons(0, Btn(last ? PM_Content.BtnExamResult : PM_Content.BtnNext, () =>
@@ -1383,6 +1488,7 @@ public class PM_Game : MonoBehaviour
         examFinishedFabric = true;
         examSuccess = success;
         doneTimer = 0f;
+        statusText = msg; statusAt = Time.time + 1.5f;   // keeps the result on screen
         panel.SetStatus(msg, c);
         ExamButtons();
         UpdateTube(0f);
@@ -1401,7 +1507,7 @@ public class PM_Game : MonoBehaviour
         RemoveFabric();
         int grade = ExamGrade();
         int rank = grade >= 90 ? 3 : grade >= 75 ? 2 : grade >= 55 ? 1 : 0;
-        string body = string.Join("\n", examLines.ToArray()) + "\n" + string.Format(PM_Content.ExamQuizLine, examQuizRight, ExamQuestions, examQuizRight * QuestionPts)
+        string body = string.Join("\n", examLines.ToArray()) + "\n" + string.Format(PM_Content.ExamQuizLine, examQuizRight, ExamQuestions, QuizPts)
                       + "\n\n" + string.Format(PM_Content.ExamGrade, grade) + "\n" + PM_Content.Ranks[rank];
         UpdateTube(0f);
         if (grade >= 90) body += "\n" + PM_Content.ExamRewardLine;

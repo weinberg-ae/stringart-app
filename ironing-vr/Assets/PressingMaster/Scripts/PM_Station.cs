@@ -97,7 +97,7 @@ public class PM_Station : MonoBehaviour
         BuildSleeve();
         BuildTools();
         // Water tank (sight glass + fill / drain) at the right side of the station.
-        Tank = PM_WaterTank.Create(PlayerPos + Right * 1.05f + Forward * 0.8f + Vector3.up * 1.15f, PlayerPos + Vector3.up * 1.6f);
+        Tank = PM_WaterTank.Create(PlayerPos + Right * 1.32f + Forward * 0.62f + Vector3.up * 1.36f, PlayerPos + Vector3.up * 1.6f);
         targets[PM_Target.Water] = new List<Transform> { Tank.transform.GetChild(0) };
         Debug.Log("[PM] Станция готова.");
         return true;
@@ -195,10 +195,31 @@ public class PM_Station : MonoBehaviour
         Iron.SetTipDirection(-Forward);   // at the rest the tip points to the player
         targets[PM_Target.Iron] = new List<Transform> { Iron.transform };
         BuildHose();
+        AddSolids();
     }
 
     // The model's hose is a fixed mesh that stayed behind when the iron was lifted.
     // Find it (a tall part touching the top of the iron), hide it and connect a flexible hose instead.
+    // Big closed parts of the station (the steam generator body under the iron rest etc.) get a box collider,
+    // so the iron cannot be pushed into them from the side.
+    void AddSolids()
+    {
+        int n = 0;
+        foreach (MeshRenderer r in Table.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.name.StartsWith("PM_") || r.GetComponent<Collider>() != null) continue;
+            if (Iron != null && r.transform.IsChildOf(Iron.transform)) continue;
+            string nm = r.name;
+            if (nm == BoardPart || nm == SleevePart || nm.StartsWith("Box")) continue;
+            Bounds b = r.bounds;
+            if (b.size.x < 0.12f || b.size.y < 0.12f || b.size.z < 0.12f || b.size.magnitude > 2.2f) continue;
+            if (b.max.y > BoardTopY + 0.05f) continue;    // not the tall boom / tank frame
+            r.gameObject.AddComponent<BoxCollider>();
+            n++;
+        }
+        Debug.Log("[PM] Твёрдые части станции (утюг не проходит сквозь них): " + n);
+    }
+
     void BuildHose()
     {
         Bounds ib = PM_Util.MeshBounds(Iron.transform);   // the iron itself (the steam particles are not part of it)
@@ -229,6 +250,23 @@ public class PM_Station : MonoBehaviour
             if (dd > far) { far = dd; anchor = c; }
         }
         Vector3 end = ib.ClosestPoint(new Vector3(hb.center.x, hb.min.y, hb.center.z));
+        // The iron has a metal spring at the back of its handle where the hose goes in (its highest small part):
+        // the hose is fixed to the top of that spring.
+        Renderer coil = null;
+        foreach (MeshRenderer r in Iron.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.name.StartsWith("PM_") || r.bounds.size.magnitude > 0.12f) continue;
+            if (coil == null || r.bounds.max.y > coil.bounds.max.y) coil = r;
+        }
+        if (coil != null && coil.bounds.max.y > ib.max.y - 0.02f)
+        {
+            Bounds cb = coil.bounds;
+            Vector3 back = cb.center - ib.center; back.y = 0f;
+            back = back.sqrMagnitude > 1e-6f ? back.normalized : -Forward;
+            float reach = Mathf.Abs(back.x) * cb.extents.x + Mathf.Abs(back.z) * cb.extents.z;
+            end = new Vector3(cb.center.x, cb.max.y - 0.004f, cb.center.z) + back * reach * 0.7f;
+            Debug.Log("[PM] Шланг крепится к пружине утюга: " + coil.name);
+        }
         // Hide every static piece of hose that touched the iron (it would stay behind when the iron is lifted).
         foreach (Renderer r in others) { r.enabled = false; Debug.Log("[PM] Шланг модели заменён гибким: " + r.name); }
         PM_Hose.Create(Table, anchor, Iron.transform, end);
@@ -439,7 +477,7 @@ public class PM_Station : MonoBehaviour
         targets[PM_Target.ChestPad] = new List<Transform> { chestPad };
         // the shoulder presser is a big tool (twice the size of the first model), at the end of the board
         Transform sh = Tool("PM_Shoulder", "tool_shoulder", new Color(0.42f, 0.62f, 0.93f), new Vector3(-0.50f, 0f, 0.15f), 0f);
-        sh.localScale = Vector3.one * 2f;
+        sh.localScale = Vector3.one * 2f;   // on the board only in the tools lesson
         targets[PM_Target.Shoulder] = new List<Transform> { sh };
         clapper = Tool("PM_Clapper", "tool_clapper", Color.white, new Vector3(0.58f, 0f, 0.02f), 90f);
         targets[PM_Target.Clapper] = new List<Transform> { clapper };
@@ -460,6 +498,7 @@ public class PM_Station : MonoBehaviour
         Sheet(fus, "Interfacing", new Vector3(0, 0.05f, 0), new Vector2(0.17f, 0.12f), new Color(1f, 0.85f, 0.1f, 0.5f), PM_Util.Yellow);
         Sheet(fus, "PaperTop", new Vector3(0, 0.09f, 0), new Vector2(0.22f, 0.17f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
         targets[PM_Target.Fusible] = new List<Transform> { fus };
+        foreach (Transform t in new[] { ham, pp, chestPad, sh, clapper }) { toolHome[t] = t.localPosition; toolScale[t] = t.localScale; }
 
         ShowTools(false);
     }
@@ -541,30 +580,79 @@ public class PM_Station : MonoBehaviour
     }
 
     // Tools in use stand on the board (and the sleeve board swings away to make room);
-    // otherwise they wait on the lower shelf of the station.
-    public void ShowTools(bool on)
+    // otherwise they wait on the lower shelf of the station. In a tool exercise only THAT tool is on the board.
+    // The shoulder presser is tall: when not on the board it stands on the floor under the board.
+    Transform toolOnBoard;
+    public void ShowTools(bool on) { ShowTools(on, PM_Target.None); }
+    public void ShowTools(bool on, PM_Target focus)
     {
         if (tools == null) return;
+        // everything back into the tool set first
+        foreach (PM_Target k in new[] { PM_Target.Ham, PM_Target.PointPresser, PM_Target.ChestPad, PM_Target.Shoulder, PM_Target.Clapper })
+        {
+            List<Transform> l;
+            if (!targets.TryGetValue(k, out l) || l.Count == 0 || l[0] == null) continue;
+            Transform t = l[0];
+            Vector3 home;
+            if (toolHome.TryGetValue(t, out home) && t.parent != tools)
+            {
+                t.SetParent(tools, false);
+                t.localPosition = home; t.localRotation = Quaternion.identity; t.localScale = toolScale[t];
+            }
+        }
+        if (toolOnBoard == null)
+        {
+            toolOnBoard = new GameObject("PM_ToolOnBoard").transform;
+            toolOnBoard.rotation = BoardRotation;
+        }
+        toolOnBoard.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
+        toolOnBoard.rotation = BoardRotation;
         if (on)
         {
             tools.gameObject.SetActive(true);
             tools.position = new Vector3(BoardCenter.x, BoardTopY, BoardCenter.z);
             tools.localScale = Vector3.one;
             SwingSleeve(true);
+            return;
         }
-        else if (hasShelf)
+        if (hasShelf)
         {
-            // Smaller and spread to fit inside the shelf, so nothing sticks into the station.
+            // Spread to fit inside the shelf, so nothing sticks into the station.
             tools.gameObject.SetActive(true);
             Vector3 along = BoardRotation * Vector3.right, across = BoardRotation * Vector3.forward;
             float len = Mathf.Abs(along.x) * shelf.size.x + Mathf.Abs(along.z) * shelf.size.z;
             float wid = Mathf.Abs(across.x) * shelf.size.x + Mathf.Abs(across.z) * shelf.size.z;
-            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.45f, (wid - 0.03f) / 0.52f), 0.3f, 0.72f);
+            float sc = Mathf.Clamp(Mathf.Min((len - 0.06f) / 1.25f, (wid - 0.03f) / 0.44f), 0.45f, 0.8f);
             tools.localScale = Vector3.one * sc;
             tools.position = new Vector3(shelf.center.x, shelf.max.y + 0.004f, shelf.center.z);
         }
         else tools.gameObject.SetActive(false);
+        // the shoulder presser: on the floor under the left part of the board
+        Transform sh = Targets(PM_Target.Shoulder).Count > 0 ? Targets(PM_Target.Shoulder)[0] : null;
+        if (sh != null)
+        {
+            sh.SetParent(toolOnBoard, false);
+            Bounds bb = BoardBounds.size.sqrMagnitude > 0f ? BoardBounds : new Bounds(BoardCenter, new Vector3(1.2f, 0.05f, 0.4f));
+            float halfLen = Mathf.Abs((BoardRotation * Vector3.right).x) * bb.extents.x + Mathf.Abs((BoardRotation * Vector3.right).z) * bb.extents.z;
+            sh.position = new Vector3(BoardCenter.x, PlayerPos.y + 0.002f, BoardCenter.z) - (BoardRotation * Vector3.right) * (halfLen - 0.30f);
+            sh.localRotation = Quaternion.identity;
+            sh.localScale = toolScale[sh];
+        }
+        // the tool of the exercise goes up onto the board
+        if (focus != PM_Target.None && Targets(focus).Count > 0)
+        {
+            Transform t = Targets(focus)[0];
+            Vector3 home = toolHome.ContainsKey(t) ? toolHome[t] : Vector3.zero;
+            t.SetParent(toolOnBoard, false);
+            t.localPosition = new Vector3(home.x, 0f, home.z);
+            t.localRotation = Quaternion.identity;
+            t.localScale = toolScale.ContainsKey(t) ? toolScale[t] : Vector3.one;
+            SwingSleeve(true);
+        }
     }
+
+    readonly Dictionary<Transform, Vector3> toolHome = new Dictionary<Transform, Vector3>();
+    readonly Dictionary<Transform, Vector3> toolScale = new Dictionary<Transform, Vector3>();
 
     public void SwingSleeve(bool away) { sleeveTarget = away ? sleeveSwing : 0f; }
     public float SleeveAngle { get { return sleeveAngle; } }
@@ -751,7 +839,7 @@ public class PM_Station : MonoBehaviour
         else Pressure = Mathf.MoveTowards(Pressure, 0f, Time.deltaTime * 1.5f);
         float wobble = Powered && Pressure >= WorkPressure - 0.01f ? Mathf.Sin(Time.time * 7f) * 0.04f : 0f;
         SetNeedle(Pressure + wobble);
-        float rate = fastHeat ? 30f : (TargetTemp > IronTemp ? 8f : 4f);
+        float rate = fastHeat ? 14f : (TargetTemp > IronTemp ? 8f : 4f);   // practice: quicker, but a cold iron still spits for a few seconds
         IronTemp = Mathf.MoveTowards(IronTemp, TargetTemp, Time.deltaTime * rate);
         if (Iron != null)
         {

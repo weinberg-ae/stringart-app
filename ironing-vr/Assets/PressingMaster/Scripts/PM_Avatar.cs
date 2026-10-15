@@ -176,23 +176,17 @@ public static class PM_Avatar
         Transform offset = origin.CameraFloorOffsetObject.transform;
         Transform left = null, right = null;
         trackedParts.Clear();
-        // Prefer the controller objects ("Left Controller") over hand-tracking ones ("Left Hand"):
-        // with Quest controllers the controller is what moves. Every such object is remembered: all their
-        // models are hidden (a rig can have both, e.g. after a package added hand tracking).
-        for (int pass = 0; pass < 2; pass++)
-            foreach (Transform c in offset.GetComponentsInChildren<Transform>(true))
-            {
-                if (c.parent != offset) continue;
-                string n = c.name.ToLower();
-                if (!n.Contains("controller") && !n.Contains("hand")) continue;
-                if (pass == 0) { if (!trackedParts.Contains(c)) trackedParts.Add(c); }
-                if (!c.gameObject.activeInHierarchy) continue;
-                if (pass == 0 && !n.Contains("controller")) continue;     // first look only at controllers
-                if (pass == 1 && left != null && right != null) break;
-                // "Left Controller" rather than "Left Controller Teleport Stabilized Origin": the shortest name wins.
-                if (n.Contains("left") && (left == null || (pass == 0 && c.name.Length < left.name.Length))) left = c;
-                else if (n.Contains("right") && (right == null || (pass == 0 && c.name.Length < right.name.Length))) right = c;
-            }
+        foreach (Transform c in offset.GetComponentsInChildren<Transform>(true))
+        {
+            if (c.parent != offset) continue;
+            string n = c.name.ToLower();
+            if (!n.Contains("controller") && !n.Contains("hand")) continue;
+            if (n.StartsWith("pm_")) continue;   // our own hand anchors
+            if (!trackedParts.Contains(c)) trackedParts.Add(c);
+            if (!c.gameObject.activeInHierarchy) continue;
+            if (n.Contains("left") && (left == null || c.name.Length < left.name.Length)) left = c;
+            else if (n.Contains("right") && (right == null || c.name.Length < right.name.Length)) right = c;
+        }
         if (left == null || right == null) return false;
         int handKind = IsToon ? (PM_Toon.Woman ? 1 : 0) : HandType;
         if (PM_HandData.Get(HandKey(handKind), false) == null) return true;   // no hand files: keep the controllers
@@ -205,6 +199,10 @@ public static class PM_Avatar
             humanoid = adopted;
             return true;
         }
+        // The hands are not children of the rig's controller objects (a rig may switch them on and off,
+        // e.g. controller <-> hand tracking): each hand sits on its own anchor that follows the device itself.
+        Transform anchorL = PM_HandAnchor.Get(offset, true, trackedParts), anchorR = PM_HandAnchor.Get(offset, false, trackedParts);
+        left = anchorL; right = anchorR;
         if (IsToon)
         {
             // Cartoon character: body + head under the eyes, the hands float on the controllers.
@@ -815,5 +813,56 @@ public class PM_Body : MonoBehaviour
         Vector3 elbow = sh + dir * a + pole * hh;
         Bone(arm[upper], sh, elbow, 0.048f * s);
         Bone(arm[lower], elbow, wrist, 0.038f * s);
+    }
+}
+
+// Follows one controller (grip pose) straight from the XR device, in the rig's tracking space.
+// If the device gives no pose, it copies whichever of the rig's left/right objects is active.
+[DefaultExecutionOrder(-50)]
+public class PM_HandAnchor : MonoBehaviour
+{
+    XRNode node;
+    readonly List<Transform> sources = new List<Transform>();
+
+    public static Transform Get(Transform offset, bool left, List<Transform> rigParts)
+    {
+        string nm = left ? "PM_HandAnchorL" : "PM_HandAnchorR";
+        Transform t = offset.Find(nm);
+        PM_HandAnchor a = t != null ? t.GetComponent<PM_HandAnchor>() : null;
+        if (a == null)
+        {
+            var go = new GameObject(nm);
+            go.transform.SetParent(offset, false);
+            a = go.AddComponent<PM_HandAnchor>();
+        }
+        a.node = left ? XRNode.LeftHand : XRNode.RightHand;
+        a.sources.Clear();
+        foreach (Transform p in rigParts)
+            if (p != null && p.name.ToLower().Contains(left ? "left" : "right")) a.sources.Add(p);
+        a.Follow();
+        return a.transform;
+    }
+
+    void OnEnable() { Application.onBeforeRender += Follow; }
+    void OnDisable() { Application.onBeforeRender -= Follow; }
+    void Update() { Follow(); }
+
+    void Follow()
+    {
+        InputDevice d = InputDevices.GetDeviceAtXRNode(node);
+        Vector3 p; Quaternion r;
+        bool tracked = true;
+        if (d.isValid && d.TryGetFeatureValue(CommonUsages.isTracked, out tracked) && !tracked) { }
+        else if (d.isValid && d.TryGetFeatureValue(CommonUsages.devicePosition, out p) && d.TryGetFeatureValue(CommonUsages.deviceRotation, out r))
+        {
+            transform.localPosition = p;
+            transform.localRotation = r;
+            return;
+        }
+        // no device pose: the active rig object of this side (shortest name = the main one)
+        Transform best = null;
+        foreach (Transform s in sources)
+            if (s != null && s.gameObject.activeInHierarchy && (best == null || s.name.Length < best.name.Length)) best = s;
+        if (best != null) transform.SetPositionAndRotation(best.position, best.rotation);
     }
 }

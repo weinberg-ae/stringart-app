@@ -297,6 +297,7 @@ public class PM_Iron : MonoBehaviour
         transform.rotation = followRot;
         KeepOutOfBody();
         KeepOutOfGown();
+        KeepOutOfSolids();
         KeepAboveSurface();
     }
 
@@ -354,6 +355,32 @@ public class PM_Iron : MonoBehaviour
     }
 
     public float soleExtra;   // a silicone shoe under the sole lifts the iron a little
+
+    // The iron cannot go into the station body, the water tank or a tool from the side either
+    // (the board/fabric surface is handled by KeepAboveSurface).
+    readonly Collider[] near = new Collider[24];
+    void KeepOutOfSolids()
+    {
+        if (ownColliders == null) ownColliders = GetComponentsInChildren<Collider>(true);
+        Vector3 c = transform.TransformPoint((localMin + localMax) * 0.5f);
+        Vector3 half = (localMax - localMin) * 0.5f;
+        int n = Physics.OverlapBoxNonAlloc(c, half, near, transform.rotation, ~0, QueryTriggerInteraction.Ignore);
+        for (int k = 0; k < n; k++)
+        {
+            Collider o = near[k];
+            if (o == null || !IsSurface(o) || o.GetComponent<PM_Fabric>() != null || o.GetComponent<PM_Gown>() != null) continue;
+            foreach (Collider mine in ownColliders)
+            {
+                if (mine == null || !mine.enabled || mine.isTrigger) continue;
+                Vector3 dir; float dist;
+                if (!Physics.ComputePenetration(mine, mine.transform.position, mine.transform.rotation, o, o.transform.position, o.transform.rotation, out dir, out dist)) continue;
+                if (dir.y > 0.7f) continue;       // pushing up = lying on it: KeepAboveSurface does that smoothly
+                Vector3 push = dir * dist;
+                transform.position += push;
+                followPos += push;
+            }
+        }
+    }
 
     // The iron cannot go into the gown on the dress form: pushed back out of the cloth.
     Collider[] ownColliders;
@@ -491,10 +518,10 @@ public class PM_Iron : MonoBehaviour
             if (!n.Contains("controller") && !n.Contains("hand")) continue;
             int side = n.Contains("left") ? 0 : n.Contains("right") ? 1 : -1;
             if (side < 0) continue;
-            // a controller object beats a hand-tracking one; then the shortest name
-            bool isCtrl = n.Contains("controller");
-            bool curCtrl = res[side] != null && res[side].name.ToLower().Contains("controller");
-            if (res[side] == null || (isCtrl && !curCtrl) || (isCtrl == curCtrl && c.name.Length < res[side].name.Length)) res[side] = c;
+            // the one that really has an active interactor wins (a rig may have both "Controller" and "Hand"); then the shortest name
+            bool live = c.GetComponentInChildren<XRBaseInteractor>(false) != null;
+            bool curLive = res[side] != null && res[side].GetComponentInChildren<XRBaseInteractor>(false) != null;
+            if (res[side] == null || (live && !curLive) || (live == curLive && c.name.Length < res[side].name.Length)) res[side] = c;
         }
         return res;
     }
@@ -542,7 +569,16 @@ public class PM_Iron : MonoBehaviour
             spitOn = spitting;
             if (spitting) { spit.Play(); Buzz(0.5f, 0.08f); } else spit.Stop();
         }
-        bool shouldSteam = ((Held && TriggerDown) || simulateSteam) && steamAllowed;
+        // Steam = the trigger of the hand that holds the iron, read straight from the controller
+        // (does not depend on the rig's "activate" setup).
+        bool trig = TriggerDown;
+        if (Held && holder != null)
+        {
+            var dev = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(PM_Clickable.IsLeft(holder) ? UnityEngine.XR.XRNode.LeftHand : UnityEngine.XR.XRNode.RightHand);
+            float tv;
+            if (dev.isValid && dev.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out tv) && tv > 0.55f) trig = true;
+        }
+        bool shouldSteam = ((Held && trig) || simulateSteam) && steamAllowed;
         if (shouldSteam != Steaming)
         {
             Steaming = shouldSteam;

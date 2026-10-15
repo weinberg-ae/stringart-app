@@ -89,8 +89,10 @@ public class PM_Fabric : MonoBehaviour
         {
             // Normals must point out of the garment: flip the triangles if they point inwards.
             Vector3[] nr = mesh.normals;
-            float dot = 0f;
-            for (int i = 0; i < v.Length; i++) dot += Vector3.Dot(nr[i], new Vector3(v[i].x, 0f, v[i].z));
+            float dot = 0f, up = 0f;
+            for (int i = 0; i < v.Length; i++) { dot += Vector3.Dot(nr[i], new Vector3(v[i].x, 0f, v[i].z)); up += Mathf.Abs(nr[i].y); }
+            // a piece that lies (like a collar) must face up; a garment around a body faces outwards
+            if (up > v.Length * 0.7f) { dot = 0f; for (int i = 0; i < v.Length; i++) dot += nr[i].y; }
             if (dot < 0f)
             {
                 for (int i = 0; i < tri.Length; i += 3) { int t = tri[i + 1]; tri[i + 1] = tri[i + 2]; tri[i + 2] = t; }

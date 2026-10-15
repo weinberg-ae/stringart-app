@@ -237,6 +237,8 @@ public class PM_Panel : MonoBehaviour
         body.text = PM_Hebrew.Visual(rawBody, bodyChars, PM_Util.Hex(Color.Lerp(accent, Color.white, 0.35f)));
     }
 
+    public void SetCounter(string text) { if (counter != null) counter.text = text ?? ""; }
+
     public void SetStatus(string text, Color c)
     {
         status.text = PM_Hebrew.Visual(text, 50);
@@ -279,6 +281,49 @@ public class PM_Panel : MonoBehaviour
             float y = yTop - row * 0.11f;
             buttons.Add(MakeButton(items[i].Key, items[i].Value, new Vector3(x, y, -0.03f), w, i == primary));
         }
+    }
+
+    // A big round-ended glowing button (the exam): a pill shape that pulses softly.
+    public void AddPillButton(string label, Action action, Vector3 localPos, float w, float h, Color c)
+    {
+        var root = new GameObject("Pill_" + label);
+        root.transform.SetParent(transform, false);
+        root.transform.localPosition = localPos;
+        var bc = root.AddComponent<BoxCollider>();
+        bc.size = new Vector3(w, h, 0.05f);
+        var mat = PM_Util.NeonMaterial(c, 1.2f);
+        mat.SetColor("_BaseColor", c * 0.35f);
+        var mid = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Destroy(mid.GetComponent<Collider>());
+        mid.transform.SetParent(root.transform, false);
+        mid.transform.localScale = new Vector3(w - h, h, 0.022f);
+        mid.GetComponent<Renderer>().sharedMaterial = mat;
+        for (int s = -1; s <= 1; s += 2)
+        {
+            var cap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Destroy(cap.GetComponent<Collider>());
+            cap.transform.SetParent(root.transform, false);
+            cap.transform.localPosition = new Vector3(s * (w - h) * 0.5f, 0f, 0f);
+            cap.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            cap.transform.localScale = new Vector3(h, 0.011f, h);
+            cap.GetComponent<Renderer>().sharedMaterial = mat;
+        }
+        var canvasGo = new GameObject("Label", typeof(RectTransform));
+        canvasGo.transform.SetParent(root.transform, false);
+        canvasGo.transform.localPosition = new Vector3(0, 0, -0.014f);
+        var canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        var rt = canvasGo.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(w * 1000, h * 1000);
+        rt.localScale = Vector3.one * 0.001f;
+        var t = MakeText(canvasGo.transform, "Text", 0, 6, w * 1000, h * 1000 - 10, 48, Color.white);
+        t.alignment = TextAlignmentOptions.Center;
+        t.text = PM_Hebrew.VisualLine(label);
+        var click = PM_Clickable.Add(root, action);
+        bool hover = false;
+        click.onHover = hv => hover = hv;
+        root.AddComponent<PM_PillGlow>().Setup(mat, c, () => hover);
+        buttons.Add(root);
     }
 
     GameObject MakeButton(string label, Action action, Vector3 localPos, float w, bool primary)
@@ -328,5 +373,18 @@ public class PM_Panel : MonoBehaviour
         dir.y = 0;
         if (dir.sqrMagnitude < 0.0001f) dir = Vector3.forward;
         transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up) * Quaternion.Euler(8f, 0, 0);
+    }
+}
+
+// Soft glow pulse of a special button (brighter while pointed at).
+public class PM_PillGlow : MonoBehaviour
+{
+    Material mat; Color c; System.Func<bool> hover;
+    public void Setup(Material m, Color col, System.Func<bool> h) { mat = m; c = col; hover = h; }
+    void Update()
+    {
+        if (mat == null) return;
+        float k = (hover != null && hover()) ? 3f : 1.1f + 0.6f * (0.5f + 0.5f * Mathf.Sin(Time.time * 3f));
+        mat.SetColor("_EmissionColor", c * k);
     }
 }

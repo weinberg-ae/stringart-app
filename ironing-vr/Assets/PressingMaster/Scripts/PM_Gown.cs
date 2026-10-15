@@ -142,7 +142,7 @@ public class PM_Gown : MonoBehaviour
                         float d2 = (basePos[i] - p).sqrMagnitude;
                         if (d2 > r2) continue;
                         float k = 1f - d2 / r2;
-                        amount[i] = Mathf.Max(0f, amount[i] - dt * 1.6f * k);
+                        amount[i] = Mathf.Max(0f, amount[i] - dt * 2.2f * k);
                         any = true;
                     }
                 }

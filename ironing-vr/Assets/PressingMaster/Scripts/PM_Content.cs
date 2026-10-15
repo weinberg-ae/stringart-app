@@ -115,6 +115,8 @@ public static class PM_Content
     public static readonly string[] PracticeSteps = { "cotton", "linen", "wool", "silk", "polyester", "collar_task", "chest_task", "form_task" };
     public static readonly string[] PracticeLabels = { "כותנה", "פשתן", "צמר", "משי", "פוליאסטר", "צווארון", "חזה שמלה", "אידוי על בובה" };
     public const string BtnExamIron = "מבחן גיהוץ";
+    public const string BtnPracticeGroup = "תרגול מעשי";
+    public const string PracticeGroupBody = "תרגילים עם כלי עזר ובגדים: בחרו תרגיל.";
     public const string BtnQuizTemp = "חידון טמפרטורות";
     public const string BtnQuizFamily = "חידון משפחות";
 
@@ -155,6 +157,8 @@ public static class PM_Content
     public static readonly string[] ToonSkins = { "בהיר מאוד", "בהיר", "שזוף", "חום", "כהה", "כהה מאוד" };
     public static readonly string[] ToonEyes = { "עיניים כחולות", "ירוקות", "חומות", "דבש", "סגולות" };
     public static readonly string[] ToonBodies = { "אישה", "גבר" };
+    public const string BtnBackToGender = "חזרה לבחירה";
+    public const string ToonNoHat = "התסרוקת הזאת בלי כובע — לכובע בחרו תסרוקת אחרת.";
     public const string ToonHatHidden = "הכובע לא עולה על התסרוקת הזאת — בחרו תסרוקת אחרת.";
     public const string StyleTitle = "בחרו לוק";
     public const string StyleBody = "שורה 1 — בגדים · שורה 2 — צבע עור · שורה 3 — שיער · שורה 4 — קעקוע על האמה.\nבמשקפת — הציצו במראה שליד העמדה!";
@@ -259,6 +263,7 @@ public static class PM_Content
     public const string StGrabbed = "המגהץ ביד.";
     public const string StSteamAir = "פליטת קיטור: {0}%";
     public const string StTime = "זמן: {0} שניות";
+    public const string StExamGo = "זהו את הבד, בחרו טמפרטורה וגהצו.";
     public const string StExplored = "נקודות שנלמדו: {0}/{1}";
     public const string StAllExplored = "כל הנקודות נלמדו — מצוין!";
     public const string StFibersBasic = "חמשת הסיבים הבסיסיים נלמדו — אפשר להמשיך. סיבים שנלמדו: {0}/{1}";
@@ -344,7 +349,8 @@ public static class PM_Content
 
         var collar = new PM_Step("collar_task", "משימה: צווארון על מגהצון פינות",
             "צווארון של חולצת כותנה מונח על מגהצון הפינות.\n" +
-            "בחרו ••• והפעילו קיטור. גהצו מהקצוות פנימה, כדי שלא ייווצרו קפלים בפינות הצווארון.",
+            "בחרו ••• והפעילו קיטור. גהצו מהקצוות פנימה, כדי שלא ייווצרו קפלים בפינות הצווארון.\n" +
+            "ביד השנייה (Grip) אפשר לתפוס את הצווארון, לסובב ולהזיז אותו על המגהצון.",
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Cotton);
         collar.toolTask = 1;
         s.Add(collar);
@@ -655,7 +661,7 @@ public static class PM_Content
         "תקבלו 3 בדים בלי שם. לכל בד — 75 שניות.\n" +
         "זהו את הבד לפי המראה ותוצאת מבחן השריפה, בחרו טמפרטורה, החליטו על קיטור — וגהצו.\n" +
         "בד מושלם — ממשיכים לבד. אחרי טעות — לחצו \"למשימה הבאה\".\n" +
-        "בסוף: 4 שאלות בונוס. המבחנה ליד המסך מתמלאת בנקודות.\n" +
+        "בסוף: 8 שאלות בונוס. המבחנה ליד המסך מתמלאת בנקודות.\n" +
         "ציון 90 ומעלה — פרס: פריט גיהוץ חדש!";
     public const string ExamFabricTitle = "בד מספר {0}";
     public const string ExamFabricBody = "מראה: {0}\nמבחן שריפה: {1}\nבחרו טמפרטורה וקיטור — וגהצו.";
@@ -670,6 +676,21 @@ public static class PM_Content
     public const string ExamQuizTitle = "שאלת בונוס {0} · {1} נק'";
     public const string ExamQuizLine = "שאלות בונוס: {0} מתוך {1} · {2} נק'";
     public const string BtnNextTask = "למשימה הבאה";
+    // Bonus questions about the tools and the station: options[0] is the right answer (shown in a random order).
+    public class ToolQ { public string question; public string[] options; }
+    public static readonly ToolQ[] ToolQuestions =
+    {
+        new ToolQ { question = "על מה מגהצים את אזור החזה של מעיל או שמלה מחויטת?", options = new[] { "כרית חזה וחפתים", "שרוולון", "קרש הגיהוץ השטוח" } },
+        new ToolQ { question = "במה מגהצים צווארון ופינות צרות?", options = new[] { "גיהוצון צווארונים ופינות", "חמור (קבנצ'יק)", "קלאפר עץ" } },
+        new ToolQ { question = "מה עושה קלאפר העץ?", options = new[] { "לוחץ על הבד אחרי הקיטור, משטיח ומייבש", "מחמם את המגהץ", "מנקה אבנית מהמגהץ" } },
+        new ToolQ { question = "מתי מותר ללחוץ על הקיטור?", options = new[] { "כשהמגהץ חם והלחץ בדוד מוכן", "מיד אחרי שמדליקים את העמדה", "רק כשהמיכל מעל MAX" } },
+        new ToolQ { question = "מה הם הכתמים החומים שהמגהץ משאיר?", options = new[] { "אבנית מטיפות מים של מגהץ לא מוכן", "צבע שיוצא מהבד", "שריפה מלחץ גבוה מדי" } },
+        new ToolQ { question = "על מה מגהצים את הכתפיים של ז'קט?", options = new[] { "גיהוצון כתפיים", "קרש הגיהוץ השטוח", "כרית חזה" } },
+        new ToolQ { question = "למה שמים מטלית גיהוץ על הבד?", options = new[] { "מגינה על בד עדין מברק ומשריפה", "מחממת את הבד מהר יותר", "מוסיפה מים לקיטור" } },
+        new ToolQ { question = "עד איזה קו ממלאים את מיכל המים?", options = new[] { "בין MIN ל-MAX", "מעל MAX", "מתחת ל-MIN" } },
+        new ToolQ { question = "איך מגהצים בד כדי שלא יישרף?", options = new[] { "מזיזים את המגהץ כל הזמן", "משאירים את המגהץ במקום אחד", "לוחצים חזק במקום אחד" } },
+        new ToolQ { question = "איך מגהצים שמלה על בובת תפירה?", options = new[] { "קיטור מ-1 עד 8 ס\"מ, בלי לגעת בבד", "לוחצים את המגהץ על הבד", "בלי קיטור בכלל" } },
+    };
     public const string BtnExamResult = "לציון";
     public const string ExamGrade = "ציון סופי: {0}";
     public const string ExamRewardLine = "ציון 90 ומעלה — מגיע לכם פריט גיהוץ חדש!";

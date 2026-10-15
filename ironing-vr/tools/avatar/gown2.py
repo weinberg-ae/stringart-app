@@ -149,6 +149,7 @@ def normals(v, f):
 
 # ---------------- flutter sleeves
 SH_Y = 1.400
+NO_SLEEVES = True
 def sleeve(sign):
     # attach at the form's arm cap
     a0 = np.array([sign * 0.150, SH_Y + 0.010, ZC + 0.005])
@@ -251,7 +252,7 @@ def build():
     w3 = np.zeros(len(v3)); w3[:NT * NY] = 1.0
     parts.append((v3, fo, 0, w3)); parts.append((v3, fi, 1, w3 * 0))
     # sleeves
-    for sg in (-1, 1):
+    for sg in (() if NO_SLEEVES else (-1, 1)):   # sleeveless (the flutter sleeves looked odd on the form)
         S = sleeve(sg)
         v4, fo4, fi4 = cloth(S, True, 0.003)
         w4 = np.zeros(len(v4)); w4[:S.shape[0] * S.shape[1]] = 1.0
