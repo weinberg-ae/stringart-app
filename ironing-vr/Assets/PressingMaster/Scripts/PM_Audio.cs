@@ -14,7 +14,7 @@ public class PM_Audio : MonoBehaviour
     readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
     readonly float[] samples = new float[256];
     public float VoiceLevel { get; private set; }   // 0..1, loudness of the narrator right now
-    const float MusicVol = 0.3f;
+    const float MusicVol = 0.12f;   // quiet background (0.3 was too loud)
     AudioSource sewing;
     float nextSew = 12f;
 
