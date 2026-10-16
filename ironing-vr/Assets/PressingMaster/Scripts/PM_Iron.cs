@@ -456,6 +456,7 @@ public class PM_Iron : MonoBehaviour
         var m = new Material(PM_Util.LitShader());
         m.SetTexture("_BaseMap", ShoeTexture()); m.SetTexture("_MainTex", ShoeTexture());
         m.SetColor("_BaseColor", Color.white); m.SetFloat("_Smoothness", 0.45f);
+        m.SetFloat("_Cull", 0f); m.doubleSidedGI = true;   // the rim is seen from both sides
         go.AddComponent<MeshRenderer>().sharedMaterial = m;
         soleExtra = 0.007f;
         return go;
@@ -499,8 +500,9 @@ public class PM_Iron : MonoBehaviour
         for (int i = 0; i < N; i++)
         {
             int a0 = b0 + i * 2, a1 = a0 + 1, c0 = b0 + ((i + 1) % N) * 2, c1 = c0 + 1;
+            // one side only (the material is double-sided): the same triangles twice with opposite turns made the
+            // rim's normals cancel to zero -> broken pixels that the glow blew up into a big white disc
             tri.Add(a0); tri.Add(a1); tri.Add(c0); tri.Add(c0); tri.Add(a1); tri.Add(c1);
-            tri.Add(a0); tri.Add(c0); tri.Add(a1); tri.Add(c0); tri.Add(c1); tri.Add(a1);   // both sides
         }
         var m = new Mesh { name = "PM_SiliconeShoe" };
         m.vertices = v.ToArray(); m.uv = uv.ToArray(); m.SetTriangles(tri.ToArray(), 0);
