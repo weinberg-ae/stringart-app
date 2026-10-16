@@ -333,7 +333,10 @@ public class PM_ToonBody : MonoBehaviour
         if (cam == null) { cam = Camera.main != null ? Camera.main.transform : null; if (cam == null) return; }
         float floorY = origin != null ? origin.position.y : cam.position.y - 1.6f;
         eyeReal = Mathf.Max(eyeReal, Mathf.Clamp(cam.position.y - floorY, 1.0f, 1.95f));
-        float s = eyeReal / PM_Toon.EyeHeight;
+        // Bending over the board lowers the eyes: the body gets a little shorter (feet stay on the floor, the
+        // eyes stay at the camera) instead of sinking under the floor or standing up through the camera.
+        float sStand = eyeReal / PM_Toon.EyeHeight;
+        float s = Mathf.Clamp((cam.position.y - floorY) / PM_Toon.EyeHeight, sStand * 0.6f, sStand);
         Vector3 f = cam.forward; f.y = 0;
         if (f.sqrMagnitude > 0.001f)
         {
@@ -347,9 +350,9 @@ public class PM_ToonBody : MonoBehaviour
         // Looking ahead (the mirror) the body stands right under the eyes, so arms held down hang straight;
         // looking down at the board it slides a little back, so the chest does not hide the board.
         float down = Mathf.Clamp01((-cam.forward.y - 0.25f) / 0.45f);
-        back = Mathf.MoveTowards(back, Mathf.Lerp(0.06f, 0.17f, down), Time.deltaTime * 0.4f);
+        back = Mathf.MoveTowards(back, Mathf.Lerp(0.06f, 0.17f, down), Time.deltaTime * 1.5f);   // quick: never a look into the collar
         figure.position = cam.position - Vector3.up * PM_Toon.EyeHeight * s - rot * new Vector3(0, 0, back * s);
-        // the feet never go under the floor (bending over the board lowers the eyes, not the floor)
+        // (deep crouch, below the limit above: the feet never go under the floor)
         if (figure.position.y < floorY) figure.position = new Vector3(figure.position.x, floorY, figure.position.z);
         // The head (seen in the mirror) turns and nods with the real head, around the neck base;
         // its eyes stay at the camera.
@@ -363,8 +366,22 @@ public class PM_ToonBody : MonoBehaviour
         Vector3 shL = figure.TransformPoint(new Vector3(-sx, 1.325f * PM_Toon.BodyY - 0.012f, -0.01f));
         Vector3 shR = figure.TransformPoint(new Vector3(sx, 1.325f * PM_Toon.BodyY - 0.012f, -0.01f));
         Vector3 right = rot * Vector3.right, fwd = rot * Vector3.forward;
-        if (armL != null) armL.Pose(shL, lh != null && lh.isActiveAndEnabled ? lh.Wrist : null, -right, fwd, s);
-        if (armR != null) armR.Pose(shR, rh != null && rh.isActiveAndEnabled ? rh.Wrist : null, right, fwd, s);
+        if (armL != null) armL.Pose(shL, ArmWrist(shL, lh, s), -right, fwd, s);
+        if (armR != null) armR.Pose(shR, ArmWrist(shR, rh, s), right, fwd, s);
+    }
+
+    // The arm is drawn only when it makes sense: the hand within reach of the shoulder (a controller put down
+    // far away or lost by the tracking would stretch the sleeve across the whole view) and the arm not
+    // passing right through the eyes (that showed the inside of the sleeve as green shards).
+    Transform ArmWrist(Vector3 shoulder, PM_Hand hand, float s)
+    {
+        if (hand == null || !hand.isActiveAndEnabled || hand.Wrist == null) return null;
+        Vector3 w = hand.Wrist.position;
+        if (Vector3.Distance(shoulder, w) > 0.5f * s * 1.6f) return null;
+        Vector3 ab = w - shoulder;
+        float t = Mathf.Clamp01(Vector3.Dot(cam.position - shoulder, ab) / Mathf.Max(1e-6f, ab.sqrMagnitude));
+        if (Vector3.Distance(cam.position, shoulder + ab * t) < 0.12f) return null;
+        return hand.Wrist;
     }
 }
 

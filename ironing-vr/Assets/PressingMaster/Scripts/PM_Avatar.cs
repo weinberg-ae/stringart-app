@@ -781,7 +781,8 @@ public class PM_Body : MonoBehaviour
         float floorY = origin != null ? origin.position.y : head.position.y - 1.6f;
         // Standing eye height = the highest seen (crouching does not shrink the body).
         eyeReal = Mathf.Max(eyeReal, Mathf.Clamp(head.position.y - floorY, 1.0f, 1.95f));
-        float s = eyeReal / Mathf.Max(0.5f, eyeModel);
+        float sStand = eyeReal / Mathf.Max(0.5f, eyeModel);
+        float s = Mathf.Clamp((head.position.y - floorY) / Mathf.Max(0.5f, eyeModel), sStand * 0.6f, sStand);   // bending: a bit shorter, feet on the floor
 
         // The body turns after the head (with a delay), not with every glance.
         Vector3 f = head.forward; f.y = 0;

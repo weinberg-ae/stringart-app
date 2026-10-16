@@ -181,7 +181,8 @@ public class PM_Humanoid : MonoBehaviour
         SyncHeadCopies();
         float floorY = origin != null ? origin.position.y : cam.position.y - 1.6f;
         eyeReal = Mathf.Max(eyeReal, Mathf.Clamp(cam.position.y - floorY, 1.0f, 1.95f));
-        float sc = eyeReal / eyeModel;
+        float scStand = eyeReal / eyeModel;
+        float sc = Mathf.Clamp((cam.position.y - floorY) / eyeModel, scStand * 0.6f, scStand);   // bending: a bit shorter, feet on the floor
         Vector3 f = cam.forward; f.y = 0;
         if (f.sqrMagnitude > 0.001f)
         {
