@@ -349,6 +349,8 @@ public class PM_ToonBody : MonoBehaviour
         float down = Mathf.Clamp01((-cam.forward.y - 0.25f) / 0.45f);
         back = Mathf.MoveTowards(back, Mathf.Lerp(0.06f, 0.17f, down), Time.deltaTime * 0.4f);
         figure.position = cam.position - Vector3.up * PM_Toon.EyeHeight * s - rot * new Vector3(0, 0, back * s);
+        // the feet never go under the floor (bending over the board lowers the eyes, not the floor)
+        if (figure.position.y < floorY) figure.position = new Vector3(figure.position.x, floorY, figure.position.z);
         // The head (seen in the mirror) turns and nods with the real head, around the neck base;
         // its eyes stay at the camera.
         Quaternion look = Quaternion.Inverse(rot) * cam.rotation;

@@ -193,6 +193,7 @@ public class PM_Humanoid : MonoBehaviour
         root.localScale = Vector3.one * sc;
         root.rotation = rot;
         root.position = cam.position - rot * (eyeLocal * sc) - rot * Vector3.forward * 0.06f;
+        if (root.position.y < floorY) root.position = new Vector3(root.position.x, floorY, root.position.z);   // feet on the floor
 
         for (int s = 0; s < 2; s++)
         {
