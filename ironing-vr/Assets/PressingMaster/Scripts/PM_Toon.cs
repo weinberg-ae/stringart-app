@@ -288,7 +288,7 @@ public static class PM_Toon
 public class PM_ToonBody : MonoBehaviour
 {
     Transform cam, origin, figure, headGroup;
-    float yaw, eyeReal = 1.0f, scale = 1f;
+    float yaw, eyeReal = 1.0f, scale = 1f, back = 0.17f;
     PM_Hand lh, rh;
     PM_ToonArm armL, armR;
     static PM_ToonBody instance;
@@ -344,8 +344,10 @@ public class PM_ToonBody : MonoBehaviour
         Quaternion rot = Quaternion.Euler(0, yaw, 0);
         figure.localScale = Vector3.one * s;
         figure.rotation = rot;
-        // The body stands a bit behind the eyes, so looking down at the board the chest does not hide it.
-        const float back = 0.17f;
+        // Looking ahead (the mirror) the body stands right under the eyes, so arms held down hang straight;
+        // looking down at the board it slides a little back, so the chest does not hide the board.
+        float down = Mathf.Clamp01((-cam.forward.y - 0.25f) / 0.45f);
+        back = Mathf.MoveTowards(back, Mathf.Lerp(0.06f, 0.17f, down), Time.deltaTime * 0.4f);
         figure.position = cam.position - Vector3.up * PM_Toon.EyeHeight * s - rot * new Vector3(0, 0, back * s);
         // The head (seen in the mirror) turns and nods with the real head, around the neck base;
         // its eyes stay at the camera.

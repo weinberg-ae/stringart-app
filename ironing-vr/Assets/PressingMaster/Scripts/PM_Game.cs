@@ -205,7 +205,21 @@ public class PM_Game : MonoBehaviour
     }
 
     // "בחירת דמות" above the mirror and "מרכוז מקום" in the circle on the floor (they do not belong to the menu).
-    PM_Panel mirrorBtn;
+    PM_Panel mirrorBtn, resetBtn;
+    float resetArmed = -10f;
+
+    void ResetRewards()
+    {
+        if (Time.time - resetArmed > 5f)
+        {
+            resetArmed = Time.time;
+            panel.SetStatus(PM_Content.StResetConfirm, PM_Util.Yellow);
+            return;
+        }
+        resetArmed = -10f;
+        PM_Rewards.ResetAll(station);
+        panel.SetStatus(PM_Content.StResetDone, PM_Util.Green);
+    }
     GameObject floorBtn;
     void BuildWorldButtons()
     {
@@ -218,6 +232,14 @@ public class PM_Game : MonoBehaviour
             mirrorBtn.AddPillButton(PM_Content.BtnAvatar, ShowAvatarChoice, new Vector3(0f, 0f, -0.03f), 0.44f, 0.085f, PM_Util.Violet);
             Vector3 mpos = station.PlayerPos + station.Right * 1.7f + station.Forward * 0.1f;
             mirrorBtn.Place(mpos + Vector3.up * 2.12f, head);
+            // beside it: reset the achievements (asks for a second press)
+            resetBtn = PM_Panel.Create(null, "PM_ResetButton", 420, 120, 40, 28, 30, false);
+            resetBtn.SetContent("", "", "");
+            resetBtn.SetAccent(PM_Util.Violet);
+            resetBtn.AddPillButton(PM_Content.BtnResetRewards, ResetRewards, new Vector3(0f, 0f, -0.03f), 0.34f, 0.075f, PM_Util.Violet);
+            Vector3 toHead = head - mpos; toHead.y = 0f;
+            Vector3 side = Vector3.Cross(Vector3.up, toHead.sqrMagnitude > 1e-4f ? toHead.normalized : -station.Forward);
+            resetBtn.Place(mpos + Vector3.up * 2.12f + side * 0.48f, head);
         }
         if (floorBtn == null)
         {
@@ -781,7 +803,7 @@ public class PM_Game : MonoBehaviour
         Vector3 d = target - station.PlayerPos; d.y = 0f;
         if (d.sqrMagnitude < 1e-4f) d = station.Forward;
         float ang = Vector3.SignedAngle(station.Forward, d.normalized, Vector3.up);
-        ang = Mathf.Clamp(Mathf.Round(ang / 20f) * 20f, -60f, 40f);   // not further right: the water tank window is there
+        ang = Mathf.Clamp(Mathf.Round(ang / 20f) * 20f, -60f, -20f);   // left of the iron's water hose and the water tank window (right side)
         Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * station.Forward;
         return station.PlayerPos + dir * 1.05f + Vector3.up * 1.42f;
     }

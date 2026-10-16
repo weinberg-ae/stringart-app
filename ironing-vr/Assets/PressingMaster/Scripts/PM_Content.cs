@@ -97,6 +97,9 @@ public static class PM_Content
     public const string PracticeTitle = "תרגול ומבחן";
     public const string PracticeBody = "תרגול: בחרו בד או משימה, ועברו ביניהם בחופשיות. מבחן: בלי עזרה, עם ציון.";
     public const string BtnAvatar = "בחירת דמות";
+    public const string BtnResetRewards = "איפוס הישגים";
+    public const string StResetConfirm = "ללחוץ שוב על «איפוס הישגים» כדי לאשר (כל הפרסים יימחקו).";
+    public const string StResetDone = "ההישגים אופסו. פרסים חדשים — רק אחרי ציון 90 ומעלה במבחן.";
     public const string BtnRecenter = "מרכוז מקום";
     public const string BtnFinish = "סיום";
 
@@ -358,8 +361,8 @@ public static class PM_Content
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Cotton);
         collar.toolTask = 1;
         s.Add(collar);
-        var chest = new PM_Step("chest_task", "משימה: קאפ של חזייה על גיהוצון הקאפ",
-            "קאפ תפור משמלת משי מונח על גיהוצון הקאפ — הצורה המעוגלת שומרת על הנפח שלו.\n" +
+        var chest = new PM_Step("chest_task", "משימה: קאפ של שמלת משי",
+            "קאפ החזייה של שמלת משי מונח על גיהוצון הקאפ — הצורה המעוגלת שומרת על הנפח שלו.\n" +
             "משי: •• בלי קיטור, דרך מטלית. גהצו בתנועות קצרות לאורך הקימור, מהקודקוד אל השוליים.",
             PM_Target.Fabric, PM_Action.IronFabric, PM_FabricType.Silk);
         chest.toolTask = 2;

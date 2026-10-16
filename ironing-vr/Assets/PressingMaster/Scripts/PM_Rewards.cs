@@ -36,6 +36,20 @@ public static class PM_Rewards
         }
     }
 
+    // Back to no rewards (the reset button by the mirror): forget them and take their items out of the scene.
+    public static void ResetAll(PM_Station station)
+    {
+        PlayerPrefs.DeleteKey("PM_Rewards");
+        PlayerPrefs.Save();
+        if (shoe != null) { Object.Destroy(shoe); shoe = null; }
+        if (line != null) { Object.Destroy(line); line = null; }
+        if (station != null)
+        {
+            station.ShowClapper(false);
+            if (station.Iron != null) station.Iron.soleExtra = 0f;
+        }
+    }
+
     // Automatic filling: keeps the tank between MIN and MAX.
     public static void Tick(PM_Station station, float dt)
     {
