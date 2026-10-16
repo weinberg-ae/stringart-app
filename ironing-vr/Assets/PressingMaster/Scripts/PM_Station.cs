@@ -493,7 +493,7 @@ public class PM_Station : MonoBehaviour
         ham.localScale = Vector3.one * 2f;
         targets[PM_Target.Ham] = new List<Transform> { ham };
         Transform pp = Tool("PM_PointPresser", "tool_collarboard", new Color(0.91f, 0.94f, 0.98f), new Vector3(0.36f, 0f, 0.19f), 0f); // צווארונים ופינות
-        pp.localScale = Vector3.one * 1.6f;
+        pp.localScale = Vector3.one * 1.12f;   // 30% smaller than before (was 1.6)
         targets[PM_Target.PointPresser] = new List<Transform> { pp };
         // chest / cup pad: the model is real size (as in the reference photo), not scaled; pink as in the photo
         Transform chestPad = Tool("PM_ChestPad", "tool_chestpad", new Color(0.97f, 0.80f, 0.84f), new Vector3(0.40f, 0f, -0.06f), 0f);
@@ -513,15 +513,15 @@ public class PM_Station : MonoBehaviour
         Sheet(cloth, "Cloth", new Vector3(0, 0.006f, 0), new Vector2(0.26f, 0.17f), new Color(1f, 1f, 1f, 0.35f), Color.white);
         targets[PM_Target.Cloth] = new List<Transform> { cloth };
 
-        // Fusible: baking paper above and below the fusible interfacing (exploded view).
+        // Fusible: the interfacing between two layers of fabric (exploded view); it can also go on one layer.
         var fus = new GameObject("PM_Fusible").transform;
         fus.SetParent(tools, false);
         fus.localPosition = new Vector3(0.28f, 0, 0.13f);
-        Sheet(fus, "PaperBottom", new Vector3(0, 0.01f, 0), new Vector2(0.22f, 0.17f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
+        Sheet(fus, "FabricBottom", new Vector3(0, 0.01f, 0), new Vector2(0.22f, 0.17f), new Color(0.55f, 0.72f, 0.95f, 0.55f), PM_Util.Cyan);
         Sheet(fus, "Interfacing", new Vector3(0, 0.05f, 0), new Vector2(0.17f, 0.12f), new Color(1f, 0.85f, 0.1f, 0.5f), PM_Util.Yellow);
-        Sheet(fus, "PaperTop", new Vector3(0, 0.09f, 0), new Vector2(0.22f, 0.17f), new Color(0.9f, 0.85f, 0.7f, 0.35f), PM_Util.Cyan);
+        Sheet(fus, "FabricTop", new Vector3(0, 0.09f, 0), new Vector2(0.22f, 0.17f), new Color(0.55f, 0.72f, 0.95f, 0.45f), PM_Util.Cyan);
         targets[PM_Target.Fusible] = new List<Transform> { fus };
-        foreach (Transform t in new[] { ham, pp, chestPad, sh, clapper }) { toolHome[t] = t.localPosition; toolScale[t] = t.localScale; }
+        foreach (Transform t in new[] { ham, pp, chestPad, sh, clapper, cloth, fus }) { toolHome[t] = t.localPosition; toolScale[t] = t.localScale; }
 
         ShowTools(false);
     }
@@ -611,7 +611,7 @@ public class PM_Station : MonoBehaviour
     {
         if (tools == null) return;
         // everything back into the tool set first
-        foreach (PM_Target k in new[] { PM_Target.Ham, PM_Target.PointPresser, PM_Target.ChestPad, PM_Target.Shoulder, PM_Target.Clapper })
+        foreach (PM_Target k in new[] { PM_Target.Ham, PM_Target.PointPresser, PM_Target.ChestPad, PM_Target.Shoulder, PM_Target.Clapper, PM_Target.Cloth, PM_Target.Fusible })
         {
             List<Transform> l;
             if (!targets.TryGetValue(k, out l) || l.Count == 0 || l[0] == null) continue;

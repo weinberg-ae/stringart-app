@@ -696,12 +696,17 @@ public class PM_Game : MonoBehaviour
                              : info.target == PM_Target.SleeveBoard && station.SleevePivot != null ? station.SleevePivot : station.Table;
             stationHs.Add(MakeHotspot(info, pos, parent, parts));
         }
-        foreach (PM_HotspotInfo info in PM_Content.ToolHotspots())
+        // Points of the pressing tools: one row in the air behind the board (the tools themselves wait on the
+        // shelf under it); a click puts that tool alone on the board, so the board is never crowded.
+        List<PM_HotspotInfo> toolInfos = PM_Content.ToolHotspots();
+        Vector3 rowC = new Vector3(station.BoardCenter.x, station.BoardTopY, station.BoardCenter.z) + station.Forward * 0.42f + Vector3.up * 0.38f;
+        for (int i = 0; i < toolInfos.Count; i++)
         {
+            PM_HotspotInfo info = toolInfos[i];
             List<Transform> parts = station.Targets(info.target);
             if (parts.Count == 0) continue;
-            Vector3 pos = station.AnchorPoint(info.anchor, parts) + Vector3.up * 0.04f;
-            toolHs.Add(MakeHotspot(info, pos, parts[0], parts));
+            Vector3 pos = rowC + station.Right * (((toolInfos.Count - 1) * 0.5f - i) * 0.16f);   // first one on the right (Hebrew order)
+            toolHs.Add(MakeHotspot(info, pos, station.Table, parts));
         }
         // Floating fiber screens in two arcs above and behind the station:
         // lower row = the five fabrics of the game, upper row = more fibers.
@@ -769,7 +774,8 @@ public class PM_Game : MonoBehaviour
     // The points of light of the pressing tools: only in the tools lesson (not in the menu, not in the exercises).
     void SetToolHotspots(bool on)
     {
-        foreach (PM_Hotspot h in toolHs) if (h != null) h.gameObject.SetActive(on);
+        foreach (PM_Hotspot h in toolHs)
+            if (h != null) h.gameObject.SetActive(on && (h.info.target != PM_Target.Clapper || PM_Rewards.Has(PM_Rewards.Clapper)));   // the clapper only once won
     }
 
     void OpenCard(PM_Hotspot h)
@@ -779,6 +785,9 @@ public class PM_Game : MonoBehaviour
         openHs = h;
         spitCardReason = 0;
         h.SetVisited(true);
+        // a pressing tool: it alone goes up onto the board (the shoulder presser stays on the floor, it is tall)
+        if (h.info.group == PM_HotspotGroup.Tools)
+            station.ShowTools(false, h.info.target == PM_Target.Shoulder ? PM_Target.None : h.info.target);
         card.gameObject.SetActive(true);
         card.SetContent(h.info.title, h.info.body, "");
         card.SetAccent(h.info.accent);
@@ -863,7 +872,7 @@ public class PM_Game : MonoBehaviour
 
         highlight.Clear();
         station.RefreshButtons();
-        station.ShowTools(s.group == PM_HotspotGroup.Tools, s.toolTask == 1 ? PM_Target.PointPresser : s.toolTask == 2 ? PM_Target.ChestPad : PM_Target.None);
+        station.ShowTools(false, s.toolTask == 1 ? PM_Target.PointPresser : s.toolTask == 2 ? PM_Target.ChestPad : PM_Target.None);   // tools lesson too: on the shelf until one is chosen
         CloseCard();
         // Only what belongs to this step is shown: fiber screens in the fibers step, points of light at the station steps.
         bool stationStep = System.Array.IndexOf(StationStepIds, s.id) >= 0;
