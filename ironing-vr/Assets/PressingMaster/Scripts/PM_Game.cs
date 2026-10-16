@@ -226,20 +226,22 @@ public class PM_Game : MonoBehaviour
         Vector3 head = station.PlayerPos + Vector3.up * 1.6f;
         if (mirrorBtn == null)
         {
-            mirrorBtn = PM_Panel.Create(null, "PM_MirrorButton", 520, 120, 40, 28, 30, false);
+            mirrorBtn = PM_Panel.Create(null, "PM_MirrorButton", 460, 120, 40, 28, 30, false);
             mirrorBtn.SetContent("", "", "");
             mirrorBtn.SetAccent(PM_Util.Violet);
-            mirrorBtn.AddPillButton(PM_Content.BtnAvatar, ShowAvatarChoice, new Vector3(0f, 0f, -0.03f), 0.44f, 0.085f, PM_Util.Violet);
+            mirrorBtn.AddPillButton(PM_Content.BtnAvatar, ShowAvatarChoice, new Vector3(0f, 0f, -0.03f), 0.4f, 0.08f, PM_Util.Violet);
+            // As the user drew it: two buttons side by side on the top edge of the mirror (1.0 m wide, 1.93 m high
+            // with its frame) — the character on the right half, the reset on the left half.
             Vector3 mpos = station.PlayerPos + station.Right * 1.7f + station.Forward * 0.1f;
-            mirrorBtn.Place(mpos + Vector3.up * 2.12f, head);
+            Vector3 toHead = head - mpos; toHead.y = 0f;
+            Vector3 viewerLeft = Vector3.Cross(Vector3.up, toHead.sqrMagnitude > 1e-4f ? toHead.normalized : -station.Forward);
+            mirrorBtn.Place(mpos + Vector3.up * 2.02f - viewerLeft * 0.25f, head);
             // beside it: reset the achievements (asks for a second press)
-            resetBtn = PM_Panel.Create(null, "PM_ResetButton", 420, 120, 40, 28, 30, false);
+            resetBtn = PM_Panel.Create(null, "PM_ResetButton", 440, 120, 40, 28, 30, false);
             resetBtn.SetContent("", "", "");
             resetBtn.SetAccent(PM_Util.Violet);
-            resetBtn.AddPillButton(PM_Content.BtnResetRewards, ResetRewards, new Vector3(0f, 0f, -0.03f), 0.34f, 0.075f, PM_Util.Violet);
-            Vector3 toHead = head - mpos; toHead.y = 0f;
-            Vector3 side = Vector3.Cross(Vector3.up, toHead.sqrMagnitude > 1e-4f ? toHead.normalized : -station.Forward);
-            resetBtn.Place(mpos + Vector3.up * 2.12f + side * 0.48f, head);
+            resetBtn.AddPillButton(PM_Content.BtnResetRewards, ResetRewards, new Vector3(0f, 0f, -0.03f), 0.38f, 0.08f, PM_Util.Violet);
+            resetBtn.Place(mpos + Vector3.up * 2.02f + viewerLeft * 0.25f, head);
         }
         if (floorBtn == null)
         {
@@ -696,16 +698,23 @@ public class PM_Game : MonoBehaviour
                              : info.target == PM_Target.SleeveBoard && station.SleevePivot != null ? station.SleevePivot : station.Table;
             stationHs.Add(MakeHotspot(info, pos, parent, parts));
         }
-        // Points of the pressing tools: one row in the air behind the board (the tools themselves wait on the
-        // shelf under it); a click puts that tool alone on the board, so the board is never crowded.
+        // Points of the pressing tools (as the user drew them): two columns beside the main window — four on its
+        // right, three on its left — never over it. The tools wait on the shelf under the board; a click puts
+        // that tool alone on the board, so the board is never crowded.
         List<PM_HotspotInfo> toolInfos = PM_Content.ToolHotspots();
-        Vector3 rowC = new Vector3(station.BoardCenter.x, station.BoardTopY, station.BoardCenter.z) + station.Forward * 0.42f + Vector3.up * 0.38f;
+        Vector3 viewer = station.PlayerPos + Vector3.up * 1.6f;
+        Vector3 toPanel = station.PanelPos - viewer; toPanel.y = 0f;
+        Vector3 pRight = Vector3.Cross(Vector3.up, toPanel.sqrMagnitude > 1e-4f ? toPanel.normalized : station.Forward);
+        Vector3 pFront = -(toPanel.sqrMagnitude > 1e-4f ? toPanel.normalized : station.Forward);
+        float[] rightY = { 0.19f, 0.05f, -0.09f, -0.23f }, leftY = { 0f, -0.14f, -0.28f };
         for (int i = 0; i < toolInfos.Count; i++)
         {
             PM_HotspotInfo info = toolInfos[i];
             List<Transform> parts = station.Targets(info.target);
             if (parts.Count == 0) continue;
-            Vector3 pos = rowC + station.Right * (((toolInfos.Count - 1) * 0.5f - i) * 0.16f);   // first one on the right (Hebrew order)
+            bool right = i < rightY.Length;                       // Hebrew order: the first ones on the right
+            float y = right ? rightY[i] : leftY[Mathf.Min(i - rightY.Length, leftY.Length - 1)];
+            Vector3 pos = station.PanelPos + pRight * (right ? 0.6f : -0.6f) + Vector3.up * y + pFront * 0.05f;
             toolHs.Add(MakeHotspot(info, pos, station.Table, parts));
         }
         // Floating fiber screens in two arcs above and behind the station:
@@ -922,11 +931,14 @@ public class PM_Game : MonoBehaviour
         fabricHs.Clear();
         if (fabric == null) return;
         List<PM_HotspotInfo> infos = PM_Content.FabricHotspots(fabric.info.type);
-        // behind the board (beyond its far edge), a little above it: out of the iron's way and not over the fabric
-        Vector3 c = fabric.transform.position + Vector3.up * 0.30f + station.Forward * 0.42f;
+        // as the user asked: a column beside the main window (on its right), never over its buttons
+        Vector3 viewer = station.PlayerPos + Vector3.up * 1.6f;
+        Vector3 toPanel = station.PanelPos - viewer; toPanel.y = 0f;
+        Vector3 dir = toPanel.sqrMagnitude > 1e-4f ? toPanel.normalized : station.Forward;
+        Vector3 pRight = Vector3.Cross(Vector3.up, dir);
         for (int i = 0; i < infos.Count; i++)
         {
-            Vector3 pos = c + station.Right * (0.17f - 0.17f * i);
+            Vector3 pos = station.PanelPos + pRight * 0.6f + Vector3.up * (0.12f - 0.15f * i) - dir * 0.05f;
             fabricHs.Add(MakeHotspot(infos[i], pos, fabric.transform, new List<Transform> { fabric.transform }));
         }
     }
