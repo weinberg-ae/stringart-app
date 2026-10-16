@@ -1019,7 +1019,7 @@ public class PM_Game : MonoBehaviour
             case PM_Action.SteamInAir:
                 if (HandleSpit(dt)) break;
                 if (!station.PressureOk) { panel.SetStatus(station.Powered ? PM_Content.StPressureLow : PM_Content.StNeedPower, PM_Util.Yellow); break; }
-                bool steaming = (iron != null && iron.Steaming && iron.Touching == null) || KeyHeld(Key.LeftShift);
+                bool steaming = (iron != null && iron.Steaming && iron.Touching == null) || DeskKey(Key.LeftShift);
                 if (steaming) steamAirTime += dt;
                 panel.SetStatus(string.Format(PM_Content.StSteamAir, Mathf.RoundToInt(Mathf.Clamp01(steamAirTime / 2f) * 100)), PM_Util.Yellow);
                 if (steamAirTime >= 2f) Complete(PM_Content.StDone);
@@ -1205,9 +1205,9 @@ public class PM_Game : MonoBehaviour
     public void DesktopSteam(PM_Gown g, Vector3 point)
     {
         if (g != gown || state != State.Learning || steps[stepIndex].action != PM_Action.SteamOnForm) return;
-        if (KeyHeld(Key.LeftShift)) gown.Steam(point, 0.09f, Time.deltaTime);
+        if (DeskKey(Key.LeftShift)) gown.Steam(point, 0.09f, Time.deltaTime);
         desktopTime = Time.time;
-        panel.SetStatus(KeyHeld(Key.LeftShift) ? string.Format(PM_Content.StProgress, Mathf.RoundToInt(gown.Progress * 100f)) : PM_Content.StFormSteam, PM_Util.Cyan);
+        panel.SetStatus(DeskKey(Key.LeftShift) ? string.Format(PM_Content.StProgress, Mathf.RoundToInt(gown.Progress * 100f)) : PM_Content.StFormSteam, PM_Util.Cyan);
     }
 
     // Vertical steaming: steam from 1–8 cm smooths the gown where it reaches; touching it does nothing (and is wrong).
@@ -1309,11 +1309,11 @@ public class PM_Game : MonoBehaviour
         if (fabric == null) return false;
         PM_Iron iron = station.Iron;
         bool mouseIroning = Time.time - desktopTime < 0.15f;
-        bool simulated = KeyHeld(Key.Space) || mouseIroning;
+        bool simulated = DeskKey(Key.Space) || mouseIroning;
         bool touching = simulated || (iron != null && iron.Touching == fabric);
         if (!touching) { dwell = 0f; return false; }
 
-        bool steaming = (iron != null && iron.Steaming) || (simulated && KeyHeld(Key.LeftShift) && station.PressureOk);
+        bool steaming = (iron != null && iron.Steaming) || (simulated && DeskKey(Key.LeftShift) && station.PressureOk);
         Vector2 uv;
         if (mouseIroning) uv = desktopUV;
         else if (simulated)
@@ -1731,7 +1731,7 @@ public class PM_Game : MonoBehaviour
             cardLink.SetPosition(0, openHs.transform.position);
             cardLink.SetPosition(1, card.transform.position - card.transform.up * (0.26f));
         }
-        if (station != null && station.Iron != null) station.Iron.simulateSteam = KeyHeld(Key.LeftShift);
+        if (station != null && station.Iron != null) station.Iron.simulateSteam = DeskKey(Key.LeftShift);
         PM_Rewards.Tick(station, dt);
         if (form != null)
         {
@@ -1756,6 +1756,13 @@ public class PM_Game : MonoBehaviour
     {
         Keyboard kb = Keyboard.current;
         return kb != null && kb[k].isPressed;
+    }
+
+    // Keyboard test keys for ironing / steam (Space, Left Shift) work only without a headset: in VR a Shift that
+    // Windows keeps "pressed" (e.g. after Alt+Shift to switch the language) would steam non-stop.
+    static bool DeskKey(Key k)
+    {
+        return !UnityEngine.XR.XRSettings.isDeviceActive && KeyHeld(k);
     }
 
     static bool KeyDown(Key k)
