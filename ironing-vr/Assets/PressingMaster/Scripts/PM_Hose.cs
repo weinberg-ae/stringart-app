@@ -21,7 +21,7 @@ public class PM_Hose : MonoBehaviour
         go.transform.SetParent(table, false);
         var h = go.AddComponent<PM_Hose>();
         h.iron = iron;
-        h.ironLocalEnd = iron.InverseTransformPoint(ironEndWorld - outWorld.normalized * 0.01f);   // just inside the top of the spring
+        h.ironLocalEnd = iron.InverseTransformPoint(ironEndWorld - outWorld.normalized * 0.03f);   // well inside the top of the spring (no gap)
         h.ironLocalOut = iron.InverseTransformDirection(outWorld.normalized);
         h.anchor = table.InverseTransformPoint(anchorWorld);
         h.length = Vector3.Distance(anchorWorld, ironEndWorld) * 1.25f + 0.35f;

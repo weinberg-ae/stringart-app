@@ -450,7 +450,7 @@ public class PM_Iron : MonoBehaviour
         float W = Mathf.Abs(Vector3.Dot(size, side)) * 1.02f;
         var go = new GameObject("PM_SiliconeShoe");
         go.transform.SetParent(transform, false);
-        go.transform.localRotation = Quaternion.LookRotation(tipLocal, -localDown);   // z = to the tip, y = up into the iron
+        go.transform.localRotation = Quaternion.LookRotation(-tipLocal, -localDown);   // the shoe's pointed end (+z) was at the back: turned to the tip
         go.transform.localPosition = localSole;
         go.AddComponent<MeshFilter>().sharedMesh = ShoeMesh(L, W);
         var m = new Material(PM_Util.LitShader());
@@ -548,7 +548,7 @@ public class PM_Iron : MonoBehaviour
         if (controllers == null) return;
         Bounds b = PM_Util.WorldBounds(transform);
         foreach (Transform c in controllers)
-            if (c != null && Vector3.Distance(b.ClosestPoint(c.position), c.position) < 0.25f) HandNear = true;
+            if (c != null && Vector3.Distance(b.ClosestPoint(c.position), c.position) < 0.10f) HandNear = true;   // the hand is at the iron (not just near)
         if (Held) return;
         for (int i = 0; i < 2; i++)
         {

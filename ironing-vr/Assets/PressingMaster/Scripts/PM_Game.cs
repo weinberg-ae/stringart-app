@@ -768,7 +768,7 @@ public class PM_Game : MonoBehaviour
             cardLink = PM_Util.Line(null, "PM_CardLink", new[] { Vector3.zero, Vector3.zero }, PM_Util.Cyan, 0.003f, false);
             cardLink.useWorldSpace = true;
         }
-        cardLink.gameObject.SetActive(true);
+        cardLink.gameObject.SetActive(false);   // no light thread from the point to its window (it looked like a stray ray)
         cardHighlight.Clear();
         if (h.info.target != PM_Target.Fabric && h.parts.Count > 0) cardHighlight.Show(h.parts, h.info.accent, false);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
@@ -781,7 +781,7 @@ public class PM_Game : MonoBehaviour
         Vector3 d = target - station.PlayerPos; d.y = 0f;
         if (d.sqrMagnitude < 1e-4f) d = station.Forward;
         float ang = Vector3.SignedAngle(station.Forward, d.normalized, Vector3.up);
-        ang = Mathf.Clamp(Mathf.Round(ang / 20f) * 20f, -60f, 60f);
+        ang = Mathf.Clamp(Mathf.Round(ang / 20f) * 20f, -60f, 40f);   // not further right: the water tank window is there
         Vector3 dir = Quaternion.AngleAxis(ang, Vector3.up) * station.Forward;
         return station.PlayerPos + dir * 1.05f + Vector3.up * 1.42f;
     }
@@ -891,8 +891,8 @@ public class PM_Game : MonoBehaviour
         fabricHs.Clear();
         if (fabric == null) return;
         List<PM_HotspotInfo> infos = PM_Content.FabricHotspots(fabric.info.type);
-        // high above the far half of the board: the iron never runs into them while ironing
-        Vector3 c = fabric.transform.position + Vector3.up * 0.42f + station.Forward * 0.12f;
+        // behind the board (beyond its far edge), a little above it: out of the iron's way and not over the fabric
+        Vector3 c = fabric.transform.position + Vector3.up * 0.30f + station.Forward * 0.42f;
         for (int i = 0; i < infos.Count; i++)
         {
             Vector3 pos = c + station.Right * (0.17f - 0.17f * i);

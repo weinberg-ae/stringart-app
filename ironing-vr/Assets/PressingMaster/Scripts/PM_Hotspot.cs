@@ -109,7 +109,7 @@ public class PM_Hotspot : MonoBehaviour
         // While a hand reaches for the iron, points of light around it do not catch the Grip.
         if (hitCollider != null)
         {
-            bool block = PM_Iron.HandNear && PM_Iron.Instance != null && Vector3.Distance(transform.position, PM_Iron.Instance.transform.position) < 0.45f;
+            bool block = PM_Iron.HandNear && PM_Iron.Instance != null && Vector3.Distance(transform.position, PM_Iron.Instance.transform.position) < 0.25f;
             hitCollider.enabled = !block;
         }
         Camera cam = Camera.main;
