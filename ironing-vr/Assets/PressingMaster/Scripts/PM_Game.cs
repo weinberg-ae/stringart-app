@@ -1119,9 +1119,9 @@ public class PM_Game : MonoBehaviour
             fabric = PM_Fabric.CreateShaped(info, c0, shape, 0.26f * sc, W, 41);
             PM_CollarHandle.Attach(fabric, tr);
         }
-        else
+        else if (!SpawnCup(info, tr))
         {
-            // A bra cup (as in the reference photos): a half-moon shaped shell of thin fabric — a rounded lower edge
+            // (fallback if the cup file is missing) A bra cup: a half-moon shaped shell of thin fabric — a rounded lower edge
             // (the underwire line) and an almost straight upper edge with points at both ends — lying on the dome
             // of the cup pad and following its curve. One seam across, a firmer band along the lower edge.
             float sc = tr.lossyScale.x;
@@ -1151,6 +1151,44 @@ public class PM_Game : MonoBehaviour
         }
         Vector3 gpos = GarmentPos();
         garment = PM_Garment.Show(t.ToString().ToLower(), gpos, 0.75f, station.PlayerPos + Vector3.up * 1.6f, info.garment, info.smoothness, true);
+    }
+
+    // The bra cup drawn by the user (tools/avatar/cupexact.py, baked by cupbake.py into PM_Garments/cup.bytes):
+    // three panels — a tall upper panel rising to the strap, two lower panels — joined by a seam across and a seam
+    // down; sheer tulle with opaque tapes, lying on the dome of the cup pad like real cloth (the file holds the
+    // grid in the pad's own space).
+    bool SpawnCup(PM_FabricInfo info, Transform tr)
+    {
+        TextAsset ta = Resources.Load<TextAsset>("PM_Garments/cup");
+        if (ta == null) { Debug.LogWarning("[PM] Нет файла чашки: Assets/Resources/PM_Garments/cup.bytes"); return false; }
+        byte[] b = ta.bytes;
+        if (b.Length < 16 || System.BitConverter.ToInt32(b, 0) != 0x31505543) return false;
+        int n = System.BitConverter.ToInt32(b, 4), res = System.BitConverter.ToInt32(b, 8);
+        float side = System.BitConverter.ToSingle(b, 12);
+        int count = (n + 1) * (n + 1);
+        if (res != 256 || b.Length < 16 + count * 12 + res * res * 4) return false;
+        var grid = new Vector3[count];
+        for (int i = 0; i < count; i++)
+        {
+            int o = 16 + i * 12;
+            grid[i] = new Vector3(System.BitConverter.ToSingle(b, o), System.BitConverter.ToSingle(b, o + 4), System.BitConverter.ToSingle(b, o + 8));
+        }
+        Vector3 c0 = tr.TransformPoint(new Vector3(-0.10f, 0.205f, 0f));   // centre of the dome of the pad
+        System.Func<float, float, Vector3> shape = (u, w) =>
+        {
+            float fu = Mathf.Clamp(u * n, 0f, n), fw = Mathf.Clamp(w * n, 0f, n);
+            int i0 = Mathf.Min((int)fu, n - 1), j0 = Mathf.Min((int)fw, n - 1);
+            float tu = fu - i0, tw = fw - j0;
+            Vector3 p = Vector3.Lerp(Vector3.Lerp(grid[j0 * (n + 1) + i0], grid[j0 * (n + 1) + i0 + 1], tu),
+                                     Vector3.Lerp(grid[(j0 + 1) * (n + 1) + i0], grid[(j0 + 1) * (n + 1) + i0 + 1], tu), tw);
+            return tr.TransformPoint(p) - c0;
+        };
+        float sc = tr.lossyScale.x;
+        fabric = PM_Fabric.CreateShaped(info, c0, shape, side * sc, side * sc, 43, n);
+        fabric.CupLook(b, 16 + count * 12);
+        var fr = fabric.GetComponent<Renderer>();
+        if (fr != null) fr.material.SetFloat("_Cull", 0f);   // thin cloth: both sides visible
+        return true;
     }
 
     PM_Gown gown;

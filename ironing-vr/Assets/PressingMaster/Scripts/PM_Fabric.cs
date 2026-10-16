@@ -46,21 +46,29 @@ public class PM_Fabric : MonoBehaviour
     // A garment of any shape: shape(u, w) gives the local position (u around, w up). sx, sz = size for the iron radius.
     public static PM_Fabric CreateShaped(PM_FabricInfo info, Vector3 origin, System.Func<float, float, Vector3> shape, float sx, float sz, int seed)
     {
+        return CreateShaped(info, origin, shape, sx, sz, seed, 40);
+    }
+
+    // meshRes = grid cells per side of the shaped mesh (more = smoother edge).
+    public static PM_Fabric CreateShaped(PM_FabricInfo info, Vector3 origin, System.Func<float, float, Vector3> shape, float sx, float sz, int seed, int meshRes)
+    {
         var go = new GameObject("PM_Fabric_" + info.type);
         go.transform.position = origin;
         var f = go.AddComponent<PM_Fabric>();
         f.info = info;
         f.sizeX = sx; f.sizeZ = sz;
         f.shape = shape;
+        f.meshRes = meshRes;
         f.Build(seed);
         return f;
     }
+    int meshRes = 40;
 
     void Build(int seed)
     {
         // Mesh: flat quad, slightly bigger in the middle to look like cloth (or the given garment shape).
         var mesh = new Mesh();
-        int n = shape != null ? 40 : 16;
+        int n = shape != null ? meshRes : 16;
         var v = new Vector3[(n + 1) * (n + 1)];
         var uv = new Vector2[v.Length];
         var tri = new int[n * n * 6];
@@ -331,6 +339,32 @@ public class PM_Fabric : MonoBehaviour
                 baseAlbedo[i] = c;
                 albedo[i] = Damaged(i);
             }
+        dirtyA = true;
+    }
+
+    // The bra cup's own look (baked texture, Res x Res RGBA): sheer tulle with the pad showing through, opaque
+    // tapes on the seams and edges; alpha 0 = outside the cup (that part of the cloth is folded into the edge,
+    // so it counts as already ironed).
+    public void CupLook(byte[] rgba, int offset)
+    {
+        float baseLum = Mathf.Max(0.05f, (info.color.r + info.color.g + info.color.b) / 3f);
+        for (int i = 0; i < Res * Res; i++)
+        {
+            int o = offset + i * 4;
+            Color old = baseAlbedo[i];
+            float shade = Mathf.Clamp((old.r + old.g + old.b) / 3f / baseLum, 0.85f, 1.1f);   // the creases stay visible
+            Color c = new Color(rgba[o] / 255f, rgba[o + 1] / 255f, rgba[o + 2] / 255f) * shade;
+            c.a = 1f;
+            baseAlbedo[i] = c;
+            albedo[i] = Damaged(i);
+            if (rgba[o + 3] == 0 && smooth[i] < 1f)
+            {
+                smoothSum += 1f - smooth[i];
+                smooth[i] = 1f;
+                normal[i] = new Color32(128, 128, 255, 255);
+                dirtyN = true;
+            }
+        }
         dirtyA = true;
     }
 
