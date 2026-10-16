@@ -329,6 +329,7 @@ public class PM_ToonBody : MonoBehaviour
 
     void LateUpdate()
     {
+        PM_Avatar.HideMirrorLayer();
         if (cam == null) { cam = Camera.main != null ? Camera.main.transform : null; if (cam == null) return; }
         float floorY = origin != null ? origin.position.y : cam.position.y - 1.6f;
         eyeReal = Mathf.Max(eyeReal, Mathf.Clamp(cam.position.y - floorY, 1.0f, 1.95f));

@@ -10,6 +10,18 @@ public static class PM_Avatar
 {
     public const int MirrorLayer = 30;   // the head is drawn only by the mirror camera
 
+    // The player's own head is on MirrorLayer: every camera that draws to the screen / headset must skip it,
+    // otherwise its eyes and hair sit right in front of the eyes (a big glowing white blob). Checked again and
+    // again, because the headset camera can appear (or be re-tagged) after the body was built.
+    static float nextHide;
+    public static void HideMirrorLayer()
+    {
+        if (Time.unscaledTime < nextHide) return;
+        nextHide = Time.unscaledTime + 0.5f;
+        foreach (Camera c in Camera.allCameras)
+            if (c != null && c.targetTexture == null) c.cullingMask &= ~(1 << MirrorLayer);
+    }
+
     public static int HandType { get; private set; }   // 0 man, 1 woman, 2 child (preview only)
     public static int Tone { get; private set; }
     public static int Tattoo { get; private set; }
@@ -764,6 +776,7 @@ public class PM_Body : MonoBehaviour
 
     void LateUpdate()
     {
+        PM_Avatar.HideMirrorLayer();
         if (head == null) { head = Camera.main != null ? Camera.main.transform : null; if (head == null) return; }
         float floorY = origin != null ? origin.position.y : head.position.y - 1.6f;
         // Standing eye height = the highest seen (crouching does not shrink the body).

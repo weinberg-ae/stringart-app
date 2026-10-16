@@ -359,6 +359,7 @@ public class PM_Humanoid : MonoBehaviour
 
     void HideHead()
     {
+        PM_Avatar.HideMirrorLayer();
         Camera main = cam != null ? cam.GetComponent<Camera>() : Camera.main;
         if (main != null)
         {
