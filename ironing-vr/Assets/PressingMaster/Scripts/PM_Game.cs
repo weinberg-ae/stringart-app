@@ -794,9 +794,12 @@ public class PM_Game : MonoBehaviour
         openHs = h;
         spitCardReason = 0;
         h.SetVisited(true);
-        // a pressing tool: it alone goes up onto the board (the shoulder presser stays on the floor, it is tall)
+        // a pressing tool: it alone goes up onto the board (the shoulder presser too), and the hand can take it
         if (h.info.group == PM_HotspotGroup.Tools)
-            station.ShowTools(false, h.info.target == PM_Target.Shoulder ? PM_Target.None : h.info.target);
+        {
+            station.ShowTools(false, h.info.target);
+            station.ToolGrabbable(h.info.target);
+        }
         card.gameObject.SetActive(true);
         card.SetContent(h.info.title, h.info.body, "");
         card.SetAccent(h.info.accent);
@@ -810,7 +813,8 @@ public class PM_Game : MonoBehaviour
         }
         cardLink.gameObject.SetActive(false);   // no light thread from the point to its window (it looked like a stray ray)
         cardHighlight.Clear();
-        if (h.info.target != PM_Target.Fabric && h.parts.Count > 0) cardHighlight.Show(h.parts, h.info.accent, false);
+        // (a tool alone on the board needs no glow: it hid the tool's own look)
+        if (h.info.target != PM_Target.Fabric && h.info.group != PM_HotspotGroup.Tools && h.parts.Count > 0) cardHighlight.Show(h.parts, h.info.accent, false);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("hs_" + h.info.id);
     }
 

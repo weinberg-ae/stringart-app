@@ -610,6 +610,9 @@ public class PM_Station : MonoBehaviour
     public void ShowTools(bool on, PM_Target focus)
     {
         if (tools == null) return;
+        // no tool can be taken by hand outside the lesson (ToolGrabbable turns one on)
+        foreach (PM_ToolHandle th in tools.GetComponentsInChildren<PM_ToolHandle>(true)) th.SetOn(false, null);
+        if (toolOnBoard != null) foreach (PM_ToolHandle th in toolOnBoard.GetComponentsInChildren<PM_ToolHandle>(true)) th.SetOn(false, null);
         // everything back into the tool set first
         foreach (PM_Target k in new[] { PM_Target.Ham, PM_Target.PointPresser, PM_Target.ChestPad, PM_Target.Shoulder, PM_Target.Clapper, PM_Target.Cloth, PM_Target.Fusible })
         {
@@ -662,6 +665,13 @@ public class PM_Station : MonoBehaviour
             t.localScale = toolScale.ContainsKey(t) ? toolScale[t] : Vector3.one;
             SwingSleeve(true);
         }
+    }
+
+    // Tools lesson: the tool shown on the board can be taken by hand, moved and turned.
+    public void ToolGrabbable(PM_Target t)
+    {
+        if (toolOnBoard == null || Targets(t).Count == 0 || Targets(t)[0] == null) return;
+        PM_ToolHandle.Get(Targets(t)[0]).SetOn(true, toolOnBoard);
     }
 
     // The shoulder presser is tall: it always stands on the floor under the left part of the board.
