@@ -98,6 +98,7 @@ public static class PM_Content
     public const string PracticeBody = "תרגול: בחרו בד או משימה, ועברו ביניהם בחופשיות. מבחן: בלי עזרה, עם ציון.";
     public const string BtnAvatar = "בחירת דמות";
     public const string BtnResetRewards = "איפוס הישגים";
+    public const string BtnToCharacters = "לבחירת דמות";
     public const string StResetConfirm = "ללחוץ שוב על «איפוס הישגים» כדי לאשר (כל הפרסים יימחקו).";
     public const string StResetDone = "ההישגים אופסו. פרסים חדשים — רק אחרי ציון 90 ומעלה במבחן.";
     public const string BtnRecenter = "מרכוז מקום";

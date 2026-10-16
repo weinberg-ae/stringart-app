@@ -361,9 +361,10 @@ public class PM_Game : MonoBehaviour
     // ---------------- Avatar ----------------
     void ShowAvatarChoice()
     {
-        if (PM_Avatar.IsToon) { ShowGenderChoice(); return; }
+        // Always the full choice (woman / man / child → characters), also after "hands only" was chosen once —
+        // otherwise there was no way back to the characters.
         if (PM_Avatar.Character == PM_Avatar.SceneCharacter && PM_Style.LoaderPresent()) { ShowStyleChoice(); return; }
-        ShowHandsChoice();
+        ShowGenderChoice();
     }
 
     // ---- first: woman, man or child (a child gets the safety rule of the sewing room) ----
@@ -545,7 +546,7 @@ public class PM_Game : MonoBehaviour
         panel.SetButtonGrid(4, -1, 0.22f, 0.04f, false, hands.ToArray());
         panel.SetButtonGrid(4, -1, 0.22f, -0.07f, true, tones.ToArray());
         panel.SetButtonGrid(4, -1, 0.22f, -0.18f, true, tattoos.ToArray());
-        panel.SetButtonGrid(1, 0, 0.3f, -0.42f, true, Btn(PM_Content.BtnContinue, ShowBodyChoice));
+        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnToCharacters, ShowGenderChoice), Btn(PM_Content.BtnContinue, ShowBodyChoice));
         AvatarPreview(1);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar");
     }
@@ -585,7 +586,7 @@ public class PM_Game : MonoBehaviour
             items.Add(Btn(label, () => PM_Avatar.ChooseCharacter(k)));
         }
         panel.SetButtonGrid(4, -1, 0.22f, -0.02f, false, items.ToArray());
-        panel.SetButtonGrid(2, 1, 0.3f, -0.42f, true, Btn(PM_Content.BtnHands, ShowHandsChoice), Btn(PM_Content.BtnContinue, ShowMenu));
+        panel.SetButtonGrid(3, 2, 0.26f, -0.42f, true, Btn(PM_Content.BtnToCharacters, ShowGenderChoice), Btn(PM_Content.BtnHands, ShowHandsChoice), Btn(PM_Content.BtnContinue, ShowMenu));
         AvatarPreview(0);
         if (PM_Audio.I != null) PM_Audio.I.PlayVoice("avatar_body");
     }
