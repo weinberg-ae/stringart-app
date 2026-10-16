@@ -117,6 +117,7 @@ public class PM_Iron : MonoBehaviour
             foreach (Collider c in GetComponentsInChildren<Collider>(true)) Physics.IgnoreCollision(c, cc);
         }
         grab.interactionLayers = -1;   // any hand / any interactor may take the iron
+        grab.selectFilters.Add(new PM_NearSelectFilter { iron = this });   // only a hand at the iron takes it (no grab from afar)
         grab.selectEntered.AddListener(OnGrab);
         grab.selectExited.AddListener(OnRelease);
         grab.activated.AddListener(a => TriggerDown = true);
@@ -692,5 +693,22 @@ public class PM_Iron : MonoBehaviour
     public void Buzz(float amplitude, float duration)
     {
         if (holder != null) PM_Clickable.Haptic(holder, amplitude, duration);
+    }
+}
+
+// The iron is taken only by a hand that is really at it (about 18 cm): no grabbing from afar with the pointing
+// ray — that made the hand jump to the iron and the iron hang far from the real hand.
+public class PM_NearSelectFilter : UnityEngine.XR.Interaction.Toolkit.Filtering.IXRSelectFilter
+{
+    public PM_Iron iron;
+    public bool canProcess { get { return iron != null && iron.isActiveAndEnabled; } }
+
+    public bool Process(UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor interactor,
+                        UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable interactable)
+    {
+        if (iron.Held) return true;   // keeps a hold that already started (pressing on the board may pull the hand away a bit)
+        Bounds b = PM_Util.WorldBounds(iron.transform);
+        Vector3 p = interactor.transform.position;
+        return Vector3.Distance(b.ClosestPoint(p), p) < 0.18f;
     }
 }

@@ -590,6 +590,9 @@ public class PM_Hand : MonoBehaviour
             d.TryGetFeatureValue(CommonUsages.grip, out g);
             d.TryGetFeatureValue(CommonUsages.trigger, out t);
         }
+        // holding the iron: the fist closes around the handle (the index still follows the trigger = steam)
+        Vector3 hp; Quaternion hr;
+        if (PM_Iron.HandleGrip(left, out hp, out hr)) { g = 1f; t = Mathf.Max(t, 0.55f); }
         grip = Mathf.Lerp(grip, g, Time.deltaTime * 18f);
         trigger = Mathf.Lerp(trigger, t, Time.deltaTime * 18f);
         Pose(0.1f + grip * 0.9f, 0.08f + trigger * 0.92f);
