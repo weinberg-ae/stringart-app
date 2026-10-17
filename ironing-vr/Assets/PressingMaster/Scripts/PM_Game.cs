@@ -278,7 +278,10 @@ public class PM_Game : MonoBehaviour
     void UpdateCover()
     {
         bool cover = openHs != null && card != null && card.gameObject.activeSelf;
-        if (!cover) foreach (PM_FiberScreen f in fiberScreens) if (f != null && f.gameObject.activeSelf && f.Expanded) { cover = true; break; }
+        bool fiberOpen = false;
+        foreach (PM_FiberScreen f in fiberScreens) if (f != null && f.gameObject.activeSelf && f.Expanded) { fiberOpen = true; break; }
+        cover |= fiberOpen;
+        if (station != null && station.Tank != null) station.Tank.SetPanelVisible(!fiberOpen);   // the water tank window steps aside too
         if (panel != null && panel.gameObject.activeSelf == cover) panel.gameObject.SetActive(!cover);
         if (practicePanel != null && practicePanel.gameObject.activeSelf != (menuShown && !cover)) practicePanel.gameObject.SetActive(menuShown && !cover);
         if (menuHeader != null && menuHeader.gameObject.activeSelf != (menuShown && !cover)) menuHeader.gameObject.SetActive(menuShown && !cover);
@@ -721,6 +724,7 @@ public class PM_Game : MonoBehaviour
         // Floating fiber screens in two arcs above and behind the station:
         // lower row = the five fabrics of the game, upper row = more fibers.
         List<PM_HotspotInfo> fibers = PM_Content.FiberHotspots();
+        PM_FiberScreen.FocusForward = station.Forward;
         int basicCount = 0, extraCount = 0;
         foreach (PM_HotspotInfo info in fibers) if (info.extraFiber) extraCount++; else basicCount++;
         int bi = 0, ei = 0;

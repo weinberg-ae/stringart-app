@@ -8,6 +8,7 @@ using UnityEngine.UI;
 // Pictures: Assets/Resources/PM_FiberPics/<fiber>.png — replace a file with a real photo (same name) if you like.
 public class PM_FiberScreen : MonoBehaviour
 {
+    public static Vector3 FocusForward;   // the opened screen comes to the eyes in this direction (set by the game)
     public PM_HotspotInfo info;
     public bool Visited { get; private set; }
     public bool Expanded { get; private set; }
@@ -208,7 +209,8 @@ public class PM_FiberScreen : MonoBehaviour
         if (cam != null)
         {
             Vector3 eye = cam.transform.position;
-            Vector3 dir = basePos - eye;
+            // straight over the board (where the hidden main window was): nothing of the station is there
+            Vector3 dir = FocusForward.sqrMagnitude > 0.01f ? FocusForward : basePos - eye;
             dir.y = 0;
             if (dir.sqrMagnitude < 0.01f) dir = Vector3.forward;
             Vector3 focus = eye + dir.normalized * 1.1f + Vector3.up * 0.12f;

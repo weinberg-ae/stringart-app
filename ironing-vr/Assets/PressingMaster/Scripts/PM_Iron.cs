@@ -52,6 +52,7 @@ public class PM_Iron : MonoBehaviour
     ParticleSystem steam, spit;
     bool spitOn;
     Vector3 handleLocal;              // the middle of the handle, where the fist goes around it (own space)
+    Vector3 handleDir = Vector3.forward;   // along the handle (own space)
     bool handleKnown, warnedGrip;
     Bounds grabBounds;
     int grabBoundsFrame = -1;
@@ -290,58 +291,91 @@ public class PM_Iron : MonoBehaviour
         return true;
     }
 
-    // Direction of the handle (along the iron, to the tip), world space.
+    // Direction of the handle (along its length), world space.
     public static Vector3 HandleAxis
     {
-        get { PM_Iron it = Instance; return it != null ? it.transform.TransformDirection(it.tipLocal).normalized : Vector3.forward; }
+        get
+        {
+            PM_Iron it = Instance;
+            if (it == null) return Vector3.forward;
+            it.HandleLocal();
+            return it.transform.TransformDirection(it.handleDir).normalized;
+        }
     }
 
-    // The handle is the highest long part of the iron (the body is tall, the spring at the back is short);
-    // the fist goes around it a little under its top. Without such a part: the middle, a little under the top.
+    // The handle is the highest long part of the iron (the body is tall; the hose spring is short): its length
+    // is found from the part's own shape (the longest direction across it), not from the way the iron points.
+    // The fist goes around it a little under its top. Without such a part: the middle, a little under the top.
     Vector3 HandleLocal()
     {
         if (handleKnown) return handleLocal;
         handleKnown = true;
         Vector3 up = (-localDown).normalized;
-        Vector3 tip = (tipLocal - Vector3.Dot(tipLocal, up) * up).normalized;
-        if (tip.sqrMagnitude < 0.5f) tip = Vector3.forward;
-        Vector3 side = Vector3.Cross(up, tip);
+        Vector3 e1 = Vector3.Cross(up, Mathf.Abs(up.x) < 0.9f ? Vector3.right : Vector3.forward).normalized;
+        Vector3 e2 = Vector3.Cross(up, e1);
         Vector3 c = (localMin + localMax) * 0.5f;
-        float H = 0f, top = -99f;
+        float top = -99f;
         for (int i = 0; i < 8; i++)
         {
             Vector3 k = new Vector3((i & 1) == 0 ? localMin.x : localMax.x, (i & 2) == 0 ? localMin.y : localMax.y, (i & 4) == 0 ? localMin.z : localMax.z);
             top = Mathf.Max(top, Vector3.Dot(k - c, up));
         }
-        H = top * 2f;
+        float H = top * 2f;
         handleLocal = c + up * (top - 0.03f);
+        handleDir = tipLocal - Vector3.Dot(tipLocal, up) * up;
         MeshRenderer best = null;
-        float bestTop = -99f;
-        Vector3 bestMid = Vector3.zero;
-        float bestDepth = 0f;
+        float bestTop = -99f, bestLong = 0f;
+        var pts = new Vector3[8];
+        var cand = new List<KeyValuePair<MeshRenderer, Vector4>>();   // part, (top, length, -, -)
+        var candMid = new List<Vector3>();
+        var candDir = new List<Vector3>();
+        float maxTop = -99f;
         foreach (MeshRenderer r in GetComponentsInChildren<MeshRenderer>(true))
         {
-            if (r.name.StartsWith("PM_")) continue;
+            if (r.name.StartsWith("PM_") || !r.enabled) continue;   // (the model's own hose pieces are switched off)
             Bounds lb = r.localBounds;
-            float u0 = 99f, u1 = -99f, t0 = 99f, t1 = -99f, s0 = 99f, s1 = -99f;
+            float u0 = 99f, u1 = -99f;
             for (int i = 0; i < 8; i++)
             {
                 Vector3 k = new Vector3((i & 1) == 0 ? lb.min.x : lb.max.x, (i & 2) == 0 ? lb.min.y : lb.max.y, (i & 4) == 0 ? lb.min.z : lb.max.z);
-                Vector3 l = transform.InverseTransformPoint(r.transform.TransformPoint(k)) - c;
-                float u = Vector3.Dot(l, up), t = Vector3.Dot(l, tip), sd = Vector3.Dot(l, side);
+                pts[i] = transform.InverseTransformPoint(r.transform.TransformPoint(k)) - c;
+                float u = Vector3.Dot(pts[i], up);
                 u0 = Mathf.Min(u0, u); u1 = Mathf.Max(u1, u);
-                t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t);
-                s0 = Mathf.Min(s0, sd); s1 = Mathf.Max(s1, sd);
             }
-            if (u1 - u0 > H * 0.6f || t1 - t0 < 0.06f || u1 <= bestTop) continue;
-            best = r; bestTop = u1; bestDepth = u1 - u0;
-            bestMid = c + tip * ((t0 + t1) * 0.5f) + side * ((s0 + s1) * 0.5f);
+            if (u1 - u0 > H * 0.6f) continue;
+            // longest direction across the part (every 5 degrees) and its middle
+            float bestLen = -1f, wid = 0f; Vector3 dir = e1, mid = Vector3.zero;
+            for (int a = 0; a < 180; a += 5)
+            {
+                float rad = a * Mathf.Deg2Rad;
+                Vector3 d = e1 * Mathf.Cos(rad) + e2 * Mathf.Sin(rad), n = Vector3.Cross(up, d);
+                float d0 = 99f, d1 = -99f, n0 = 99f, n1 = -99f;
+                for (int i = 0; i < 8; i++)
+                {
+                    float x = Vector3.Dot(pts[i], d), y = Vector3.Dot(pts[i], n);
+                    d0 = Mathf.Min(d0, x); d1 = Mathf.Max(d1, x); n0 = Mathf.Min(n0, y); n1 = Mathf.Max(n1, y);
+                }
+                if (d1 - d0 > bestLen) { bestLen = d1 - d0; wid = n1 - n0; dir = d; mid = d * ((d0 + d1) * 0.5f) + n * ((n0 + n1) * 0.5f); }
+            }
+            if (bestLen < 0.06f || bestLen < wid * 1.5f) continue;   // not long enough to be the handle
+            cand.Add(new KeyValuePair<MeshRenderer, Vector4>(r, new Vector4(u1, bestLen, u1 - u0, 0f)));
+            candMid.Add(mid); candDir.Add(dir);
+            maxTop = Mathf.Max(maxTop, u1);
         }
-        if (best != null)
+        // of the long parts at the top of the iron (within 4 cm), the longest: the handle, not the short spring
+        for (int i = 0; i < cand.Count; i++)
         {
-            handleLocal = bestMid + up * (bestTop - Mathf.Min(0.018f, bestDepth * 0.35f));
-            Debug.Log("[PM] Ручка утюга: деталь " + best.name);
+            Vector4 v = cand[i].Value;
+            if (v.x < maxTop - 0.04f || v.y <= bestLong) continue;
+            best = cand[i].Key; bestTop = v.x; bestLong = v.y;
+            handleLocal = c + candMid[i] + up * (v.x - Mathf.Min(0.018f, v.z * 0.35f));
+            handleDir = candDir[i];
         }
+        if (handleDir.sqrMagnitude < 1e-6f) handleDir = Vector3.forward;
+        handleDir.Normalize();
+        if (Vector3.Dot(handleDir, tipLocal) < 0f) handleDir = -handleDir;   // to the tip
+        Debug.Log(best != null ? "[PM] Ручка утюга: деталь " + best.name + ", длина " + (bestLong * 100f).ToString("0") + " см, высота над центром " + (bestTop * 100f).ToString("0") + " см"
+                               : "[PM] Ручка утюга: отдельной детали нет — середина утюга");
         return handleLocal;
     }
 

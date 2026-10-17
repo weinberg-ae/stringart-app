@@ -278,10 +278,10 @@ public class PM_Station : MonoBehaviour
         float hoseWidth = 0.022f;
         if (coil != null && coil.bounds.max.y > ib.max.y - 0.02f)
         {
-            // The spring is a straight coil going up and back from the handle. Its box (measured along the iron:
-            // back, up, side) gives both ends: the rim of each end sticks out of the coil's line by the coil
-            // radius, so the end centres are found from the slope (a few rounds). The hose goes on at the
-            // outer (top, back) end and leaves along the coil.
+            // The spring is a straight coil going back and down from the rear of the handle (its top end is
+            // at the handle). Its box (measured along the iron: back, up, side) gives both ends: the rim of each
+            // end sticks out of the coil's line by the coil radius, so the end centres are found from the slope
+            // (a few rounds). The hose goes on at the outer (back, low) end and leaves along the coil.
             Vector3 cc = coil.bounds.center;
             Vector3 back = cc - ib.center; back.y = 0f;
             back = back.sqrMagnitude > 1e-6f ? back.normalized : -Forward;
@@ -298,20 +298,20 @@ public class PM_Station : MonoBehaviour
                 s0 = Mathf.Min(s0, ds); s1 = Mathf.Max(s1, ds);
             }
             float rad = Mathf.Clamp((s1 - s0) * 0.5f, 0.004f, 0.03f);
-            Vector2 lo = new Vector2(b0 + rad, u0 + rad), hi = new Vector2(b1 - rad, u1 - rad);
+            Vector2 lo = new Vector2(b0 + rad, u1 - rad), hi = new Vector2(b1 - rad, u0 + rad);   // lo = at the handle, hi = outer end
             for (int k = 0; k < 4; k++)
             {
                 Vector2 d = hi - lo;
                 if (d.sqrMagnitude < 1e-8f) break;
                 d.Normalize();
                 float pb = rad * Mathf.Abs(d.y), pu = rad * Mathf.Abs(d.x);
-                lo = new Vector2(b0 + pb, u0 + pu);
-                hi = new Vector2(b1 - pb, u1 - pu);
+                lo = new Vector2(b0 + pb, u1 - pu);
+                hi = new Vector2(b1 - pb, u0 + pu);
             }
             Vector3 sMid = side * ((s0 + s1) * 0.5f);
             end = cc + back * hi.x + Vector3.up * hi.y + sMid;
             Vector3 axis = back * (hi.x - lo.x) + Vector3.up * (hi.y - lo.y);
-            hoseOut = axis.sqrMagnitude > 1e-8f ? axis.normalized : (back + Vector3.up).normalized;
+            hoseOut = axis.sqrMagnitude > 1e-8f ? axis.normalized : back;
             hoseWidth = Mathf.Clamp(rad * 1.7f, 0.016f, 0.03f);   // a little thinner than the coil: it goes into it
             Debug.Log("[PM] Шланг крепится к концу пружины утюга: " + coil.name);
         }
@@ -716,6 +716,21 @@ public class PM_Station : MonoBehaviour
         sh.position = new Vector3(BoardCenter.x, PlayerPos.y + 0.002f, BoardCenter.z) - along * (halfLen - 0.30f);
         sh.localRotation = Quaternion.identity;
         sh.localScale = toolScale.ContainsKey(sh) ? toolScale[sh] : Vector3.one;
+        // It must not stand inside the station: out past the end of the lower shelf (with a little air).
+        if (hasShelf)
+        {
+            float shelfEnd = 99f, toolEnd = -99f;
+            Bounds tb = PM_Util.MeshBounds(sh);
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 k = new Vector3((i & 1) == 0 ? shelf.min.x : shelf.max.x, 0f, (i & 2) == 0 ? shelf.min.z : shelf.max.z);
+                shelfEnd = Mathf.Min(shelfEnd, Vector3.Dot(k - BoardCenter, along));
+                Vector3 t = new Vector3((i & 1) == 0 ? tb.min.x : tb.max.x, 0f, (i & 2) == 0 ? tb.min.z : tb.max.z);
+                toolEnd = Mathf.Max(toolEnd, Vector3.Dot(t - BoardCenter, along));
+            }
+            float push = toolEnd - (shelfEnd - 0.04f);
+            if (push > 0f) sh.position -= along * push;
+        }
     }
 
     readonly Dictionary<Transform, Vector3> toolHome = new Dictionary<Transform, Vector3>();

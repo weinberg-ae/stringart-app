@@ -16,6 +16,11 @@ public class PM_WaterTank : MonoBehaviour
     Material waterMat;
     const float TubeH = 0.34f;
 
+    public void SetPanelVisible(bool on)
+    {
+        if (panel != null && panel.gameObject.activeSelf != on) panel.gameObject.SetActive(on);
+    }
+
     public static PM_WaterTank Create(Vector3 pos, Vector3 viewer)
     {
         var go = new GameObject("PM_WaterTank");

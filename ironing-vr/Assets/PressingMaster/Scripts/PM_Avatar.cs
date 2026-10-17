@@ -655,10 +655,18 @@ public class PM_Hand : MonoBehaviour
             transform.rotation = r;
             Vector3 ax = transform.TransformDirection(fistAxis).normalized;
             Vector3 h = PM_Iron.HandleAxis;
-            if (holdSign == 0) holdSign = Vector3.Dot(ax, h) >= 0f ? 1 : -1;
+            bool first = holdSign == 0;
+            if (first) holdSign = Vector3.Dot(ax, h) >= 0f ? 1 : -1;
             transform.rotation = Quaternion.FromToRotation(ax, h * holdSign) * r;
             transform.position = p;
             transform.position += p - transform.TransformPoint(fistHole);
+            if (first)
+            {
+                Camera cam = Camera.main;
+                Debug.Log("[PM] Рука на ручке: поворот " + Vector3.Angle(ax, h * holdSign).ToString("0") + "°, сдвиг от контроллера "
+                          + (transform.parent != null ? Vector3.Distance(transform.position, transform.parent.TransformPoint(home)).ToString("0.00") : "?") + " м"
+                          + (cam != null ? ", до глаз " + Vector3.Distance(transform.position, cam.transform.position).ToString("0.00") + " м" : ""));
+            }
         }
         else
         {
