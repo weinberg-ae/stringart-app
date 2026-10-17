@@ -9,6 +9,7 @@ using UnityEngine.UI;
 public class PM_FiberScreen : MonoBehaviour
 {
     public static Vector3 FocusForward;   // the opened screen comes to the eyes in this direction (set by the game)
+    Vector3 focusDir;                     // where the player looked when this screen was opened
     public PM_HotspotInfo info;
     public bool Visited { get; private set; }
     public bool Expanded { get; private set; }
@@ -156,6 +157,14 @@ public class PM_FiberScreen : MonoBehaviour
 
     public void SetExpanded(bool e)
     {
+        // Opened: it flies (each card along its own path) to the middle of where the player looks right now.
+        if (e && !Expanded)
+        {
+            Camera cam = Camera.main;
+            focusDir = cam != null ? cam.transform.forward : FocusForward;
+            focusDir.y = 0f;
+            if (focusDir.sqrMagnitude < 0.01f) focusDir = FocusForward;
+        }
         Expanded = e;
         if (e) Visited = true;
         body.gameObject.SetActive(e);
@@ -209,8 +218,8 @@ public class PM_FiberScreen : MonoBehaviour
         if (cam != null)
         {
             Vector3 eye = cam.transform.position;
-            // straight over the board (where the hidden main window was): nothing of the station is there
-            Vector3 dir = FocusForward.sqrMagnitude > 0.01f ? FocusForward : basePos - eye;
+            // in the middle of the view taken when it was opened (the main windows and the tank window step aside)
+            Vector3 dir = focusDir.sqrMagnitude > 0.01f ? focusDir : FocusForward.sqrMagnitude > 0.01f ? FocusForward : basePos - eye;
             dir.y = 0;
             if (dir.sqrMagnitude < 0.01f) dir = Vector3.forward;
             Vector3 focus = eye + dir.normalized * 1.1f + Vector3.up * 0.12f;

@@ -310,8 +310,9 @@ public class PM_Station : MonoBehaviour
             }
             Vector3 sMid = side * ((s0 + s1) * 0.5f);
             end = cc + back * hi.x + Vector3.up * hi.y + sMid;
-            Vector3 axis = back * (hi.x - lo.x) + Vector3.up * (hi.y - lo.y);
-            hoseOut = axis.sqrMagnitude > 1e-8f ? axis.normalized : back;
+            // The hose bends at the spring and goes up and back towards the boom (as before: a soft bend,
+            // not a loop down along the spring).
+            hoseOut = (back * ((b1 - b0) * 0.5f) + Vector3.up * (u1 - u0)).normalized;
             hoseWidth = Mathf.Clamp(rad * 1.7f, 0.016f, 0.03f);   // a little thinner than the coil: it goes into it
             Debug.Log("[PM] Шланг крепится к концу пружины утюга: " + coil.name);
         }
