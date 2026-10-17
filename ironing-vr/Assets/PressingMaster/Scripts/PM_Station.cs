@@ -275,19 +275,49 @@ public class PM_Station : MonoBehaviour
             if (r.name.StartsWith("PM_") || r.bounds.size.magnitude > 0.12f) continue;
             if (coil == null || r.bounds.max.y > coil.bounds.max.y) coil = r;
         }
+        float hoseWidth = 0.022f;
         if (coil != null && coil.bounds.max.y > ib.max.y - 0.02f)
         {
-            Bounds cb = coil.bounds;
-            Vector3 back = cb.center - ib.center; back.y = 0f;
+            // The spring is a straight coil going up and back from the handle. Its box (measured along the iron:
+            // back, up, side) gives both ends: the rim of each end sticks out of the coil's line by the coil
+            // radius, so the end centres are found from the slope (a few rounds). The hose goes on at the
+            // outer (top, back) end and leaves along the coil.
+            Vector3 cc = coil.bounds.center;
+            Vector3 back = cc - ib.center; back.y = 0f;
             back = back.sqrMagnitude > 1e-6f ? back.normalized : -Forward;
-            float reach = Mathf.Abs(back.x) * cb.extents.x + Mathf.Abs(back.z) * cb.extents.z;
-            end = new Vector3(cb.center.x, cb.max.y - 0.004f, cb.center.z) + back * reach * 0.7f;
-            hoseOut = (back * reach + Vector3.up * cb.size.y).normalized;   // the spring points up and back
-            Debug.Log("[PM] Шланг крепится к пружине утюга: " + coil.name);
+            Vector3 side = Vector3.Cross(Vector3.up, back);
+            Bounds lb = coil.localBounds;
+            float b0 = 99f, b1 = -99f, u0 = 99f, u1 = -99f, s0 = 99f, s1 = -99f;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 k = new Vector3((i & 1) == 0 ? lb.min.x : lb.max.x, (i & 2) == 0 ? lb.min.y : lb.max.y, (i & 4) == 0 ? lb.min.z : lb.max.z);
+                Vector3 w = coil.transform.TransformPoint(k) - cc;
+                float db = Vector3.Dot(w, back), du = w.y, ds = Vector3.Dot(w, side);
+                b0 = Mathf.Min(b0, db); b1 = Mathf.Max(b1, db);
+                u0 = Mathf.Min(u0, du); u1 = Mathf.Max(u1, du);
+                s0 = Mathf.Min(s0, ds); s1 = Mathf.Max(s1, ds);
+            }
+            float rad = Mathf.Clamp((s1 - s0) * 0.5f, 0.004f, 0.03f);
+            Vector2 lo = new Vector2(b0 + rad, u0 + rad), hi = new Vector2(b1 - rad, u1 - rad);
+            for (int k = 0; k < 4; k++)
+            {
+                Vector2 d = hi - lo;
+                if (d.sqrMagnitude < 1e-8f) break;
+                d.Normalize();
+                float pb = rad * Mathf.Abs(d.y), pu = rad * Mathf.Abs(d.x);
+                lo = new Vector2(b0 + pb, u0 + pu);
+                hi = new Vector2(b1 - pb, u1 - pu);
+            }
+            Vector3 sMid = side * ((s0 + s1) * 0.5f);
+            end = cc + back * hi.x + Vector3.up * hi.y + sMid;
+            Vector3 axis = back * (hi.x - lo.x) + Vector3.up * (hi.y - lo.y);
+            hoseOut = axis.sqrMagnitude > 1e-8f ? axis.normalized : (back + Vector3.up).normalized;
+            hoseWidth = Mathf.Clamp(rad * 1.7f, 0.016f, 0.03f);   // a little thinner than the coil: it goes into it
+            Debug.Log("[PM] Шланг крепится к концу пружины утюга: " + coil.name);
         }
         // Hide every static piece of hose that touched the iron (it would stay behind when the iron is lifted).
         foreach (Renderer r in others) { r.enabled = false; Debug.Log("[PM] Шланг модели заменён гибким: " + r.name); }
-        PM_Hose.Create(Table, anchor, Iron.transform, end, hoseOut);
+        PM_Hose.Create(Table, anchor, Iron.transform, end, hoseOut, hoseWidth);
     }
 
     void BuildControls()

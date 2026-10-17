@@ -78,7 +78,9 @@ public class PM_Audio : MonoBehaviour
     public bool PlayVoice(string id)
     {
         voice.Stop();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         AudioClip c = Resources.Load<AudioClip>("PM_Voice/" + id);
+        PM_Diag.Note("загрузка озвучки " + id + " (" + sw.ElapsedMilliseconds + " мс)");
         if (c == null) return false;
         voice.clip = c;
         voice.Play();

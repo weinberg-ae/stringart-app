@@ -188,8 +188,8 @@ public class PM_Game : MonoBehaviour
         practicePanel.SetAccent(PM_Util.Green);
         var items = new List<KeyValuePair<string, Action>>();
         for (int i = 0; i < 5; i++) { int index = i; items.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
-        practicePanel.SetButtonGrid(3, -1, 0.26f, 0.04f, false, items.ToArray());
-        practicePanel.SetButtonGrid(1, -1, 0.3f, -0.3f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
+        practicePanel.SetButtonGrid(3, -1, 0.26f, 0.08f, false, items.ToArray());   // two even rows under the text
+        practicePanel.SetButtonGrid(1, -1, 0.3f, -0.19f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
     }
 
     // Practice with the pressing tools: collar, chest, steaming the dress on the form.
@@ -200,8 +200,8 @@ public class PM_Game : MonoBehaviour
         int[] idx = { 5, 6, 7 };
         var items = new List<KeyValuePair<string, Action>>();
         foreach (int i in idx) { int index = i; items.Add(Btn(PM_Content.PracticeLabels[i], () => StartPractice(index))); }
-        practicePanel.SetButtonGrid(3, -1, 0.28f, 0.04f, false, items.ToArray());
-        practicePanel.SetButtonGrid(1, -1, 0.3f, -0.3f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
+        practicePanel.SetButtonGrid(3, -1, 0.28f, 0.05f, false, items.ToArray());
+        practicePanel.SetButtonGrid(1, -1, 0.3f, -0.12f, true, Btn(PM_Content.BtnBack, ShowPracticeMain));
     }
 
     // "בחירת דמות" above the mirror and "מרכוז מקום" in the circle on the floor (they do not belong to the menu).
@@ -877,6 +877,7 @@ public class PM_Game : MonoBehaviour
     {
         stepIndex = Mathf.Clamp(i, 0, steps.Count - 1);
         PM_Step s = steps[stepIndex];
+        PM_Diag.Note("шаг " + stepIndex);
         stepDone = false;
         fibersBasicDone = false;
         dwell = 0f;
@@ -1119,6 +1120,7 @@ public class PM_Game : MonoBehaviour
     // ---------------- Fabric / ironing ----------------
     void SpawnFabric(PM_FabricType t, int seed)
     {
+        PM_Diag.Note("новая ткань " + t);
         RemoveFabric();
         float lateral = Vector3.Dot(station.PlayerPos - station.BoardCenter, station.Right);
         lateral = Mathf.Clamp(lateral - 0.05f, -0.4f, 0.4f);

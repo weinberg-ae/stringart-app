@@ -51,6 +51,10 @@ public class PM_Iron : MonoBehaviour
     Quaternion grabRotOff, followRot;
     ParticleSystem steam, spit;
     bool spitOn;
+    Vector3 handleLocal;              // the middle of the handle, where the fist goes around it (own space)
+    bool handleKnown, warnedGrip;
+    Bounds grabBounds;
+    int grabBoundsFrame = -1;
     AudioSource steamAudio;
 
     // Builds the iron from model parts. Must be called while the iron lies on its rest.
@@ -229,6 +233,13 @@ public class PM_Iron : MonoBehaviour
         returnT = -1f;
         grabPosOff = holder.InverseTransformPoint(transform.position);
         grabRotOff = Quaternion.Inverse(holder.rotation) * transform.rotation;
+        // The handle slides into the fist (the hand stays where the real hand is; the iron comes to it).
+        Vector3 hole;
+        if (PM_Hand.HomeHole(PM_Clickable.IsLeft(holder), out hole))
+        {
+            Vector3 delta = hole - transform.TransformPoint(HandleLocal());
+            if (delta.magnitude < 0.3f) grabPosOff = holder.InverseTransformPoint(transform.position + delta);
+        }
         followPos = transform.position;
         followRot = transform.rotation;
         PM_Clickable.Haptic(holder, 0.7f, 0.08f);   // "thunk" — first pulse
@@ -271,20 +282,80 @@ public class PM_Iron : MonoBehaviour
         pos = Vector3.zero; rot = Quaternion.identity;
         PM_Iron it = Instance;
         if (it == null || !it.Held || CurrentHolder == null || PM_Clickable.IsLeft(CurrentHolder) != left) return false;
-        Vector3 c = (it.localMin + it.localMax) * 0.5f;
         Vector3 upL = -it.localDown;
-        float top = 0f;
-        for (int i = 0; i < 8; i++)
-        {
-            Vector3 k = new Vector3((i & 1) == 0 ? it.localMin.x : it.localMax.x, (i & 2) == 0 ? it.localMin.y : it.localMax.y, (i & 4) == 0 ? it.localMin.z : it.localMax.z);
-            top = Mathf.Max(top, Vector3.Dot(k - c, upL));
-        }
-        pos = it.transform.TransformPoint(c + upL * (top - 0.03f));
+        pos = it.transform.TransformPoint(it.HandleLocal());
         Vector3 tip = it.transform.TransformDirection(it.tipLocal);
         Vector3 up = it.transform.TransformDirection(upL);
         rot = Quaternion.LookRotation(tip, Vector3.Cross(tip, left ? -up : up));
         return true;
     }
+
+    // Direction of the handle (along the iron, to the tip), world space.
+    public static Vector3 HandleAxis
+    {
+        get { PM_Iron it = Instance; return it != null ? it.transform.TransformDirection(it.tipLocal).normalized : Vector3.forward; }
+    }
+
+    // The handle is the highest long part of the iron (the body is tall, the spring at the back is short);
+    // the fist goes around it a little under its top. Without such a part: the middle, a little under the top.
+    Vector3 HandleLocal()
+    {
+        if (handleKnown) return handleLocal;
+        handleKnown = true;
+        Vector3 up = (-localDown).normalized;
+        Vector3 tip = (tipLocal - Vector3.Dot(tipLocal, up) * up).normalized;
+        if (tip.sqrMagnitude < 0.5f) tip = Vector3.forward;
+        Vector3 side = Vector3.Cross(up, tip);
+        Vector3 c = (localMin + localMax) * 0.5f;
+        float H = 0f, top = -99f;
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 k = new Vector3((i & 1) == 0 ? localMin.x : localMax.x, (i & 2) == 0 ? localMin.y : localMax.y, (i & 4) == 0 ? localMin.z : localMax.z);
+            top = Mathf.Max(top, Vector3.Dot(k - c, up));
+        }
+        H = top * 2f;
+        handleLocal = c + up * (top - 0.03f);
+        MeshRenderer best = null;
+        float bestTop = -99f;
+        Vector3 bestMid = Vector3.zero;
+        float bestDepth = 0f;
+        foreach (MeshRenderer r in GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.name.StartsWith("PM_")) continue;
+            Bounds lb = r.localBounds;
+            float u0 = 99f, u1 = -99f, t0 = 99f, t1 = -99f, s0 = 99f, s1 = -99f;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 k = new Vector3((i & 1) == 0 ? lb.min.x : lb.max.x, (i & 2) == 0 ? lb.min.y : lb.max.y, (i & 4) == 0 ? lb.min.z : lb.max.z);
+                Vector3 l = transform.InverseTransformPoint(r.transform.TransformPoint(k)) - c;
+                float u = Vector3.Dot(l, up), t = Vector3.Dot(l, tip), sd = Vector3.Dot(l, side);
+                u0 = Mathf.Min(u0, u); u1 = Mathf.Max(u1, u);
+                t0 = Mathf.Min(t0, t); t1 = Mathf.Max(t1, t);
+                s0 = Mathf.Min(s0, sd); s1 = Mathf.Max(s1, sd);
+            }
+            if (u1 - u0 > H * 0.6f || t1 - t0 < 0.06f || u1 <= bestTop) continue;
+            best = r; bestTop = u1; bestDepth = u1 - u0;
+            bestMid = c + tip * ((t0 + t1) * 0.5f) + side * ((s0 + s1) * 0.5f);
+        }
+        if (best != null)
+        {
+            handleLocal = bestMid + up * (bestTop - Mathf.Min(0.018f, bestDepth * 0.35f));
+            Debug.Log("[PM] Ручка утюга: деталь " + best.name);
+        }
+        return handleLocal;
+    }
+
+    // Size of the iron for the hand checks (only its solid parts: the steam has no size while it is off).
+    Bounds GrabBounds()
+    {
+        if (grabBoundsFrame != Time.frameCount)
+        {
+            grabBoundsFrame = Time.frameCount;
+            grabBounds = PM_Util.MeshBounds(transform);
+        }
+        return grabBounds;
+    }
+    public bool HandAt(Vector3 p, float dist) { Bounds b = GrabBounds(); return Vector3.Distance(b.ClosestPoint(p), p) < dist; }
 
     // Follow the hand with a slight delay (weight), then keep the sole above the board / fabric.
     void LateUpdate()
@@ -416,13 +487,14 @@ public class PM_Iron : MonoBehaviour
     {
         Vector3 a, b; float r;
         if (!PM_ToonBody.Capsule(out a, out b, out r)) return;
-        for (int pass = 0; pass < 2; pass++)
+        for (int pass = 0; pass < 3; pass++)
         {
             float worst = 0f; Vector3 push = Vector3.zero;
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < 27; i++)   // corners, edge middles, face middles and the centre of the iron's box
             {
-                Vector3 lp = i == 8 ? (localMin + localMax) * 0.5f
-                    : new Vector3((i & 1) == 0 ? localMin.x : localMax.x, (i & 2) == 0 ? localMin.y : localMax.y, (i & 4) == 0 ? localMin.z : localMax.z);
+                Vector3 lp = new Vector3(Mathf.Lerp(localMin.x, localMax.x, (i % 3) * 0.5f),
+                                         Mathf.Lerp(localMin.y, localMax.y, (i / 3 % 3) * 0.5f),
+                                         Mathf.Lerp(localMin.z, localMax.z, (i / 9) * 0.5f));
                 Vector3 p = transform.TransformPoint(lp);
                 Vector3 ab = b - a;
                 float t = Vector3.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f);
@@ -547,7 +619,7 @@ public class PM_Iron : MonoBehaviour
         if (!UnityEngine.XR.XRSettings.isDeviceActive) return;
         if (controllers == null || controllers[0] == null || controllers[1] == null) controllers = FindControllers();
         if (controllers == null) return;
-        Bounds b = PM_Util.WorldBounds(transform);
+        Bounds b = GrabBounds();
         foreach (Transform c in controllers)
             if (c != null && Vector3.Distance(b.ClosestPoint(c.position), c.position) < 0.10f) HandNear = true;   // the hand is at the iron (not just near)
         if (Held) return;
@@ -573,7 +645,8 @@ public class PM_Iron : MonoBehaviour
             }
             if (best == null || grab.interactionManager == null)
             {
-                Debug.LogWarning("[PM] Grip рядом с утюгом, но в руке нет подходящего Interactor — утюг не взят.");
+                if (!warnedGrip) Debug.LogWarning("[PM] Grip рядом с утюгом, но в руке нет подходящего Interactor — утюг не взят.");
+                warnedGrip = true;
                 continue;
             }
             Debug.Log("[PM] Утюг взят рукой через " + best.GetType().Name + " (" + best.name + ")");
@@ -707,8 +780,6 @@ public class PM_NearSelectFilter : UnityEngine.XR.Interaction.Toolkit.Filtering.
                         UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable interactable)
     {
         if (iron.Held) return true;   // keeps a hold that already started (pressing on the board may pull the hand away a bit)
-        Bounds b = PM_Util.WorldBounds(iron.transform);
-        Vector3 p = interactor.transform.position;
-        return Vector3.Distance(b.ClosestPoint(p), p) < 0.18f;
+        return iron.HandAt(interactor.transform.position, 0.18f);
     }
 }

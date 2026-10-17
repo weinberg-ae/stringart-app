@@ -474,6 +474,9 @@ public class PM_Hand : MonoBehaviour
     float grip, trigger;
     SkinnedMeshRenderer smr;
     int gripShape = -1, indexShape = -1;
+    Vector3 fistHole, fistAxis = Vector3.up;   // the hole of the closed fist and its direction (pinky -> index), own space
+    int holdSign;
+    static PM_Hand liveL, liveR;
 
     public static PM_Hand Create(Transform parent, bool left, string key, bool live)
     {
@@ -489,6 +492,7 @@ public class PM_Hand : MonoBehaviour
         h.left = left;
         h.live = live;
         h.Build(d);
+        if (live) { if (left) liveL = h; else liveR = h; }
         return h;
     }
 
@@ -552,7 +556,48 @@ public class PM_Hand : MonoBehaviour
             cr.sharedMaterial = PM_Avatar.ShirtMaterial();
             cr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
+        MeasureFist();
         Pose(0.15f, 0.1f);
+    }
+
+    // Where the closed fist has its hole (the handle goes through it): the middle of the circle the curled
+    // middle and ring fingers make; its direction runs along the knuckles. Measured once on this hand's own bones.
+    void MeasureFist()
+    {
+        fistHole = transform.InverseTransformPoint(transform.parent != null ? transform.parent.position : transform.position);
+        if (bones.Length < 16) return;
+        Pose(1f, 0.55f);
+        Vector3 sum = Vector3.zero;
+        for (int f = 2; f <= 3; f++)
+        {
+            int b = 1 + f * 3;
+            sum += Circumcenter(transform.InverseTransformPoint(bones[b].position), transform.InverseTransformPoint(bones[b + 1].position),
+                                transform.InverseTransformPoint(bones[b + 2].position));
+        }
+        Vector3 hole = sum * 0.5f;
+        Vector3 knuckle = transform.InverseTransformPoint(bones[7].position);
+        float dist = Vector3.Distance(hole, knuckle);
+        if (dist > 0.01f && dist < 0.08f) fistHole = hole;
+        Vector3 ax = transform.InverseTransformPoint(bones[4].position) - transform.InverseTransformPoint(bones[13].position);
+        if (ax.sqrMagnitude > 1e-6f) fistAxis = ax.normalized;
+    }
+
+    static Vector3 Circumcenter(Vector3 a, Vector3 b, Vector3 c)
+    {
+        Vector3 ab = b - a, ac = c - a, n = Vector3.Cross(ab, ac);
+        float d = 2f * n.sqrMagnitude;
+        if (d < 1e-12f) return (a + b + c) / 3f;
+        return a + (Vector3.Cross(n, ab) * ac.sqrMagnitude + Vector3.Cross(ac, n) * ab.sqrMagnitude) / d;
+    }
+
+    // Where the fist hole of this side's hand is when the hand is just on the controller (world space).
+    public static bool HomeHole(bool left, out Vector3 world)
+    {
+        PM_Hand h = left ? liveL : liveR;
+        world = Vector3.zero;
+        if (h == null || !h.isActiveAndEnabled || h.transform.parent == null) return false;
+        world = h.transform.parent.TransformPoint(h.home + Vector3.Scale(h.transform.localScale, h.fistHole));
+        return true;
     }
 
     // g = grip (middle, ring, pinky, thumb), t = trigger (index finger). 0 = open, 1 = fist.
@@ -604,13 +649,20 @@ public class PM_Hand : MonoBehaviour
         Vector3 p; Quaternion r;
         if (PM_Iron.HandleGrip(left, out p, out r))
         {
-            // On the handle, but turned exactly like the player's real hand (never flipped around).
+            // The fist closes around the handle: turned like the player's real hand, then only as much as needed
+            // to lay the knuckles along the handle (the side chosen when taking it stays: it never flips around).
             if (transform.parent != null) r = transform.parent.rotation;
             transform.rotation = r;
-            transform.position = p + r * home;
+            Vector3 ax = transform.TransformDirection(fistAxis).normalized;
+            Vector3 h = PM_Iron.HandleAxis;
+            if (holdSign == 0) holdSign = Vector3.Dot(ax, h) >= 0f ? 1 : -1;
+            transform.rotation = Quaternion.FromToRotation(ax, h * holdSign) * r;
+            transform.position = p;
+            transform.position += p - transform.TransformPoint(fistHole);
         }
         else
         {
+            holdSign = 0;
             transform.localPosition = home;
             transform.localRotation = Quaternion.identity;
         }

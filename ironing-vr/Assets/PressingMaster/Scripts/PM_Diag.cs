@@ -7,11 +7,38 @@ using UnityEngine.Rendering.Universal;
 //    into a huge white disc with black specks in the middle.
 // 2) Diagnostics (yellow lines "[PM диагностика]" in the Console, 5 and 15 s after Play): which object has
 //    broken numbers (NaN / infinity) in its position, mesh, line or material, plus what is next to the camera.
+// 3) Stops: every frame longer than 0.15 s gets a yellow line "ЗАМИНКА" with its length, whether the memory
+//    cleaner (garbage collection) ran, what the game had just done (window, narration...) and whether the
+//    Unity window had the focus.
 public class PM_Diag : MonoBehaviour
 {
     readonly float[] at = { 5f, 15f };
     int next;
     float nextGuard;
+    int gcWas = -1, hitches;
+    static string lastWhat = "";
+    static float lastAt = -10f;
+
+    // The game tells what it is doing (shown with a stop that comes right after it).
+    public static void Note(string what)
+    {
+        lastWhat = what;
+        lastAt = Time.realtimeSinceStartup;
+    }
+
+    void CheckHitch()
+    {
+        float dt = Time.unscaledDeltaTime;
+        int gc = System.GC.CollectionCount(0);
+        bool gcRan = gcWas >= 0 && gc != gcWas;
+        gcWas = gc;
+        if (dt < 0.15f || Time.frameCount < 200 || hitches >= 60) return;
+        hitches++;
+        string before = Time.realtimeSinceStartup - lastAt < dt + 0.2f ? lastWhat : "—";
+        Debug.LogWarning("[PM диагностика] ЗАМИНКА " + (dt * 1000f).ToString("0") + " мс | сборка мусора: " + (gcRan ? "да" : "нет")
+                         + " | перед этим: " + before + " | окно Unity в фокусе: " + (Application.isFocused ? "да" : "НЕТ")
+                         + " | память скриптов: " + (System.GC.GetTotalMemory(false) / 1048576) + " МБ");
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot()
@@ -23,6 +50,7 @@ public class PM_Diag : MonoBehaviour
 
     void Update()
     {
+        CheckHitch();
         if (Time.unscaledTime > nextGuard)
         {
             nextGuard = Time.unscaledTime + 0.5f;

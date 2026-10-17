@@ -222,6 +222,7 @@ public class PM_Panel : MonoBehaviour
 
     public void SetContent(string titleText, string bodyText, string counterText)
     {
+        PM_Diag.Note("окно " + name);
         title.text = PM_Hebrew.Visual(titleText, titleChars);
         rawBody = bodyText;
         RenderBody();
